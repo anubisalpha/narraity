@@ -78,7 +78,7 @@ void main() {
     expect(find.text('No projects yet'), findsOneWidget);
   });
 
-  testWidgets('Theme menu offers System/Light/Dark', (tester) async {
+  testWidgets('Settings > Appearance switches theme mode', (tester) async {
     final container = ProviderContainer(
       overrides: [
         libraryServiceProvider.overrideWithValue(LibraryService(rootOverride: tempDir)),
@@ -92,12 +92,11 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byIcon(Icons.brightness_auto));
+    await tester.tap(find.widgetWithIcon(IconButton, Icons.settings_outlined));
     await tester.pumpAndSettle();
 
-    expect(find.text('System'), findsOneWidget);
-    expect(find.text('Light'), findsOneWidget);
-    expect(find.text('Dark'), findsOneWidget);
+    expect(find.text('Appearance'), findsWidgets);
+    expect(find.byType(SegmentedButton<ThemeMode>), findsOneWidget);
 
     await tester.tap(find.text('Dark'));
     await tester.pumpAndSettle();

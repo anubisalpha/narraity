@@ -1,14 +1,19 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:path/path.dart' as p;
 
 import '../models/project.dart';
+import '../services/manuscript_service.dart';
 import '../state/library_provider.dart';
 import '../state/manuscript_provider.dart';
-import '../state/theme_provider.dart';
 import '../widgets/new_project_dialog.dart';
 import '../widgets/quick_capture_dialog.dart';
+import 'app_goals_screen.dart';
 import 'ideas_screen.dart';
+import 'settings_screen.dart';
 
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
@@ -16,7 +21,6 @@ class LibraryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final projectsAsync = ref.watch(projectListProvider);
-    final themeMode = ref.watch(themeModeProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -34,19 +38,19 @@ class LibraryScreen extends ConsumerWidget {
               MaterialPageRoute(builder: (_) => const IdeasScreen()),
             ),
           ),
-          PopupMenuButton<ThemeMode>(
-            tooltip: 'Theme',
-            icon: Icon(switch (themeMode) {
-              ThemeMode.light => Icons.light_mode,
-              ThemeMode.dark => Icons.dark_mode,
-              ThemeMode.system => Icons.brightness_auto,
-            }),
-            onSelected: (mode) => ref.read(themeModeProvider.notifier).setThemeMode(mode),
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: ThemeMode.system, child: Text('System')),
-              PopupMenuItem(value: ThemeMode.light, child: Text('Light')),
-              PopupMenuItem(value: ThemeMode.dark, child: Text('Dark')),
-            ],
+          IconButton(
+            tooltip: 'App-Wide Goals',
+            icon: const Icon(Icons.flag_circle_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AppGoalsScreen()),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Settings',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
           ),
           const SizedBox(width: 8),
         ],
@@ -72,6 +76,16 @@ class LibraryScreen extends ConsumerWidget {
 
     final service = ref.read(libraryServiceProvider);
     final project = await service.createProject(title: result.title, author: result.author);
+
+    // Seed the manuscript with the chosen starting structure right away —
+    // loadStructure() only auto-seeds (with the Act>Chapter>Scene default)
+    // if nothing exists yet, so doing it here explicitly is what makes the
+    // structure picker actually take effect.
+    final root = await service.libraryRoot();
+    final manuscriptService =
+        ManuscriptService(Directory(p.join(root.path, project.folderName)));
+    await manuscriptService.loadStructure(seed: result.seed);
+
     ref.invalidate(projectListProvider);
     ref.read(openContentIdProvider.notifier).state = null;
     ref.read(currentProjectProvider.notifier).state = project;

@@ -1,16 +1,120 @@
-# narraity
+# Narraity
 
-Local-first novel writing app with Reference Panel, Adaptive Goal Engine, and Google Drive sync.
+A local-first novel writing app built with Flutter, for writers who want to own their manuscript
+files, skip the subscription, and get more real writing tools than a blank page.
 
-## Getting Started
+Built as an alternative to Dabble: same core workflow, no cloud lock-in, no monthly fee, and a
+handful of features Dabble doesn't have (below).
 
-This project is a starting point for a Flutter application.
+## Why this exists
 
-A few resources to get you started if this is your first Flutter project:
+- **You own the files.** Every project is plain JSON + Markdown on your own disk — human-readable,
+  diffable, recoverable without the app. No proprietary format, no vendor lock-in.
+- **No subscription.** One-time build, sync (when it lands) uses your own free Google Drive quota
+  instead of a paid backend.
+- **Offline-first.** Writing, dictation, and history all work with no internet connection.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Platforms
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+v1 targets **Windows desktop and Android**. macOS, iOS, and Linux are architected for (the stack
+is portable) but not built or shipped yet — see the Cross-Platform Roadmap in `PLAN.md` for the
+full breakdown and what changes per platform when that day comes.
+
+## Features
+
+### Project & library management
+- Local, file-based project library (`Documents/Narraity/`) — create, open, browse projects
+- Dark / light / system theme
+- Settings screen with a side-nav structure ready to grow (Appearance, Editor, Dictation now;
+  Spell Check, Google Drive Sync, Export slotted in as later phases land)
+
+### Global Ideas
+- Quick-capture space for ideas outside any single project, reachable from anywhere in the app
+- Search and tag filtering
+- Promote an idea straight into a new project, or attach it as a story note on an existing one —
+  ideas are marked "used," never deleted, so the origin trail stays intact
+
+### Manuscript editor
+- Act → Chapter → Scene tree with drag-to-reorder scenes, add/delete at every level
+- Prologue / Epilogue / Dedication / Author's Note as first-class front/back matter
+- Debounced autosaving Markdown editor (title + front-matter + prose per scene)
+- Formatting toolbar (bold, italic, strikethrough, scene break, block quote, heading)
+- Undo/redo, Find & Replace, live word count
+- Focus Mode — hides all chrome, Esc to exit
+- Adjustable writing font, size, and line spacing (separate from export formatting)
+- Per-project to-do list, optionally linked to a scene
+
+### Voice dictation (offline)
+- Windows: a hand-written Dart FFI binding straight to the real Vosk engine (`libvosk.dll`,
+  vendored — see "Why not a Vosk plugin?" below)
+- Android: native on-device `SpeechRecognizer`, auto-restarted across the OS's silence timeout to
+  approximate continuous dictation
+- Spoken punctuation commands: "comma," "full stop"/"period," "question mark," "exclamation
+  mark/point," "new line," "new paragraph"
+- Language + accuracy picker (English UK/US, Small ~40MB / Large ~124–281MB depending on
+  language), resolved against Vosk's *live* model catalog rather than a hardcoded version
+- Full model management in Settings: download, re-download, delete, see what's on disk
+
+### Adaptive Goal Engine
+- Goals scoped to a whole project, a single act, or a single scene
+- **App-wide goals too** — track a target across every project, or just the ones you pick
+- Daily word-count target recalculates automatically from your *actual* progress: miss a day and
+  tomorrow's target rises to compensate; get ahead and it eases off — no separate "redistribute"
+  step, it falls straight out of recomputing `remaining words ÷ remaining working days` fresh
+  every day
+- Working calendar: mark recurring days off (e.g. weekends)
+- Starting word count auto-detected from the existing manuscript, so goals never double-count
+- Progress rings (today vs. overall), a 30-day activity heatmap, goal setup wizard with a live
+  preview of the resulting daily target
+
+### Version History
+- Automatic snapshots on save (after ~30s idle or ~300 words changed, whichever comes first),
+  scoped per scene
+- Named checkpoints ("Save Checkpoint") that are never pruned
+- Snapshots are stored as diffs against the previous version (via `diff_match_patch`), not full
+  copies — the history stays lightweight even over a long project
+- Pruning policy thins old auto-snapshots over time (all of the last 48h kept, then hourly → daily
+  → weekly) while preserving the ability to reconstruct any surviving point exactly, and *never*
+  prunes the single most recent snapshot or any checkpoint
+- Per-scene History screen: timeline, word-count sparkline, diff view between any two points,
+  one-click restore — restoring creates a *new* history entry rather than overwriting, so the
+  restore itself is undoable
+
+## Tech stack
+
+- **Flutter** + **Riverpod** for state
+- **Local file storage** — JSON + Markdown, no embedded database
+- **`diff_match_patch`** for Version History's diff/patch storage
+- **`record`** (cross-platform mic capture) + a hand-written FFI binding for Windows dictation
+- **`speech_to_text`** for Android dictation
+- No servers, no accounts, no telemetry — everything above runs entirely on-device
+
+## Why not a Vosk Flutter plugin?
+
+The only published `vosk_flutter_service` release has a build-breaking bug on Windows (its own
+install script extracts the native DLL one folder deeper than its build script expects, and its
+`CMakeLists.txt` also runs a stale command left over from a package rename). Rather than depend on
+an unmaintained single-contributor package with that baked in, the real `libvosk.dll` — Apache
+2.0, from the same upstream release — is vendored directly at `windows/vosk/`, with a ~150-line
+hand-written FFI binding (`lib/services/vosk_ffi.dart`) covering the handful of functions actually
+needed. Full writeup in that file's doc comment.
+
+## Getting started (development)
+
+```bash
+flutter pub get
+flutter run -d windows      # or -d <android-device-id>
+```
+
+Windows builds need the vendored DLLs in `windows/vosk/` (already checked in) — no extra install
+step required, unlike the plugin this replaces.
+
+Run the test suite:
+
+```bash
+flutter test
+```
+
+See `BUILD_LOG.md` for a phase-by-phase record of what's been built, and
+`../../projects/Narraity/PLAN.md` for the full project plan (all phases, including ones not built
+yet).

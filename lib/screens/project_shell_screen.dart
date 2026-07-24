@@ -11,6 +11,7 @@ import '../widgets/manuscript_tree.dart';
 import '../widgets/quick_capture_dialog.dart';
 import '../widgets/scene_editor.dart';
 import '../widgets/todo_panel.dart';
+import 'goals_screen.dart';
 
 /// The open-project shell: manuscript tree + to-dos in a sidebar, the scene
 /// editor as the main pane, and Focus Mode that collapses everything but the
@@ -42,6 +43,13 @@ class ProjectShellScreen extends ConsumerWidget {
                   tooltip: 'New Idea',
                   icon: const Icon(Icons.lightbulb_outline),
                   onPressed: () => showQuickCaptureDialog(context, ref),
+                ),
+                IconButton(
+                  tooltip: 'Goals',
+                  icon: const Icon(Icons.flag_outlined),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => GoalsScreen(project: project)),
+                  ),
                 ),
                 IconButton(
                   tooltip: 'Editor settings',
@@ -108,6 +116,7 @@ class ProjectShellScreen extends ConsumerWidget {
                   child: openId == null
                       ? const Center(child: Text('Select a scene to start writing'))
                       : SceneEditor(
+                          project: project,
                           service: service,
                           contentId: openId,
                           fallbackTitle: _titleFor(structure, openId),
@@ -125,14 +134,16 @@ class ProjectShellScreen extends ConsumerWidget {
     for (final section in [...structure.frontMatter, ...structure.backMatter]) {
       if (section.id == id) return section.title;
     }
-    for (final act in structure.acts) {
-      for (final chapter in act.chapters) {
-        for (final scene in chapter.scenes) {
-          if (scene.id == id) return scene.title;
-        }
+    String? search(List<ManuscriptNode> nodes) {
+      for (final node in nodes) {
+        if (node.id == id) return node.title;
+        final found = search(node.children);
+        if (found != null) return found;
       }
+      return null;
     }
-    return 'Untitled';
+
+    return search(structure.nodes) ?? 'Untitled';
   }
 }
 

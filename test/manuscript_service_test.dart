@@ -18,17 +18,19 @@ void main() {
   test('loadStructure seeds Act 1 / Chapter 1 / Scene 1 on first open', () async {
     final structure = await service.loadStructure();
 
-    expect(structure.acts, hasLength(1));
-    expect(structure.acts.first.title, 'Act 1');
-    expect(structure.acts.first.chapters.single.scenes, hasLength(1));
+    expect(structure.nodes, hasLength(1));
+    final act = structure.nodes.first;
+    expect(act.title, 'Act 1');
+    final chapter = act.children.single;
+    expect(chapter.children, hasLength(1));
 
     // The starter scene's file exists on disk too.
-    final sceneId = structure.acts.first.chapters.single.scenes.single.id;
+    final sceneId = chapter.children.single.id;
     expect(File('${tempDir.path}/manuscript/scenes/$sceneId.md').existsSync(), isTrue);
 
     // Reload gives the same structure back, not a new seed.
     final reloaded = await service.loadStructure();
-    expect(reloaded.acts.single.chapters.single.scenes.single.id, sceneId);
+    expect(reloaded.nodes.single.children.single.children.single.id, sceneId);
   });
 
   test('scene content round-trips through front-matter markdown', () async {
@@ -47,18 +49,21 @@ void main() {
     expect(read.wordCount, 6);
   });
 
-  test('addScene/addChapter/addAct extend the structure and persist', () async {
+  test('addNode extends the structure at any depth and persists', () async {
     final structure = await service.loadStructure();
-    final act = structure.acts.first;
+    final act = structure.nodes.first;
+    final chapter = act.children.first;
 
-    await service.addChapter(structure, act);
-    final scene = await service.addScene(structure, act.chapters[1]);
-    await service.addAct(structure);
+    final chapter2 = await service.addNode(structure, typeLabel: 'Chapter', parent: act);
+    final scene =
+        await service.addNode(structure, typeLabel: 'Scene', parent: chapter2);
+    await service.addNode(structure, typeLabel: 'Act');
 
     final reloaded = await service.loadStructure();
-    expect(reloaded.acts, hasLength(2));
-    expect(reloaded.acts.first.chapters, hasLength(2));
-    expect(reloaded.acts.first.chapters[1].scenes.single.id, scene.id);
+    expect(reloaded.nodes, hasLength(2));
+    expect(reloaded.nodes.first.children, hasLength(2));
+    expect(reloaded.nodes.first.children[1].children.single.id, scene.id);
+    expect(chapter.title, 'Chapter 1');
   });
 
   test('special sections land in the right matter list and get files', () async {
@@ -82,29 +87,29 @@ void main() {
     expect(reloaded.allContentIds.last, epilogue.id);
   });
 
-  test('reorderScene moves a scene within its chapter and persists', () async {
+  test('reorderNode moves a child within its parent and persists', () async {
     final structure = await service.loadStructure();
-    final chapter = structure.acts.first.chapters.first;
-    final first = chapter.scenes.first;
-    await service.addScene(structure, chapter);
-    final second = chapter.scenes[1];
+    final chapter = structure.nodes.first.children.first;
+    final first = chapter.children.first;
+    await service.addNode(structure, typeLabel: 'Scene', parent: chapter);
+    final second = chapter.children[1];
 
-    await service.reorderScene(structure, chapter, 0, 2);
+    await service.reorderNode(structure, chapter, 0, 2);
 
     final reloaded = await service.loadStructure();
-    final scenes = reloaded.acts.first.chapters.first.scenes;
+    final scenes = reloaded.nodes.first.children.first.children;
     expect(scenes.map((s) => s.id), [second.id, first.id]);
   });
 
-  test('deleteScene removes both the ref and the file', () async {
+  test('deleteNode removes both the node and its file', () async {
     final structure = await service.loadStructure();
-    final chapter = structure.acts.first.chapters.first;
-    final scene = chapter.scenes.first;
+    final chapter = structure.nodes.first.children.first;
+    final scene = chapter.children.first;
 
-    await service.deleteScene(structure, chapter, scene);
+    await service.deleteNode(structure, scene);
 
     final reloaded = await service.loadStructure();
-    expect(reloaded.acts.first.chapters.first.scenes, isEmpty);
+    expect(reloaded.nodes.first.children.first.children, isEmpty);
     expect(
       File('${tempDir.path}/manuscript/scenes/${scene.id}.md').existsSync(),
       isFalse,
@@ -113,7 +118,7 @@ void main() {
 
   test('totalWordCount sums scenes and special sections', () async {
     final structure = await service.loadStructure();
-    final sceneId = structure.acts.first.chapters.first.scenes.first.id;
+    final sceneId = structure.nodes.first.children.first.children.first.id;
     await service.writeScene(
         SceneDoc(id: sceneId, title: 'S1', content: 'one two three'));
     final prologue =

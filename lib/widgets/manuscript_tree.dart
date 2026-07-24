@@ -3,11 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/manuscript.dart';
 import '../models/project.dart';
+import '../screens/section_overview_screen.dart';
 import '../services/manuscript_service.dart';
 import '../state/manuscript_provider.dart';
 
-/// Sidebar tree: front matter, acts > chapters > scenes (drag-reorder within
-/// a chapter), back matter. Selecting an item opens it in the editor.
+/// Sidebar tree: front matter, then a generic arbitrary-depth node tree
+/// (drag-reorder within any level), then back matter. Every node — at any
+/// depth — can have children added under it with a freeform label
+/// ("Chapter", "Act", "Book", ...), so the tree isn't locked to any fixed
+/// shape once the project exists; see manuscript_seeds.dart for the
+/// one-click starting shapes offered at project creation.
 class ManuscriptTree extends ConsumerWidget {
   const ManuscriptTree({
     super.key,
@@ -20,8 +25,7 @@ class ManuscriptTree extends ConsumerWidget {
   final ManuscriptService service;
   final ManuscriptStructure structure;
 
-  void _refresh(WidgetRef ref) =>
-      ref.invalidate(manuscriptStructureProvider(project));
+  void _refresh(WidgetRef ref) => ref.invalidate(manuscriptStructureProvider(project));
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -42,32 +46,13 @@ class ManuscriptTree extends ConsumerWidget {
               _refresh(ref);
             },
           ),
-        for (final act in structure.acts)
-          ExpansionTile(
-            key: PageStorageKey('act-${act.id}'),
-            initiallyExpanded: true,
-            title: Text(act.title, style: Theme.of(context).textTheme.titleSmall),
-            trailing: PopupMenuButton<String>(
-              onSelected: (action) async {
-                if (action == 'addChapter') {
-                  await service.addChapter(structure, act);
-                  _refresh(ref);
-                }
-              },
-              itemBuilder: (context) => const [
-                PopupMenuItem(value: 'addChapter', child: Text('Add chapter')),
-              ],
-            ),
-            children: [
-              for (final chapter in act.chapters)
-                _ChapterTile(
-                  project: project,
-                  service: service,
-                  structure: structure,
-                  chapter: chapter,
-                ),
-            ],
-          ),
+        _NodeList(
+          project: project,
+          service: service,
+          structure: structure,
+          parent: null,
+          nodes: structure.nodes,
+        ),
         for (final section in structure.backMatter)
           _SectionTile(
             section: section,
@@ -88,9 +73,16 @@ class ManuscriptTree extends ConsumerWidget {
             children: [
               TextButton.icon(
                 icon: const Icon(Icons.add, size: 18),
-                label: const Text('Act'),
+                label: const Text('Section'),
                 onPressed: () async {
-                  await service.addAct(structure);
+                  final label = await _showAddChildDialog(context);
+                  if (label == null) return;
+                  final node = await service.addNode(
+                    structure,
+                    typeLabel: label,
+                    parent: null,
+                  );
+                  ref.read(openContentIdProvider.notifier).state = node.id;
                   _refresh(ref);
                 },
               ),
@@ -147,87 +139,199 @@ class _SectionTile extends ConsumerWidget {
   }
 }
 
-class _ChapterTile extends ConsumerWidget {
-  const _ChapterTile({
+/// A reorderable list of sibling nodes — used both for the top level and
+/// for any container's children, so the same drag-reorder logic works at
+/// every depth.
+class _NodeList extends ConsumerWidget {
+  const _NodeList({
     required this.project,
     required this.service,
     required this.structure,
-    required this.chapter,
+    required this.parent,
+    required this.nodes,
   });
 
   final Project project;
   final ManuscriptService service;
   final ManuscriptStructure structure;
-  final ChapterNode chapter;
+  final ManuscriptNode? parent;
+  final List<ManuscriptNode> nodes;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final openId = ref.watch(openContentIdProvider);
+    return ReorderableListView.builder(
+      // Explicit key required: without one, a nested list's PageStorage slot
+      // can collide with an ancestor ExpansionTile's (which stores a bool
+      // for expanded state), causing "bool is not a subtype of double?" when
+      // this list tries to restore a scroll offset.
+      key: PageStorageKey('nodes-${parent?.id ?? 'root'}'),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      buildDefaultDragHandles: false,
+      itemCount: nodes.length,
+      onReorder: (oldIndex, newIndex) async {
+        await service.reorderNode(structure, parent, oldIndex, newIndex);
+        ref.invalidate(manuscriptStructureProvider(project));
+      },
+      itemBuilder: (context, index) {
+        final node = nodes[index];
+        return ReorderableDragStartListener(
+          key: ValueKey(node.id),
+          index: index,
+          child: _NodeTile(
+            project: project,
+            service: service,
+            structure: structure,
+            node: node,
+          ),
+        );
+      },
+    );
+  }
+}
 
-    return ExpansionTile(
-      key: PageStorageKey('chapter-${chapter.id}'),
-      initiallyExpanded: true,
-      tilePadding: const EdgeInsets.only(left: 16, right: 8),
-      title: Text(chapter.title),
-      trailing: PopupMenuButton<String>(
-        onSelected: (action) async {
-          if (action == 'addScene') {
-            final scene = await service.addScene(structure, chapter);
-            ref.read(openContentIdProvider.notifier).state = scene.id;
-            ref.invalidate(manuscriptStructureProvider(project));
-          }
-        },
-        itemBuilder: (context) => const [
-          PopupMenuItem(value: 'addScene', child: Text('Add scene')),
-        ],
-      ),
+/// A node's row: tapping it opens its own prose in the editor, regardless of
+/// whether it also has subsections. The expand/collapse chevron (present
+/// only once it has children) reveals those subsections underneath without
+/// affecting the tap-to-open behavior — writing and organizing are
+/// independent actions on the same node.
+class _NodeTile extends ConsumerStatefulWidget {
+  const _NodeTile({
+    required this.project,
+    required this.service,
+    required this.structure,
+    required this.node,
+  });
+
+  final Project project;
+  final ManuscriptService service;
+  final ManuscriptStructure structure;
+  final ManuscriptNode node;
+
+  @override
+  ConsumerState<_NodeTile> createState() => _NodeTileState();
+}
+
+class _NodeTileState extends ConsumerState<_NodeTile> {
+  bool _expanded = true;
+
+  void _refresh() => ref.invalidate(manuscriptStructureProvider(widget.project));
+
+  Future<void> _delete(String? openId) async {
+    await widget.service.deleteNode(widget.structure, widget.node);
+    if (widget.node.contentIds.contains(openId)) {
+      ref.read(openContentIdProvider.notifier).state = null;
+    }
+    _refresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final node = widget.node;
+    final openId = ref.watch(openContentIdProvider);
+    final hasChildren = node.children.isNotEmpty;
+    final itemCount = ManuscriptStructure.contentCount(node);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ReorderableListView.builder(
-          // Explicit key required: without one, this nested list's PageStorage
-          // slot can collide with the parent ExpansionTile's (which stores a
-          // bool for expanded state), causing "bool is not a subtype of
-          // double?" when this list tries to restore a scroll offset.
-          key: PageStorageKey('scenes-${chapter.id}'),
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          buildDefaultDragHandles: false,
-          itemCount: chapter.scenes.length,
-          onReorder: (oldIndex, newIndex) async {
-            await service.reorderScene(structure, chapter, oldIndex, newIndex);
-            ref.invalidate(manuscriptStructureProvider(project));
-          },
-          itemBuilder: (context, index) {
-            final scene = chapter.scenes[index];
-            return ReorderableDragStartListener(
-              key: ValueKey(scene.id),
-              index: index,
-              child: ListTile(
-                dense: true,
-                selected: scene.id == openId,
-                contentPadding: const EdgeInsets.only(left: 32, right: 8),
-                leading: const Icon(Icons.description_outlined, size: 18),
-                title: Text(scene.title, overflow: TextOverflow.ellipsis),
-                onTap: () =>
-                    ref.read(openContentIdProvider.notifier).state = scene.id,
-                trailing: PopupMenuButton<String>(
-                  onSelected: (action) async {
-                    if (action == 'delete') {
-                      await service.deleteScene(structure, chapter, scene);
-                      if (scene.id == openId) {
-                        ref.read(openContentIdProvider.notifier).state = null;
-                      }
-                      ref.invalidate(manuscriptStructureProvider(project));
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'delete', child: Text('Delete')),
-                  ],
-                ),
-              ),
-            );
-          },
+        ListTile(
+          dense: true,
+          selected: node.id == openId,
+          leading: hasChildren
+              ? IconButton(
+                  icon: Icon(_expanded ? Icons.expand_more : Icons.chevron_right),
+                  tooltip: _expanded ? 'Collapse' : 'Expand',
+                  onPressed: () => setState(() => _expanded = !_expanded),
+                )
+              : const Icon(Icons.description_outlined, size: 18),
+          title: Text(node.title, overflow: TextOverflow.ellipsis),
+          subtitle: Text(
+            hasChildren
+                ? '${node.typeLabel} · $itemCount ${itemCount == 1 ? 'item' : 'items'}'
+                : node.typeLabel,
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+          onTap: () => ref.read(openContentIdProvider.notifier).state = node.id,
+          trailing: PopupMenuButton<String>(
+            onSelected: (action) async {
+              switch (action) {
+                case 'addChild':
+                  final label = await _showAddChildDialog(context);
+                  if (label == null) return;
+                  await widget.service
+                      .addNode(widget.structure, typeLabel: label, parent: node);
+                  setState(() => _expanded = true);
+                  _refresh();
+                case 'overview':
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          SectionOverviewScreen(service: widget.service, node: node),
+                    ),
+                  );
+                case 'delete':
+                  await _delete(openId);
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'addChild', child: Text('Add subsection here')),
+              if (hasChildren)
+                const PopupMenuItem(
+                    value: 'overview', child: Text('View everything in this section')),
+              const PopupMenuItem(value: 'delete', child: Text('Delete')),
+            ],
+          ),
         ),
+        if (hasChildren && _expanded)
+          Padding(
+            padding: const EdgeInsets.only(left: 16),
+            child: _NodeList(
+              project: widget.project,
+              service: widget.service,
+              structure: widget.structure,
+              parent: node,
+              nodes: node.children,
+            ),
+          ),
       ],
     );
   }
+}
+
+/// Prompts for a freeform type label ("Chapter", "Act", "Book", "Scene",
+/// ...) for a new node. Returns null if cancelled. Every node can hold
+/// prose and have subsections at once, so there's no "container vs. leaf"
+/// choice to make here.
+Future<String?> _showAddChildDialog(BuildContext context) {
+  final labelController = TextEditingController(text: 'Chapter');
+
+  return showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Add Section'),
+      content: TextField(
+        controller: labelController,
+        autofocus: true,
+        decoration: const InputDecoration(
+          labelText: 'What is this?',
+          hintText: 'Chapter, Act, Book, Part, Scene…',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final label = labelController.text.trim();
+            if (label.isEmpty) return;
+            Navigator.of(context).pop(label);
+          },
+          child: const Text('Add'),
+        ),
+      ],
+    ),
+  );
 }

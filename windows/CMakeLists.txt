@@ -87,6 +87,16 @@ if(PLUGIN_BUNDLED_LIBRARIES)
     COMPONENT Runtime)
 endif()
 
+# Vosk (offline speech recognition, Phase 1.3 dictation) — vendored directly
+# rather than via the vosk_flutter_service plugin package, whose Windows
+# CMake integration is broken in its only published release. See
+# lib/services/vosk_ffi.dart for the full explanation.
+file(GLOB VOSK_BUNDLED_LIBRARIES CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/vosk/*.dll")
+install(FILES ${VOSK_BUNDLED_LIBRARIES}
+  DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
+
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")
 install(DIRECTORY "${NATIVE_ASSETS_DIR}"

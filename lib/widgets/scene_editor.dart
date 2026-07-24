@@ -4,21 +4,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/manuscript.dart';
+import '../models/project.dart';
+import '../screens/scene_history_screen.dart';
+import '../services/dictation_engine.dart';
 import '../services/manuscript_service.dart';
+import '../services/voice_command_processor.dart';
+import '../state/dictation_provider.dart';
 import '../state/editor_settings_provider.dart';
 import '../state/manuscript_provider.dart';
+import '../state/scene_history_provider.dart';
+import 'dictation_model_dialog.dart';
 
 /// The writing surface for one scene/section: markdown-backed text editor
 /// with autosave (debounced), formatting toolbar, find & replace, undo/redo,
-/// live word count, and Focus Mode toggle.
+/// live word count, Version History, and Focus Mode toggle.
 class SceneEditor extends ConsumerStatefulWidget {
   const SceneEditor({
     super.key,
+    required this.project,
     required this.service,
     required this.contentId,
     required this.fallbackTitle,
   });
 
+  final Project project;
   final ManuscriptService service;
   final String contentId;
   final String fallbackTitle;
@@ -37,6 +46,14 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
   Timer? _saveDebounce;
   bool _dirty = false;
   int _wordCount = 0;
+
+  Timer? _snapshotDebounce;
+  int _wordsAtLastSnapshot = 0;
+
+  DictationEngine? _dictationEngine;
+  bool _isDictating = false;
+  bool _dictationBusy = false;
+  List<(int start, int end)> _unreviewed = [];
 
   @override
   void initState() {
@@ -65,6 +82,7 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
       _doc = doc;
       _dirty = false;
       _wordCount = doc.wordCount;
+      _wordsAtLastSnapshot = doc.wordCount;
     });
     // Setting .text fires the change listener; reset dirty afterwards.
     _controller.text = doc.content;
@@ -79,6 +97,23 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     if (count != _wordCount) setState(() => _wordCount = count);
     _saveDebounce?.cancel();
     _saveDebounce = Timer(const Duration(seconds: 1), _flushSave);
+
+    // PLAN.md: auto snapshot after ~30s of no typing, or ~300 words
+    // changed, whichever comes first.
+    if ((count - _wordsAtLastSnapshot).abs() >= 300) {
+      _snapshotDebounce?.cancel();
+      _recordAutoSnapshot();
+    } else {
+      _snapshotDebounce?.cancel();
+      _snapshotDebounce = Timer(const Duration(seconds: 30), _recordAutoSnapshot);
+    }
+  }
+
+  Future<void> _recordAutoSnapshot() async {
+    final history = await ref.read(sceneHistoryServiceProvider(widget.project).future);
+    await history.recordAutoSnapshot(widget.contentId, _controller.text);
+    if (!mounted) return;
+    _wordsAtLastSnapshot = _countWords(_controller.text);
   }
 
   int _countWords(String text) {
@@ -102,11 +137,104 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
   void dispose() {
     _flushSave();
     _saveDebounce?.cancel();
+    _snapshotDebounce?.cancel();
+    _dictationEngine?.dispose();
     _controller.dispose();
     _titleController.dispose();
     _undoController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  // ---- dictation -------------------------------------------------------
+
+  Future<void> _toggleDictation() async {
+    if (_dictationBusy) return;
+    if (_isDictating) {
+      await _stopDictation();
+      return;
+    }
+
+    setState(() => _dictationBusy = true);
+    try {
+      final ready = await ensureDictationModelReady(context, ref);
+      if (!ready) return;
+
+      _dictationEngine ??= await ref.read(dictationEngineProvider.future);
+      await _dictationEngine!.start(_handleDictationResult);
+      if (!mounted) return;
+      setState(() => _isDictating = true);
+      ref.read(isDictatingProvider.notifier).state = true;
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Dictation failed: $error')));
+      }
+    } finally {
+      if (mounted) setState(() => _dictationBusy = false);
+    }
+  }
+
+  Future<void> _stopDictation() async {
+    await _dictationEngine?.stop();
+    if (!mounted) return;
+    setState(() => _isDictating = false);
+    ref.read(isDictatingProvider.notifier).state = false;
+  }
+
+  /// Only final (endpointed) chunks are inserted — partial/in-progress
+  /// speech is shown by the engines for future use but not committed to the
+  /// document, since a plain `TextField` has no clean way to show
+  /// uncommitted preview text without it looking like a real edit.
+  void _handleDictationResult(DictationResult result) {
+    if (!result.isFinal || result.text.isEmpty) return;
+
+    final processed = VoiceCommandProcessor.process(result.text);
+    final sel = _controller.selection;
+    final text = _controller.text;
+    final insertAt = sel.isValid ? sel.start : text.length;
+    final needsLeadingSpace =
+        insertAt > 0 && text[insertAt - 1] != '\n' && text[insertAt - 1] != ' ';
+    final insertion = '${needsLeadingSpace ? ' ' : ''}$processed';
+
+    _controller.value = TextEditingValue(
+      text: text.replaceRange(insertAt, sel.isValid ? sel.end : insertAt, insertion),
+      selection: TextSelection.collapsed(offset: insertAt + insertion.length),
+    );
+
+    setState(() {
+      _unreviewed = [..._unreviewed, (insertAt, insertAt + insertion.length)];
+    });
+  }
+
+  void _reviewNextDictatedRange() {
+    if (_unreviewed.isEmpty) return;
+    final (start, end) = _unreviewed.first;
+    final safeEnd = end.clamp(0, _controller.text.length);
+    final safeStart = start.clamp(0, safeEnd);
+    _controller.selection = TextSelection(baseOffset: safeStart, extentOffset: safeEnd);
+    _focusNode.requestFocus();
+    setState(() => _unreviewed = _unreviewed.skip(1).toList());
+  }
+
+  // ---- version history -------------------------------------------------
+
+  void _openHistory() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SceneHistoryScreen(
+          project: widget.project,
+          sceneId: widget.contentId,
+          sceneTitle: _titleController.text.trim().isEmpty
+              ? widget.fallbackTitle
+              : _titleController.text.trim(),
+          onRestored: (restoredContent) {
+            _controller.text = restoredContent;
+            _flushSave();
+          },
+        ),
+      ),
+    );
   }
 
   // ---- formatting ----------------------------------------------------------
@@ -290,6 +418,30 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
                   icon: const Icon(Icons.find_replace),
                   onPressed: _findReplace,
                 ),
+                IconButton(
+                  tooltip: 'Version History',
+                  icon: const Icon(Icons.history),
+                  onPressed: _openHistory,
+                ),
+                const VerticalDivider(width: 16),
+                IconButton(
+                  tooltip: _isDictating ? 'Stop dictation' : 'Start dictation',
+                  icon: _dictationBusy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(_isDictating ? Icons.mic : Icons.mic_none),
+                  color: _isDictating ? Theme.of(context).colorScheme.error : null,
+                  onPressed: _dictationBusy ? null : _toggleDictation,
+                ),
+                if (_unreviewed.isNotEmpty)
+                  ActionChip(
+                    avatar: const Icon(Icons.fact_check_outlined, size: 16),
+                    label: Text('Review ${_unreviewed.length} dictated'),
+                    onPressed: _reviewNextDictatedRange,
+                  ),
                 const Spacer(),
                 Text('$_wordCount words',
                     style: Theme.of(context).textTheme.labelMedium),

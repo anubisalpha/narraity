@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import '../models/manuscript.dart';
+import '../models/manuscript_seeds.dart';
 
 const _uuid = Uuid();
 
@@ -13,9 +14,9 @@ const _uuid = Uuid();
 /// Layout inside the project folder:
 /// ```
 /// manuscript/
-///   structure.json          # ordered act/chapter/scene tree + front/back matter
+///   structure.json          # ordered node tree (arbitrary depth/labels) + front/back matter
 ///   scenes/
-///     scene-<id>.md         # front-matter (title, pov) + markdown prose
+///     <leaf-id>.md           # front-matter (title, pov) + markdown prose
 ///     section-<id>.md       # special sections (prologue, epilogue, ...)
 /// ```
 /// Ids are stable across reorders/renames so version history (Phase 1.7) and
@@ -29,9 +30,15 @@ class ManuscriptService {
   Directory get _scenesDir => Directory(p.join(_manuscriptDir.path, 'scenes'));
   File get _structureFile => File(p.join(_manuscriptDir.path, 'structure.json'));
 
-  /// Loads the structure, creating a starter Act 1 / Chapter 1 / Scene 1 for
-  /// a brand-new manuscript so the editor never opens on nothing.
-  Future<ManuscriptStructure> loadStructure() async {
+  /// Loads the structure. If none exists yet, seeds one from [seed]
+  /// (defaults to Act > Chapter > Scene) — call this only once, right after
+  /// project creation; see LibraryService.createProject and the New Project
+  /// dialog's structure picker. Later calls with no structure.json present
+  /// (shouldn't normally happen) fall back to the same default rather than
+  /// opening on nothing.
+  Future<ManuscriptStructure> loadStructure({
+    ManuscriptSeed seed = ManuscriptSeed.actChapterScene,
+  }) async {
     if (await _structureFile.exists()) {
       try {
         final json = jsonDecode(await _structureFile.readAsString());
@@ -41,21 +48,28 @@ class ManuscriptService {
       }
     }
 
-    final structure = ManuscriptStructure(
-      acts: [
-        ActNode(id: 'act-${_uuid.v4()}', title: 'Act 1', chapters: [
-          ChapterNode(id: 'ch-${_uuid.v4()}', title: 'Chapter 1', scenes: [
-            SceneRef(id: 'scene-${_uuid.v4()}', title: 'Scene 1'),
-          ]),
-        ]),
-      ],
-    );
+    final structure = ManuscriptStructure(nodes: seed.buildStarter());
     await saveStructure(structure);
-    await writeScene(SceneDoc(
-      id: structure.acts.first.chapters.first.scenes.first.id,
-      title: 'Scene 1',
-    ));
+    for (final id in structure.allContentIds) {
+      await writeScene(SceneDoc(id: id, title: _findTitle(structure, id) ?? 'Untitled'));
+    }
     return structure;
+  }
+
+  String? _findTitle(ManuscriptStructure structure, String id) {
+    for (final section in [...structure.frontMatter, ...structure.backMatter]) {
+      if (section.id == id) return section.title;
+    }
+    ManuscriptNode? search(List<ManuscriptNode> nodes) {
+      for (final node in nodes) {
+        if (node.id == id) return node;
+        final found = search(node.children);
+        if (found != null) return found;
+      }
+      return null;
+    }
+
+    return search(structure.nodes)?.title;
   }
 
   Future<void> saveStructure(ManuscriptStructure structure) async {
@@ -122,34 +136,26 @@ class ManuscriptService {
     return SceneDoc(id: id, title: title ?? fallbackTitle, content: content, pov: pov);
   }
 
-  // ---- structure edits -----------------------------------------------------
+  // ---- structure edits (generic, any depth) --------------------------------
 
-  Future<SceneRef> addScene(ManuscriptStructure structure, ChapterNode chapter) async {
-    final scene = SceneRef(
-      id: 'scene-${_uuid.v4()}',
-      title: 'Scene ${chapter.scenes.length + 1}',
+  /// Adds a child to [parent], or to the structure's top level if [parent]
+  /// is null. Every node gets its own scene file immediately — writing and
+  /// adding further subsections underneath are never mutually exclusive.
+  Future<ManuscriptNode> addNode(
+    ManuscriptStructure structure, {
+    required String typeLabel,
+    ManuscriptNode? parent,
+  }) async {
+    final siblings = parent?.children ?? structure.nodes;
+    final node = ManuscriptNode(
+      id: '${typeLabel.toLowerCase().replaceAll(RegExp(r'\s+'), '-')}-${_uuid.v4()}',
+      title: '$typeLabel ${siblings.length + 1}',
+      typeLabel: typeLabel,
     );
-    chapter.scenes.add(scene);
+    siblings.add(node);
     await saveStructure(structure);
-    await writeScene(SceneDoc(id: scene.id, title: scene.title));
-    return scene;
-  }
-
-  Future<ChapterNode> addChapter(ManuscriptStructure structure, ActNode act) async {
-    final chapter = ChapterNode(
-      id: 'ch-${_uuid.v4()}',
-      title: 'Chapter ${act.chapters.length + 1}',
-    );
-    act.chapters.add(chapter);
-    await saveStructure(structure);
-    return chapter;
-  }
-
-  Future<ActNode> addAct(ManuscriptStructure structure) async {
-    final act = ActNode(id: 'act-${_uuid.v4()}', title: 'Act ${structure.acts.length + 1}');
-    structure.acts.add(act);
-    await saveStructure(structure);
-    return act;
+    await writeScene(SceneDoc(id: node.id, title: node.title));
+    return node;
   }
 
   Future<SpecialSection> addSpecialSection(
@@ -163,14 +169,22 @@ class ManuscriptService {
     return section;
   }
 
-  Future<void> deleteScene(
-    ManuscriptStructure structure,
-    ChapterNode chapter,
-    SceneRef scene,
-  ) async {
-    chapter.scenes.remove(scene);
+  /// Deletes [node] from wherever it is in the tree (searches recursively
+  /// for its parent). Deletes its own scene file and every descendant's too.
+  Future<void> deleteNode(ManuscriptStructure structure, ManuscriptNode node) async {
+    bool removeFrom(List<ManuscriptNode> siblings) {
+      if (siblings.remove(node)) return true;
+      for (final sibling in siblings) {
+        if (removeFrom(sibling.children)) return true;
+      }
+      return false;
+    }
+
+    removeFrom(structure.nodes);
     await saveStructure(structure);
-    await deleteSceneFile(scene.id);
+    for (final id in node.contentIds) {
+      await deleteSceneFile(id);
+    }
   }
 
   Future<void> deleteSpecialSection(
@@ -183,23 +197,51 @@ class ManuscriptService {
     await deleteSceneFile(section.id);
   }
 
-  Future<void> reorderScene(
+  /// Reorders a child within [parent]'s children (or the top level, if
+  /// [parent] is null) — matches `ReorderableListView.onReorder`'s index
+  /// convention (newIndex is post-removal).
+  Future<void> reorderNode(
     ManuscriptStructure structure,
-    ChapterNode chapter,
+    ManuscriptNode? parent,
     int oldIndex,
     int newIndex,
   ) async {
-    final scene = chapter.scenes.removeAt(oldIndex);
-    chapter.scenes.insert(newIndex > oldIndex ? newIndex - 1 : newIndex, scene);
+    final siblings = parent?.children ?? structure.nodes;
+    final node = siblings.removeAt(oldIndex);
+    siblings.insert(newIndex > oldIndex ? newIndex - 1 : newIndex, node);
     await saveStructure(structure);
   }
 
-  /// Total word count across every scene and special section.
+  /// Total word count across every leaf and special section.
   Future<int> totalWordCount(ManuscriptStructure structure) async {
     var total = 0;
     for (final id in structure.allContentIds) {
       total += (await readScene(id)).wordCount;
     }
     return total;
+  }
+
+  /// Word count for [node]'s own prose plus every descendant's — powers the
+  /// "view everything under this section" rollup.
+  Future<int> wordCountUnder(ManuscriptNode node) async {
+    var total = 0;
+    for (final id in node.contentIds) {
+      total += (await readScene(id)).wordCount;
+    }
+    return total;
+  }
+
+  /// Concatenated prose of [node] and every descendant, in document order,
+  /// each preceded by its title as a heading — the read-only "combined
+  /// view" for a section.
+  Future<String> combinedContentUnder(ManuscriptNode node) async {
+    final buffer = StringBuffer();
+    for (final id in node.contentIds) {
+      final doc = await readScene(id);
+      if (buffer.isNotEmpty) buffer.writeln('\n');
+      buffer.writeln('# ${doc.title}\n');
+      buffer.writeln(doc.content);
+    }
+    return buffer.toString();
   }
 }
