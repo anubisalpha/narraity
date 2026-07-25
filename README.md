@@ -82,6 +82,24 @@ full breakdown and what changes per platform when that day comes.
 - Opens full-screen (like Goals) from its own toolbar icon, since a grid needs real width rather than
   a 280px sidebar slot
 
+### Timeline
+- In-story chronology, distinct from the Plot Grid (structural, manuscript order) — tracks **when
+  things happen**, not where they sit in the manuscript
+- Multiple parallel **tracks** ("Main", "Backstory", a POV character's arc, ...), each toggleable so
+  you can overlay or isolate whichever ones matter right now
+- Events carry a freeform "when" (a real date, "Day 3", "Spring, Year 1" — whatever fits the story's
+  own sense of time) plus notes, and can link to scenes, characters, and world entries
+- A linked scene shows as a chip on the event card — tap it to jump straight to that scene in the
+  manuscript editor
+
+### Family Tree / Relationship Diagram
+- Pan/zoomable canvas of your characters (pulled live from Character Profiles) with draggable
+  positions that persist between sessions
+- Relationships (family, romantic, friend, rival, ally, mentor, other, plus a custom label) drawn as
+  labelled lines between characters
+- Add relationships via a picker (pick both characters, a type, an optional label); manage existing
+  ones from a side list
+
 ### Voice dictation (offline)
 - Windows: a hand-written Dart FFI binding straight to the real Vosk engine (`libvosk.dll`,
   vendored — see "Why not a Vosk plugin?" below)

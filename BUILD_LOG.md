@@ -440,21 +440,98 @@ between the two nested scroll views, and dialog feel are unconfirmed by eye.
 
 ---
 
+## Phase 3.5 — Timeline & Relationship Diagram
+
+Two features from PLAN.md's `3.5` row, built together since both are "a canvas of things pulled from
+other data plus a lightweight own file format": in-story chronology, and character relationship
+mapping.
+
+**Timeline** (`lib/models/timeline.dart`, `lib/services/timeline_service.dart`,
+`lib/state/timeline_provider.dart`, `lib/screens/timeline_screen.dart`):
+- `TimelineTrack` (a parallel strand — "Main", "Backstory", a POV arc) and `TimelineEvent`
+  (trackId, label, freeform `timeLabel`, `order`, notes, linked scene/character/world id lists),
+  stored as individual `timelines/timeline-<id>.json` / `timelines/event-<id>.json` files
+  (`TimelineService` distinguishes them by filename prefix when scanning the directory) — matches
+  PLAN.md's data model.
+- **`timeLabel` is freeform text, not a parsed `DateTime`.** In-story time often isn't a real
+  calendar (flashbacks, secondary-world calendars, "three years before the war"), so PLAN.md's "date
+  or relative-time marker" is treated as author-controlled text; `order` (an int, ascending per
+  track) is what actually drives left-to-right position, moved with the same
+  swap-with-neighbour contract as `PlotGridService.reorderPlotline` and `ManuscriptService`'s
+  reordering.
+- Screen: one horizontally-scrolling row per track, `FilterChip`s at the top toggle track visibility
+  (the PLAN.md "toggleable and overlayable" requirement) — not persisted, since a hidden track
+  silently missing on next open would be worse than always starting with everything visible.
+- A linked scene renders as a chip on the event card; tapping it pops the Timeline screen and calls
+  the existing `openScene()` helper from Phase 2.5's reference plumbing — "click → jump to scene"
+  from PLAN.md, reusing rather than reinventing scene navigation.
+- Event editor's scene/character/world pickers reuse `sceneColumnsProvider`, which existed in
+  `plot_grid_provider.dart` for the Plot Grid — moved to `manuscript_provider.dart` (its natural
+  home) now that a second feature needs it, rather than writing a fourth copy of the manuscript-walk
+  logic that already existed three times (`project_shell_screen`, `ManuscriptService`, and the Plot
+  Grid's prior copy).
+- **Not done:** PLAN.md's "Feeds the Reference Panel — an event card can display like a
+  character/world card" — the Reference Panel's `@mention` trigger is built around named profile
+  entries (Phase 2.5), and events don't have that kind of identity in scene prose. Left for a later
+  pass rather than forcing a fit.
+
+**Relationship Diagram** (`lib/models/relationship.dart`, `lib/services/relationship_service.dart`,
+`lib/state/relationship_provider.dart`, `lib/screens/relationship_screen.dart`):
+- Nodes are pulled live from Character Profiles (Phase 2), not stored separately. Edges are
+  `Relationship` (characterAId, characterBId, `RelationshipType` enum + optional freeform `label`),
+  stored as `relationships/relationship-<id>.json`.
+- **Deviates from PLAN.md's literal data model**, which puts a `position` field on the relationship
+  record. Position is a property of a *node* (a character), not an *edge* — a character with two
+  relationships (or none yet) can only have one canvas position — so it's stored separately in
+  `relationships/layout.json` keyed by character id instead. Documented in the model file's doc
+  comment; same kind of considered deviation as Phase 2.5's name-based mentions.
+- Canvas: `InteractiveViewer` (pan/zoom) over a `Stack` of draggable character cards, positions
+  falling back to a deterministic grid layout for any character not yet dragged (stable across
+  rebuilds since it's index-based, not random) so nodes don't jump around before the first drag.
+  Edges are drawn with a `CustomPainter` connecting node centers, labelled with the relationship type
+  (+ custom label if set) at the midpoint.
+- **Simplified from PLAN.md's "draw a connection" gesture**: rather than a freehand tap-node-A-then-
+  node-B canvas gesture (fragile to get right without a GUI pass to tune it), new relationships come
+  from a picker dialog (two character dropdowns + type + label), and existing ones are edited/deleted
+  from a side list rather than by tapping the drawn line — line hit-testing would need the same
+  eyes-on tuning the mention-popup anchoring needed in Phase 2.5, which isn't available this session.
+- **Not done:** deleting a character doesn't cascade into `relationships/` — a deleted character's
+  edges and layout entry become dead data (same category of gap as the Plot Grid's scene-delete
+  cascade, and `RelationshipService.removeNodePosition` exists but nothing calls it yet). PLAN.md's
+  "mini relationship view in the Reference Panel when viewing a character" also not wired —
+  `RelationshipService.relationshipsFor(characterId)` exists and is tested, ready for a future
+  `ProfileEditor` addition.
+
+**Verified:** `flutter analyze` clean, **196 tests passing** (was 179) — new
+`timeline_service_test.dart` (9 cases: track/event CRUD, per-track order independence, move/no-op at
+boundary, cascade delete) and `relationship_service_test.dart` (8 cases: edge CRUD,
+`relationshipsFor` both-sides matching, layout persistence/overwrite/removal). Both `flutter analyze`
+and `flutter build windows` succeed; `flutter build apk --debug` not re-run this session (no
+Android-specific code touched).
+
+**Not clicked through by GUI** — same standing caveat as Phases 2, 2.5, and 3. The canvas drag feel,
+edge-label legibility, and track-toggle layout are unconfirmed by eye; the "draw a connection" and
+Reference Panel gaps above are exactly the kind of thing a GUI pass would likely reshape.
+
+---
+
 ## Current status
 
-Phases 0 through 3 are built and verified: manuscript editor, dictation, goals, version history,
-data protection and its UI, characters/worldbuilding/notes, the Reference Panel, and the Plot Grid.
-179 automated tests passing, `flutter analyze` clean, `flutter build windows` succeeds. Commits:
-`3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals, version history, manuscript generalization),
-`8416beb` (data protection services), `62d1baf` (docs), `8d414ac` (data-protection UI), `0dbb050`
-(Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card id-guess fix).
+Phases 0 through 3.5 are built and verified: manuscript editor, dictation, goals, version history,
+data protection and its UI, characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the
+Timeline, and the Relationship Diagram. 196 automated tests passing, `flutter analyze` clean,
+`flutter build windows` succeeds. Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals,
+version history, manuscript generalization), `8416beb` (data protection services), `62d1baf` (docs),
+`8d414ac` (data-protection UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card
+id-guess fix), `7466997` (Phase 3).
 
-Next per `PLAN.md`: **Phase 3.5** (Timeline page, multi-track; Family tree/relationship diagram) or
-**Phase 4** (comments, highlights, sticky notes, footnotes on a shared text-anchor mechanism, plus the
-AI/external review round-trip). Phase 4's anchor mechanism is the same machinery a rich-text editor
-would need to render `[[…]]` mentions as chips, so pairing them is sensible.
+Next per `PLAN.md`: **Phase 4** (comments, highlights, sticky notes, footnotes on a shared
+text-anchor mechanism, plus the AI/external review round-trip). Its anchor mechanism is the same
+machinery a rich-text editor would need to render `[[…]]` mentions as chips, so pairing them is
+sensible.
 
 Still outstanding from earlier phases: scene-level `linkedReferences` (the fourth Reference Panel
 trigger from PLAN.md — mentions, pins, and auto-detect cover the other three), per-project vault
-passwords, export format priority, Play Store readiness (privacy policy, data safety form), and the
-Plot Grid's dangling-point cleanup noted above.
+passwords, export format priority, Play Store readiness (privacy policy, data safety form), the Plot
+Grid's dangling-point cleanup, and — new this phase — the Relationship Diagram's dangling-edge
+cleanup on character delete and its "mini view in the Reference Panel."

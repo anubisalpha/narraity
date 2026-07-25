@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/plot_grid.dart';
 import '../models/project.dart';
+import '../state/manuscript_provider.dart';
 import '../state/plot_grid_provider.dart';
 
 const _plotlineColumnWidth = 180.0;

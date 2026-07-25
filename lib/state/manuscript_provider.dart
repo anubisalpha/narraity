@@ -41,3 +41,25 @@ final todoListProvider =
   final service = await ref.watch(todoServiceProvider(project).future);
   return service.listTodos();
 });
+
+/// Scene ids in manuscript order plus their titles — used anywhere a feature
+/// needs to list or link to scenes (Plot Grid columns, Timeline event
+/// linking) without re-walking the tree itself.
+final sceneColumnsProvider =
+    FutureProvider.family<List<(String id, String title)>, Project>((ref, project) async {
+  final structure = await ref.watch(manuscriptStructureProvider(project).future);
+
+  final titles = <String, String>{};
+  for (final section in [...structure.frontMatter, ...structure.backMatter]) {
+    titles[section.id] = section.title;
+  }
+  void collect(List<ManuscriptNode> nodes) {
+    for (final node in nodes) {
+      titles[node.id] = node.title;
+      collect(node.children);
+    }
+  }
+
+  collect(structure.nodes);
+  return [for (final id in structure.allContentIds) (id, titles[id] ?? 'Untitled')];
+});

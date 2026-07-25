@@ -27,6 +27,8 @@ import '../widgets/todo_panel.dart';
 import '../widgets/vault_unlock_dialog.dart';
 import 'goals_screen.dart';
 import 'plot_grid_screen.dart';
+import 'relationship_screen.dart';
+import 'timeline_screen.dart';
 
 /// How often the open project's vault is refreshed while writing. Frequent
 /// enough that an unnoticed disaster loses at most half an hour, infrequent
@@ -133,9 +135,23 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                 ),
                 IconButton(
                   tooltip: 'Plot Grid',
-                  icon: const Icon(Icons.timeline),
+                  icon: const Icon(Icons.grid_on_outlined),
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => PlotGridScreen(project: project)),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Timeline',
+                  icon: const Icon(Icons.timeline),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => TimelineScreen(project: project)),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Relationships',
+                  icon: const Icon(Icons.hub_outlined),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => RelationshipScreen(project: project)),
                   ),
                 ),
                 IconButton(
