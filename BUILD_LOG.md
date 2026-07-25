@@ -649,11 +649,48 @@ the gesture path). Rebuilt `flutter build windows`.
 
 ---
 
+## Relationship Diagram: fix drag tracking, add New Character
+
+Follow-up feedback: the drag still lagged behind the cursor, and creating a character belongs on this
+screen too (mapping relationships is exactly when you notice someone's missing).
+
+**Drag lag — real second bug, not the same one as before.** The prior fix made the *gesture* fire on
+every pointer move; this one was about what the handler *did* with those events. It accumulated raw
+screen-pixel deltas (`event.position - lastPosition`) and applied them directly as canvas-local
+position deltas. That's only correct at the default unzoomed, unpanned view — `InteractiveViewer`
+scales its child, so a delta measured in screen pixels doesn't equal the same delta in the canvas's
+own coordinate space once the user has zoomed (a screen-pixel delta is worth *more* local-space
+movement when zoomed out, *less* when zoomed in), producing exactly the lag/overshoot reported.
+
+Fixed by switching from delta-accumulation to grab-offset anchoring: `_ImmediateDragRecognizer` now
+reports raw absolute pointer positions (`onDown`/`onMove`) instead of deltas; `_DraggableNodeState`
+converts each one to true canvas-local coordinates via `RenderBox.globalToLocal` (using a
+`GlobalKey` on the canvas `Stack`, exposed as `_CanvasState._globalToLocal`), and captures a
+`_grabOffset` — the local-space offset from the node's top-left to wherever the user actually
+clicked — on pointer-down. Every subsequent frame sets the node's position to
+`localPointerPosition - grabOffset`, so the exact pixel under the cursor never moves relative to the
+cursor, regardless of pan/zoom level. This is a *correctness* fix (right coordinate space), not a
+tuning one — there was no slop/threshold/sensitivity setting to turn up; the recognizer was already
+maximally responsive (fires on every move, accepts immediately on touch-down), it was just computing
+the wrong number.
+
+**New Character button:** AppBar icon (`person_add_alt_1`) next to "New Relationship" opens a plain
+name-prompt dialog and calls `ProfileService.create` — the same creation path the Characters tab
+uses, just reachable from here too. New characters render at the deterministic grid fallback position
+until dragged.
+
+**Verified:** `flutter analyze` clean, **199 tests passing** (was 198 — one new widget test covering
+the New Character dialog opening; per the established convention, the dialog is not driven through to
+a real Save/write in a widget test, since that's real file I/O triggered from a simulated tap and
+never resolves under flutter_test's fake-async zone). Rebuilt `flutter build windows`.
+
+---
+
 ## Current status
 
 Phases 0 through 3.5 are built and verified: manuscript editor, dictation, goals, version history,
 data protection and its UI, characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the
-Timeline, and the Relationship Diagram. 198 automated tests passing, `flutter analyze` clean,
+Timeline, and the Relationship Diagram. 199 automated tests passing, `flutter analyze` clean,
 `flutter build windows` succeeds. Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals,
 version history, manuscript generalization), `8416beb` (data protection services), `62d1baf` (docs),
 `8d414ac` (data-protection UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card

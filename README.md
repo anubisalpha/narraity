@@ -94,7 +94,9 @@ full breakdown and what changes per platform when that day comes.
 
 ### Family Tree / Relationship Diagram
 - Pan/zoomable canvas of your characters (pulled live from Character Profiles) with draggable
-  positions that persist between sessions
+  positions that persist between sessions and track the cursor precisely at any zoom level
+- **New Character** button right on this screen — mapping relationships is exactly when you notice
+  someone's missing, no need to switch back to the Characters tab
 - Relationships (family, romantic, friend, rival, ally, mentor, other, plus a custom label) drawn as
   **colour-coded lines** — same colour for the line, the badge outline, the side-list dot, and the
   Type dropdown, so one glance tells you what kind of relationship it is anywhere in the screen

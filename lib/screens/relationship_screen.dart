@@ -55,6 +55,11 @@ class RelationshipScreen extends ConsumerWidget {
         title: const Text('Relationships'),
         actions: [
           IconButton(
+            tooltip: 'New Character',
+            icon: const Icon(Icons.person_add_alt_1),
+            onPressed: () => _addCharacter(context, ref),
+          ),
+          IconButton(
             tooltip: 'New Relationship',
             icon: const Icon(Icons.add_link),
             onPressed: charactersAsync.valueOrNull == null ||
@@ -114,6 +119,38 @@ class RelationshipScreen extends ConsumerWidget {
     );
     if (context.mounted) invalidateRelationships(ref, project);
   }
+
+  /// Creating a character from here (rather than only from the Characters
+  /// tab) matters because mapping relationships is exactly the moment a
+  /// missing character turns up — "wait, I need Elena's brother too."
+  Future<void> _addCharacter(BuildContext context, WidgetRef ref) async {
+    final name = await _promptText(context, title: 'New Character', label: 'Name');
+    if (name == null || name.trim().isEmpty) return;
+    final service = await ref.read(characterServiceProvider(project).future);
+    await service.create(name: name.trim());
+    if (context.mounted) invalidateReferences(ref, project);
+  }
+}
+
+Future<String?> _promptText(BuildContext context, {required String title, required String label}) {
+  final controller = TextEditingController();
+  return showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(title),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        decoration: InputDecoration(labelText: label),
+        onSubmitted: (value) => Navigator.pop(context, value),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text), child: const Text('Save')),
+      ],
+    ),
+  );
 }
 
 class _Canvas extends ConsumerStatefulWidget {
@@ -143,6 +180,20 @@ class _CanvasState extends ConsumerState<_Canvas> {
   String? _draggingId;
   Offset? _draggingPosition;
 
+  /// The Stack's own render box — nodes are `Positioned` relative to this,
+  /// so converting a raw (global, screen-space) pointer position into this
+  /// coordinate space is what lets a drag track the cursor exactly at any
+  /// [InteractiveViewer] pan/zoom level. Without this, a pointer delta in
+  /// screen pixels was being applied directly as a canvas-local delta, which
+  /// only happens to match 1:1 at the default unzoomed view — any zoom made
+  /// the node visibly lag behind (or overshoot) the cursor.
+  final _stackKey = GlobalKey();
+
+  Offset _globalToLocal(Offset global) {
+    final box = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    return box?.globalToLocal(global) ?? global;
+  }
+
   /// Deterministic grid fallback for a character with no saved position yet
   /// — stable across rebuilds (index-based), so nodes don't jump around
   /// before the user has ever dragged them.
@@ -170,6 +221,7 @@ class _CanvasState extends ConsumerState<_Canvas> {
         width: _canvasSize.width,
         height: _canvasSize.height,
         child: Stack(
+          key: _stackKey,
           children: [
             Positioned.fill(
               child: CustomPaint(
@@ -192,6 +244,7 @@ class _CanvasState extends ConsumerState<_Canvas> {
                 ],
                 positions: positions,
                 relationships: widget.relationships,
+                globalToLocal: _globalToLocal,
                 onDragUpdate: (position) => setState(() {
                   _draggingId = character.id;
                   _draggingPosition = position;
@@ -217,6 +270,7 @@ class _DraggableNode extends ConsumerStatefulWidget {
     required this.otherCharacters,
     required this.positions,
     required this.relationships,
+    required this.globalToLocal,
     required this.onDragUpdate,
     required this.onDragEnd,
   });
@@ -233,6 +287,10 @@ class _DraggableNode extends ConsumerStatefulWidget {
   final Map<String, Offset> positions;
   final List<Relationship> relationships;
 
+  /// Converts a raw (global, screen-space) pointer position into the
+  /// canvas's own local coordinate space — see [_CanvasState._globalToLocal].
+  final Offset Function(Offset global) globalToLocal;
+
   /// Reports the live drag position up to _Canvas so the edge painter can
   /// track it in real time, and clears it again once the drag ends.
   final ValueChanged<Offset> onDragUpdate;
@@ -244,6 +302,16 @@ class _DraggableNode extends ConsumerStatefulWidget {
 
 class _DraggableNodeState extends ConsumerState<_DraggableNode> {
   Offset? _dragPosition;
+
+  /// Local-space offset from the node's top-left to the point the user
+  /// actually grabbed it — captured once on pointer-down. Every subsequent
+  /// frame sets the node's position to `localPointerPosition - _grabOffset`,
+  /// so the exact point under the cursor never moves relative to the
+  /// cursor: the node tracks it precisely rather than lagging behind (which
+  /// a delta-accumulation approach did, since it applied a raw screen-pixel
+  /// delta directly as a canvas-local delta — correct only at the default
+  /// unzoomed view).
+  Offset? _grabOffset;
 
   /// The other character whose node the current drag position overlaps, or
   /// null if not currently over anyone — used to drop a relationship rather
@@ -279,8 +347,13 @@ class _DraggableNodeState extends ConsumerState<_DraggableNode> {
               GestureRecognizerFactoryWithHandlers<_ImmediateDragRecognizer>(
             _ImmediateDragRecognizer.new,
             (recognizer) {
-              recognizer.onUpdate = (delta) {
-                final next = position + delta;
+              recognizer.onDown = (globalPosition) {
+                _grabOffset = widget.globalToLocal(globalPosition) - position;
+              };
+              recognizer.onMove = (globalPosition) {
+                final grabOffset = _grabOffset;
+                if (grabOffset == null) return;
+                final next = widget.globalToLocal(globalPosition) - grabOffset;
                 setState(() => _dragPosition = next);
                 widget.onDragUpdate(next);
               };
@@ -393,23 +466,28 @@ class _DraggableNodeState extends ConsumerState<_DraggableNode> {
 /// InteractiveViewer's recognizer gets a chance to accept, reliably wins
 /// instead.
 class _ImmediateDragRecognizer extends OneSequenceGestureRecognizer {
-  ValueChanged<Offset>? onUpdate;
-  VoidCallback? onEnd;
+  /// Raw global (screen-space) pointer position on touch-down.
+  ValueChanged<Offset>? onDown;
 
-  Offset? _lastPosition;
+  /// Raw global (screen-space) pointer position on every move. Reporting
+  /// the absolute position rather than a delta lets the caller convert it
+  /// through `RenderBox.globalToLocal` and anchor it to a grab offset — a
+  /// delta computed here, in screen pixels, would be wrong the moment the
+  /// canvas is panned or zoomed.
+  ValueChanged<Offset>? onMove;
+  VoidCallback? onEnd;
 
   @override
   void addPointer(PointerDownEvent event) {
     startTrackingPointer(event.pointer);
     resolve(GestureDisposition.accepted);
-    _lastPosition = event.position;
+    onDown?.call(event.position);
   }
 
   @override
   void handleEvent(PointerEvent event) {
     if (event is PointerMoveEvent) {
-      onUpdate?.call(event.position - _lastPosition!);
-      _lastPosition = event.position;
+      onMove?.call(event.position);
     } else if (event is PointerUpEvent || event is PointerCancelEvent) {
       stopTrackingPointer(event.pointer);
       onEnd?.call();

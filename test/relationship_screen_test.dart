@@ -86,4 +86,43 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
     await tester.pump();
   });
+
+  testWidgets('New Character button opens a name prompt', (tester) async {
+    final projectRoot = Directory.systemTemp.createTempSync('narraity_relationship_newchar_test_');
+    addTearDown(() => projectRoot.deleteSync(recursive: true));
+    final library = LibraryService(rootOverride: projectRoot);
+
+    final container = ProviderContainer(
+      overrides: [libraryServiceProvider.overrideWithValue(library)],
+    );
+    addTearDown(container.dispose);
+
+    final project = (await tester.runAsync(() => library.createProject(title: 'Test Novel')))!;
+    await tester.runAsync(() async {
+      await container.read(characterListProvider(project).future);
+      await container.read(relationshipListProvider(project).future);
+      await container.read(relationshipLayoutProvider(project).future);
+    });
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(home: RelationshipScreen(project: project)),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.widgetWithIcon(IconButton, Icons.person_add_alt_1));
+    await tester.pump();
+
+    expect(find.text('New Character'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Name'), findsOneWidget);
+
+    // Not tapping Save: real character creation is real file I/O, which
+    // never resolves inside flutter_test's fake-async zone when triggered
+    // from a simulated tap (see the comment atop this file).
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pump();
+    expect(find.text('New Character'), findsNothing);
+  });
 }
