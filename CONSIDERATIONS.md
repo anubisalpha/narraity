@@ -20,3 +20,11 @@ questions, not known implementation gaps.
   SMTP/credential setup — a meaningfully bigger, separate feature with real security surface, not a
   bolt-on. A lighter middle step worth considering first: a "Reveal in Explorer" action next to the
   existing save dialogs.
+
+- **A Settings section to view/manage words added to the spell-check dictionary.** Requested right
+  after "Add to Dictionary" (spelling panel, Phase 4.5) shipped. Note this needs solving *underneath*
+  the UI first, not just a new screen: `Hunspell_add` only adds to the in-memory run-time dictionary
+  (`hunspell_ffi.dart`'s own doc comment already flags this) — nothing persists across an app
+  restart today, so there's nothing yet for a Settings screen to actually list. Needs its own small
+  persisted store (e.g. a `custom-words.txt` per language, replayed through `Hunspell_add` on load)
+  before the management UI has anything real to manage.

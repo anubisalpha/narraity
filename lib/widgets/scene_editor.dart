@@ -1,7 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+// Flutter's own services.dart exports a SpellCheckService too (its native
+// platform spellcheck integration) — hidden since this app has its own,
+// Hunspell-backed one (../services/spell_check_service.dart).
+import 'package:flutter/services.dart' hide SpellCheckService;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/annotation.dart';
@@ -12,6 +15,7 @@ import '../screens/scene_history_screen.dart';
 import '../services/dictation_engine.dart';
 import '../services/manuscript_service.dart';
 import '../services/mention_scanner.dart';
+import '../services/spell_check_service.dart';
 import '../services/tts_service.dart';
 import '../services/voice_command_processor.dart';
 import '../state/annotation_provider.dart';
@@ -22,11 +26,13 @@ import '../state/reference_panel_provider.dart'
     show ReferenceCardItem, sceneMentionedNamesProvider;
 import '../state/reference_provider.dart';
 import '../state/scene_history_provider.dart';
+import '../state/spell_check_provider.dart';
 import '../state/tts_provider.dart';
 import '../state/tts_settings_provider.dart';
 import 'annotation_highlight_controller.dart';
 import 'annotation_panel.dart';
 import 'dictation_model_dialog.dart';
+import 'spelling_panel.dart';
 
 /// The writing surface for one scene/section: markdown-backed text editor
 /// with autosave (debounced), formatting toolbar, find & replace, undo/redo,
@@ -68,6 +74,7 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
   final _focusNode = FocusNode();
 
   bool _annotationsPanelOpen = false;
+  bool _spellingPanelOpen = false;
 
   SceneDoc? _doc;
   Timer? _saveDebounce;
@@ -93,6 +100,14 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
   bool _isReadingAloud = false;
   int? _readingStart;
   bool _disposed = false;
+
+  Timer? _spellCheckDebounce;
+  List<(int start, int end)> _misspelled = [];
+  // Set once if the dictionary fails to load (e.g. a test environment with
+  // no path_provider mock) so repeated debounce ticks don't keep retrying a
+  // load that's already known to fail — spell check just stays off rather
+  // than breaking the rest of the editor.
+  bool _spellCheckUnavailable = false;
 
   /// Live `@…` autocomplete state (Phase 2.5). Non-null [_mentionQuery] means
   /// the caret is inside a mention being typed, and [_mentionMatches] holds
@@ -140,6 +155,62 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     _dirty = false;
     _publishMentions();
     await _resolveAnnotations();
+    _scheduleSpellCheck(immediate: true);
+  }
+
+  // ---- spell check (Phase 4.5) -------------------------------------------
+
+  void _scheduleSpellCheck({bool immediate = false}) {
+    if (_spellCheckUnavailable || !ref.read(spellCheckEnabledProvider)) return;
+    _spellCheckDebounce?.cancel();
+    if (immediate) {
+      _runSpellCheck();
+    } else {
+      _spellCheckDebounce = Timer(const Duration(milliseconds: 400), _runSpellCheck);
+    }
+  }
+
+  Future<void> _runSpellCheck() async {
+    final SpellCheckService service;
+    try {
+      service = await ref.read(spellCheckServiceProvider.future);
+    } catch (_) {
+      // Dictionary unavailable (missing asset, no path_provider in a test
+      // environment, ...) — spell check just stays off rather than
+      // breaking the rest of the editor, and stop retrying every debounce.
+      _spellCheckUnavailable = true;
+      return;
+    }
+    if (_disposed) return;
+    final ranges = service.findMisspelled(_controller.text);
+    if (_disposed) return;
+    _controller.misspelledRanges = ranges;
+    setState(() => _misspelled = ranges);
+  }
+
+  void _jumpToMisspelled(int start, int end) {
+    final safeEnd = end.clamp(0, _controller.text.length);
+    final safeStart = start.clamp(0, safeEnd);
+    _controller.selection = TextSelection(baseOffset: safeStart, extentOffset: safeEnd);
+    _focusNode.requestFocus();
+  }
+
+  void _replaceMisspelled(int start, int end, String replacement) {
+    final text = _controller.text;
+    final safeEnd = end.clamp(0, text.length);
+    final safeStart = start.clamp(0, safeEnd);
+    _controller.value = TextEditingValue(
+      text: text.replaceRange(safeStart, safeEnd, replacement),
+      selection: TextSelection.collapsed(offset: safeStart + replacement.length),
+    );
+    _focusNode.requestFocus();
+  }
+
+  Future<void> _addToDictionary(String word) async {
+    final service = await ref.read(spellCheckServiceProvider.future);
+    service.addToSessionDictionary(word);
+    if (_disposed) return;
+    _scheduleSpellCheck(immediate: true);
   }
 
   // ---- annotations (Phase 4: comments, highlights, sticky notes, footnotes) --
@@ -361,6 +432,7 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     // A real edit invalidates the reading position (offsets after the edit
     // point shift) — stop rather than keep speaking against stale offsets.
     if (_isReadingAloud) _stopReading();
+    _scheduleSpellCheck();
 
     _dirty = true;
     final count = _countWords(text);
@@ -529,6 +601,7 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     _flushSave();
     _saveDebounce?.cancel();
     _snapshotDebounce?.cancel();
+    _spellCheckDebounce?.cancel();
     _dictationEngine?.dispose();
     _controller.dispose();
     _titleController.dispose();
@@ -944,6 +1017,19 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
                             color: _isReadingAloud ? Theme.of(context).colorScheme.error : null,
                             onPressed: _toggleReadAloud,
                           ),
+                          const VerticalDivider(width: 16),
+                          IconButton(
+                            tooltip: _misspelled.isEmpty
+                                ? 'Spelling'
+                                : 'Spelling (${_misspelled.length})',
+                            icon: Badge(
+                              label: Text('${_misspelled.length}'),
+                              isLabelVisible: _misspelled.isNotEmpty,
+                              child: const Icon(Icons.spellcheck),
+                            ),
+                            onPressed: () =>
+                                setState(() => _spellingPanelOpen = !_spellingPanelOpen),
+                          ),
                           if (_unreviewed.isNotEmpty)
                             ActionChip(
                               avatar: const Icon(
@@ -1100,6 +1186,16 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
             project: widget.project,
             sceneId: widget.contentId,
             onJumpTo: _jumpToAnnotation,
+          ),
+        ],
+        if (!focusMode && _spellingPanelOpen) ...[
+          const Divider(height: 1),
+          SpellingPanel(
+            content: _controller.text,
+            misspelled: _misspelled,
+            onJumpTo: _jumpToMisspelled,
+            onReplace: _replaceMisspelled,
+            onAddToDictionary: _addToDictionary,
           ),
         ],
         if (focusMode)

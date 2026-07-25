@@ -5,23 +5,26 @@ import '../models/annotation.dart';
 /// A [TextEditingController] that paints Phase 4 annotation ranges
 /// (highlight/comment/sticky-note spans) as background tints directly in the
 /// plain-text scene editor, without needing a rich-text delta model. Also
-/// paints a transient "currently speaking" range for Read Aloud — a plain
-/// `(start, end)` pair, not an `Annotation`, since it's never persisted and
-/// changes on every word boundary while speaking.
+/// paints two transient overlays that are never persisted and change too
+/// often to model as `Annotation`s: a "currently speaking" range for Read
+/// Aloud (one range, changes on every word boundary), and misspelled-word
+/// ranges for spell check (Phase 4.5, many ranges, recomputed on a debounce
+/// after edits).
 ///
 /// Footnote anchors are zero-length points (`start == end`) and have nothing
 /// to paint here — they only show up in the annotations panel until a
 /// rich-text editor can render an inline superscript marker.
 ///
-/// While any annotation or the speaking range is present, this bypasses the
-/// default `buildTextSpan`'s IME composing-region styling (acceptable
-/// trade-off: a plain-text editor with neither still gets normal composing
-/// behavior via the `super` fallback below).
+/// While any annotation or overlay is present, this bypasses the default
+/// `buildTextSpan`'s IME composing-region styling (acceptable trade-off: a
+/// plain-text editor with none of them still gets normal composing behavior
+/// via the `super` fallback below).
 class AnnotationHighlightController extends TextEditingController {
   AnnotationHighlightController({super.text});
 
   List<(Annotation, AnchorResolution)> _resolved = const [];
   (int start, int end)? _speakingRange;
+  List<(int start, int end)> _misspelledRanges = const [];
 
   set annotations(List<(Annotation, AnchorResolution)> resolved) {
     _resolved = resolved;
@@ -37,7 +40,19 @@ class AnnotationHighlightController extends TextEditingController {
     notifyListeners();
   }
 
+  /// Character ranges of every word spell check flagged in the current
+  /// text. Recomputed by the editor on a debounce, not on every keystroke.
+  set misspelledRanges(List<(int start, int end)> ranges) {
+    _misspelledRanges = ranges;
+    notifyListeners();
+  }
+
   static const _speakingStyle = TextStyle(backgroundColor: Color(0xFFFFB74D));
+  static const _misspelledStyle = TextStyle(
+    decoration: TextDecoration.underline,
+    decorationStyle: TextDecorationStyle.wavy,
+    decorationColor: Colors.red,
+  );
 
   @override
   TextSpan buildTextSpan({
@@ -48,12 +63,12 @@ class AnnotationHighlightController extends TextEditingController {
     final ranges = _resolved.where((entry) => entry.$2.end > entry.$2.start).toList()
       ..sort((a, b) => a.$2.start.compareTo(b.$2.start));
 
-    if (ranges.isEmpty && _speakingRange == null) {
+    if (ranges.isEmpty && _speakingRange == null && _misspelledRanges.isEmpty) {
       return super.buildTextSpan(context: context, style: style, withComposing: withComposing);
     }
 
     final text = value.text;
-    final children = <TextSpan>[];
+    var children = <TextSpan>[];
     var cursor = 0;
 
     for (final (annotation, resolution) in ranges) {
@@ -73,28 +88,43 @@ class AnnotationHighlightController extends TextEditingController {
       children.add(TextSpan(text: text.substring(cursor), style: style));
     }
 
-    final speaking = _speakingRange;
-    final finalChildren = speaking == null
-        ? children
-        : _overlaySpeakingRange(
-            children,
-            style,
-            speaking.$1.clamp(0, text.length),
-            speaking.$2.clamp(0, text.length),
-          );
+    for (final (start, end) in _misspelledRanges) {
+      children = _overlayRange(
+        children,
+        style,
+        start.clamp(0, text.length),
+        end.clamp(0, text.length),
+        _misspelledStyle,
+      );
+    }
 
-    return TextSpan(style: style, children: finalChildren);
+    final speaking = _speakingRange;
+    if (speaking != null) {
+      children = _overlayRange(
+        children,
+        style,
+        speaking.$1.clamp(0, text.length),
+        speaking.$2.clamp(0, text.length),
+        _speakingStyle,
+      );
+    }
+
+    return TextSpan(style: style, children: children);
   }
 
-  /// Splits whichever child spans overlap `[start, end)` and merges the
-  /// speaking style onto just the overlapping portion — a genuine overlay
-  /// independent of whatever annotation styling (if any) already applies to
-  /// that stretch of text, rather than a second competing "first wins" range.
-  List<TextSpan> _overlaySpeakingRange(
+  /// Splits whichever child spans overlap `[start, end)` and merges
+  /// [overlayStyle] onto just the overlapping portion — a genuine overlay
+  /// independent of whatever styling (if any) already applies to that
+  /// stretch of text, rather than a second competing "first wins" range.
+  /// Used for both the speaking range and each misspelled-word range in
+  /// turn, so multiple overlays (e.g. reading through a misspelled word)
+  /// compose correctly.
+  List<TextSpan> _overlayRange(
     List<TextSpan> children,
     TextStyle? baseStyle,
     int start,
     int end,
+    TextStyle overlayStyle,
   ) {
     if (start >= end) return children;
     final result = <TextSpan>[];
@@ -118,7 +148,7 @@ class AnnotationHighlightController extends TextEditingController {
       }
       result.add(TextSpan(
         text: text.substring(overlapStart - childStart, overlapEnd - childStart),
-        style: (child.style ?? baseStyle ?? const TextStyle()).merge(_speakingStyle),
+        style: (child.style ?? baseStyle ?? const TextStyle()).merge(overlayStyle),
       ));
       if (overlapEnd < childEnd) {
         result.add(TextSpan(text: text.substring(overlapEnd - childStart), style: child.style));

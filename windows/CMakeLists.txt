@@ -97,6 +97,16 @@ install(FILES ${VOSK_BUNDLED_LIBRARIES}
   DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
+# Hunspell (offline spell check, Phase 4.5) — no Dart/Flutter package wraps
+# it, so libhunspell.dll is built from source (hunspell/hunspell upstream,
+# msvc/libhunspell.vcxproj, Release_dll|x64) and vendored the same way as
+# Vosk above. See lib/services/hunspell_ffi.dart.
+file(GLOB HUNSPELL_BUNDLED_LIBRARIES CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/hunspell/*.dll")
+install(FILES ${HUNSPELL_BUNDLED_LIBRARIES}
+  DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
+
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")
 install(DIRECTORY "${NATIVE_ASSETS_DIR}"

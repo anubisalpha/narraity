@@ -204,4 +204,120 @@ void main() {
       expect(span.toPlainText(), 'Elena stepped inside.');
     });
   });
+
+  group('misspelledRanges (spell check)', () {
+    testWidgets('paints a wavy red underline under each misspelled range',
+        (tester) async {
+      final controller =
+          AnnotationHighlightController(text: 'Elena stpped inside.');
+      late BuildContext capturedContext;
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Builder(builder: (context) {
+            capturedContext = context;
+            return TextField(controller: controller);
+          }),
+        ),
+      ));
+
+      controller.misspelledRanges = [(6, 12)]; // "stpped"
+
+      final span =
+          controller.buildTextSpan(context: capturedContext, withComposing: false);
+      expect(span.toPlainText(), 'Elena stpped inside.');
+      final children = span.children!;
+      expect(children.map((c) => c.toPlainText()), ['Elena ', 'stpped', ' inside.']);
+      final flagged = children[1] as TextSpan;
+      expect(flagged.style!.decorationStyle, TextDecorationStyle.wavy);
+      expect(flagged.style!.decorationColor, Colors.red);
+    });
+
+    testWidgets('paints multiple misspelled ranges independently', (tester) async {
+      final controller =
+          AnnotationHighlightController(text: 'Elena stpped insid the doorway.');
+      late BuildContext capturedContext;
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Builder(builder: (context) {
+            capturedContext = context;
+            return TextField(controller: controller);
+          }),
+        ),
+      ));
+
+      controller.misspelledRanges = [(6, 12), (13, 18)]; // "stpped", "insid"
+
+      final span =
+          controller.buildTextSpan(context: capturedContext, withComposing: false);
+      final children = span.children!;
+      expect(
+        children.map((c) => c.toPlainText()),
+        ['Elena ', 'stpped', ' ', 'insid', ' the doorway.'],
+      );
+      expect(
+        (children[1] as TextSpan).style!.decorationStyle,
+        TextDecorationStyle.wavy,
+      );
+      expect(
+        (children[3] as TextSpan).style!.decorationStyle,
+        TextDecorationStyle.wavy,
+      );
+    });
+
+    testWidgets('a misspelled range and the speaking range compose correctly',
+        (tester) async {
+      final controller =
+          AnnotationHighlightController(text: 'Elena stpped inside.');
+      late BuildContext capturedContext;
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Builder(builder: (context) {
+            capturedContext = context;
+            return TextField(controller: controller);
+          }),
+        ),
+      ));
+
+      controller.misspelledRanges = [(6, 12)]; // "stpped"
+      controller.speakingRange = (0, 5); // "Elena"
+
+      final span =
+          controller.buildTextSpan(context: capturedContext, withComposing: false);
+      expect(span.toPlainText(), 'Elena stpped inside.');
+
+      final children = span.children!;
+      final spoken = children.first as TextSpan;
+      expect(spoken.text, 'Elena');
+      expect(spoken.style!.backgroundColor, const Color(0xFFFFB74D));
+
+      final misspelled = children.firstWhere((c) => c.toPlainText() == 'stpped') as TextSpan;
+      expect(misspelled.style!.decorationStyle, TextDecorationStyle.wavy);
+    });
+
+    testWidgets('clearing misspelledRanges stops painting them', (tester) async {
+      final controller =
+          AnnotationHighlightController(text: 'Elena stpped inside.');
+      late BuildContext capturedContext;
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Builder(builder: (context) {
+            capturedContext = context;
+            return TextField(controller: controller);
+          }),
+        ),
+      ));
+
+      controller.misspelledRanges = [(6, 12)];
+      controller.misspelledRanges = [];
+
+      final span =
+          controller.buildTextSpan(context: capturedContext, withComposing: false);
+      expect(span.children, isNull);
+      expect(span.toPlainText(), 'Elena stpped inside.');
+    });
+  });
 }
