@@ -149,6 +149,18 @@ full breakdown and what changes per platform when that day comes.
 - Stops cleanly if you start typing (a real edit would otherwise leave the reading position
   pointing at stale text) or switch scenes
 
+### Spell check (offline)
+- Real Hunspell under the hood (the same engine LibreOffice/Firefox/Chrome use), via a hand-written
+  FFI binding — no Dart/Flutter package for this exists, so `libhunspell.dll` is built from source
+  and vendored the same way as the Vosk dictation engine
+- **en-GB (UK English) as the default**, bundled with the app — no download needed
+- Misspelled words get a red wavy underline right in the editor
+- A Spelling panel (badge shows the count) lists every flagged word with suggestion chips — tap one
+  to replace it in place — and an "add to dictionary" action for names and words that are correct
+  but not in the wordlist
+- Multi-language/variant support (US/CA/AU/NZ/ZA English, other languages) and a thesaurus/dictionary
+  are planned but not built yet
+
 ### Voice dictation (offline)
 - Windows: a hand-written Dart FFI binding straight to the real Vosk engine (`libvosk.dll`,
   vendored — see "Why not a Vosk plugin?" below)

@@ -894,17 +894,100 @@ typing.
 
 ---
 
+## Phase 4.5 — Spell check (Hunspell, en-GB)
+
+**✅ Built and committed 2026-07-25, commit `a43ee44`.** Scoped to spell check only this session
+(thesaurus/dictionary via Open English WordNet deferred as its own follow-up, per user direction —
+this phase has two large, mostly-independent pieces).
+
+**No Dart/Flutter package wraps Hunspell at all** — checked pub.dev directly for a dozen likely
+names (`hunspell`, `flutter_hunspell`, `hunspell_dart`, `nuspell`, ...), none exist. Same path as Vosk
+dictation: a hand-written FFI binding to a native library. Unlike Vosk, there was no broken plugin to
+route around — `libhunspell.dll` simply doesn't exist prebuilt anywhere trustworthy, so it's built
+from source.
+
+**Build recipe (Windows), reproducible from scratch:**
+1. `git clone --depth 1 https://github.com/hunspell/hunspell.git` — ships its own MSVC solution
+   (`msvc/Hunspell.sln`), no CMake/vcpkg needed.
+2. This machine's Visual Studio ("18"/2026) doesn't match any of the solution's built-in
+   `PlatformToolset` values (v140/v143) — its actual toolset name is `v145` (found via
+   `MSBuild\Microsoft\VC\v180\Platforms\x64\PlatformToolsets\v145\Toolset.props`), and its Windows SDK
+   is `10.0.26100.0`, not the project's default `8.1`. Retarget both:
+   `sed -i 's/<WindowsTargetPlatformVersion>8.1</<WindowsTargetPlatformVersion>10.0</'
+   msvc/libhunspell.vcxproj`, then build with `/p:PlatformToolset=v145` explicitly.
+3. `MSBuild.exe msvc/libhunspell.vcxproj /p:Configuration=Release_dll /p:Platform=x64
+   /p:PlatformToolset=v145` — produces `msvc/x64/Release_dll/libhunspell.dll`, exporting the full C
+   API (`Hunspell_create`, `_spell`, `_suggest`, `_add`, `_remove`, `_free_list`, ... — verified via
+   `dumpbin /EXPORTS`).
+4. Vendored at `windows/hunspell/` (DLL + `hunspell.h` + `COPYING.LESSER`/`COPYING.MPL` for
+   attribution), copied into the build output by `windows/CMakeLists.txt` the same way
+   `windows/vosk/` is. **The DLL itself isn't tracked in git** — excluded by the same global `*.dll`
+   rule that already excludes `libvosk.dll` — so these steps are the actual source of truth for
+   regenerating it, not the repo.
+
+**What's built:** `lib/services/hunspell_ffi.dart` — the binding itself (`Hunspell_create`/`_spell`/
+`_suggest`/`_add`/`_remove`/`_destroy`; `_suggest`'s `char***` out-param maps to
+`Pointer<Pointer<Pointer<Utf8>>>` in Dart FFI). `lib/services/word_tokenizer.dart` — pure word
+splitter (letters + mid-word apostrophes for contractions/possessives), same "keep parsing
+unit-testable" precedent as `paragraph_splitter.dart`/`mention_scanner.dart`.
+`lib/services/spellcheck_dictionary_service.dart` — extracts the bundled `assets/dictionaries/en_GB/`
+asset (LibreOffice dictionaries repo, LGPL, `SET UTF-8` confirmed in the `.aff` — no encoding
+conversion needed) to a real file on first use, since Hunspell's C API takes file paths and can't read
+inside the Flutter asset bundle. `lib/services/spell_check_service.dart` — high-level
+`isCorrect`/`suggestionsFor`/`addToSessionDictionary`/`findMisspelled` wrapper.
+
+**Editor integration:** `AnnotationHighlightController`'s single-range "speaking range" overlay
+(Read Aloud) generalized to `_overlayRange` applied per-range, now also driving a
+`misspelledRanges` list — a red wavy underline painted as a genuine overlay on top of whatever
+annotation styling (if any) already applies, composing correctly with the speaking range too.
+Recomputed on a 400ms debounce after real text changes (same guard that already distinguishes real
+edits from the controller's own annotation/speaking-range notification pings). New **Spelling**
+toolbar icon (badge shows the misspelled count) opens `SpellingPanel` — same
+list-docked-under-the-editor pattern as `AnnotationPanel` — with suggestion chips (tap to replace
+in place) and an "add to dictionary" action.
+
+**A real bug avoided proactively, from a different angle than Read Aloud's fix:** spell check runs
+*automatically* on every scene load/edit (not user-triggered like Read Aloud), so it can't be made
+lazy the same way. Instead `_runSpellCheck` wraps the dictionary load in a try/catch that disables
+spell check gracefully on failure (missing asset, no `path_provider` mock in the test
+environment, ...) rather than crashing the rest of the editor — verified this doesn't regress any
+existing widget test that builds the full `SceneEditor`.
+
+**Two build-environment gotchas hit rebuilding after this change, both one-offs:** a transient
+`INSTALL.vcxproj` failure (same flake noted in an earlier session — succeeded on immediate retry),
+and a missing `build/native_assets/windows` folder that `cmake_install.cmake` expected but nothing
+had created after `rm -rf build` — fixed by creating it by hand (`mkdir -p
+build/native_assets/windows`) before rebuilding.
+
+**296 tests** (was 279) — `word_tokenizer_test.dart` (7 tests) and `spell_check_service_test.dart`
+(6 tests, **real end-to-end coverage against the actual vendored DLL and actual bundled
+dictionary** — unlike Vosk, this is entirely offline and instant, so there's no reason to fake it),
+plus 4 new `AnnotationHighlightController` tests for the generalized multi-range overlay. `flutter
+analyze` clean, `flutter build windows` verified, and **the user confirmed it works live**: squiggly
+underlines on real misspellings, suggestion-chip replacement, and add-to-dictionary.
+
+**Deferred, logged in `CONSIDERATIONS.md`:** a Settings section to view/manage added-dictionary
+words was requested right after this shipped — noted that it needs actual persistence built first
+(`Hunspell_add` is run-time/in-memory only, per the function's own doc comment; nothing survives an
+app restart yet, so there's nothing yet for a management screen to list). Also still deferred: the
+per-project language/variant picker and additional downloadable dictionaries from PLAN.md (en-GB is
+hardcoded as the only option for now), and the WordNet-backed thesaurus/dictionary (this phase's
+other half).
+
+---
+
 ## Current status
 
-Phases 0 through 4 are built and verified, **Phase 4 fully complete**: manuscript editor, dictation,
-goals, version history, data protection and its UI, characters/worldbuilding/notes, the Reference
-Panel, the Plot Grid, the Timeline, the Relationship Diagram, and Phase 4's annotations,
-AI/external review round-trip, and Read Aloud. 279 automated tests passing, `flutter analyze`
-clean, `flutter build windows` succeeds. Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation,
-goals, version history, manuscript generalization), `8416beb` (data protection services), `62d1baf`
-(docs), `8d414ac` (data-protection UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b`
-(reference-card id-guess fix), `7466997` (Phase 3), `d8481f5` (Phase 3.5), `8adcd8a`/`cdaab87`/
-`a9cc096`/`502f68d`/`1e7abc7` (Phase 4).
+Phases 0 through 4 are fully complete; Phase 4.5 has spell check done, thesaurus/dictionary still to
+come. Manuscript editor, dictation, goals, version history, data protection and its UI,
+characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the Timeline, the Relationship
+Diagram, Phase 4's annotations/AI review round-trip/Read Aloud, and now Hunspell-backed spell check.
+296 automated tests passing, `flutter analyze` clean, `flutter build windows` succeeds. Commits:
+`3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals, version history, manuscript
+generalization), `8416beb` (data protection services), `62d1baf` (docs), `8d414ac` (data-protection
+UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card id-guess fix), `7466997`
+(Phase 3), `d8481f5` (Phase 3.5), `8adcd8a`/`cdaab87`/`a9cc096`/`502f68d`/`1e7abc7` (Phase 4),
+`a43ee44` (Phase 4.5 spell check).
 
 **All three Phase 3/3.5 screens (Plot Grid, Relationship Diagram, Timeline) have now had a real
 GUI/gesture pass.** Two genuine bugs were found and fixed on the first two (Plot Grid's zero-height
@@ -920,12 +1003,14 @@ comment, exported comments, re-imported — worked cleanly. Read Aloud — readi
 highlighting, and settings all confirmed working. Session persistence across an app restart and the
 metadata header's exact visual polish are the only Phase 4 pieces still unconfirmed by eye.
 
-Next per `PLAN.md`: **Phase 4.5** (spell check via Hunspell, multi-language, en-GB default;
-thesaurus + dictionary via Open English WordNet).
+**Spell check (Hunspell, en-GB) is built and click-through verified** — see the Phase 4.5 section
+above. Next per `PLAN.md`: the other half of Phase 4.5, the WordNet-backed thesaurus/dictionary, plus
+the deferred multi-language/variant picker for spell check.
 
 Still outstanding: scene-level `linkedReferences` (the fourth Reference Panel trigger from PLAN.md —
 mentions, pins, and auto-detect cover the other three), per-project vault passwords, export format
 priority, Play Store readiness (privacy policy, data safety form), the Plot Grid's dangling-point
 cleanup, and the Relationship Diagram's dangling-edge cleanup on character delete and its "mini view
 in the Reference Panel." See `CONSIDERATIONS.md` for open design questions (annotations panel
-position, per-project vault passwords, email/sharing from the review screens).
+position, per-project vault passwords, email/sharing from the review screens, a Settings section to
+manage added spell-check words).
