@@ -96,11 +96,14 @@ full breakdown and what changes per platform when that day comes.
 - Pan/zoomable canvas of your characters (pulled live from Character Profiles) with draggable
   positions that persist between sessions
 - Relationships (family, romantic, friend, rival, ally, mentor, other, plus a custom label) drawn as
-  labelled lines between characters
+  **colour-coded lines** — same colour for the line, the badge outline, the side-list dot, and the
+  Type dropdown, so one glance tells you what kind of relationship it is anywhere in the screen
+- The label renders as a **badge** (filled, rounded, sitting on top of the line) rather than raw text,
+  so it stays legible wherever a line crosses under it
 - **Drag one character's node onto another** to open the relationship dialog pre-filled with the
   dragged character and the one it landed on — editing the existing relationship between them if
   there already is one. The dragged node snaps back to its own position afterward; this gesture
-  links, it doesn't move
+  links, it doesn't move. Lines follow the node live while dragging
 - Add relationships via the "+" picker instead (pick both characters, a type, an optional label) when
   drag-and-drop isn't convenient; manage existing ones from a side list
 

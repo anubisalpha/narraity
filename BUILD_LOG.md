@@ -615,6 +615,40 @@ unconfirmed."
 
 ---
 
+## Relationship Diagram polish: colour-coded lines, badge labels, drag responsiveness
+
+Follow-up feedback after the drag-and-drop session: colour-code the lines by relationship type,
+render the label as a badge sitting on top of the line rather than raw text, and the drag felt
+unresponsive.
+
+**Colour coding:** `_relationshipTypeColors` maps each `RelationshipType` to a colour (reusing the
+Plot Grid's palette hues for a consistent feel across the app), applied to the line itself, a small
+dot on each side-list row, and a dot on each option in the dialog's Type dropdown — so the same
+colour means the same thing everywhere in the screen, not just on the canvas.
+
+**Badge label:** `_EdgePainter` now draws a filled, rounded-rect badge (theme surface colour, with a
+1px border in the relationship's own colour) centred at the line's midpoint, drawn *after* the line
+so it visibly sits on top, then the label text on top of that. Previously the label was raw text
+painted directly over the line with no background, illegible wherever a line crossed under it.
+
+**Drag responsiveness:** the gesture itself was already firing on every pointer move
+(`_ImmediateDragRecognizer` from the prior fix), but the **edges never followed the dragged node
+live** — `_EdgePainter` only read from the persisted/fallback `layout`, which doesn't change until
+the drag ends and the provider re-fetches. So the card moved instantly but every line attached to it
+stayed frozen at the old position until release, then jumped — which reads as sluggish even though
+the underlying gesture recognition wasn't the actual bottleneck. Fixed by promoting drag state from
+purely-local (`_DraggableNodeState._dragPosition`) up to `_Canvas` (now a `ConsumerStatefulWidget`
+tracking `_draggingId`/`_draggingPosition`), fed by a new `onDragUpdate`/`onDragEnd` callback pair on
+`_DraggableNode`. The dragged node keeps its own local state too (for its own snappy re-render
+without waiting on the parent), so this is additive, not a behaviour change to the drag itself — the
+node moves exactly as it did before, the edges just now move with it.
+
+**Verified:** `flutter analyze` clean, all 198 tests still passing (behavioural change, not new
+surface area — the existing `relationship_screen_test.dart` drag/dialog/snap-back test still covers
+the gesture path). Rebuilt `flutter build windows`.
+
+---
+
 ## Current status
 
 Phases 0 through 3.5 are built and verified: manuscript editor, dictation, goals, version history,
