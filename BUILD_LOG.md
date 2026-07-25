@@ -135,11 +135,83 @@ it to the end. Fixed with an explicit max-by-date scan (same fix applied in thre
 
 ---
 
+## Manuscript structure generalization (post-1.7)
+
+Replaced the fixed Act → Chapter → Scene model with a generic arbitrary-depth tree
+(`ManuscriptNode`), chosen from a starter seed at project creation (5 presets + blank/custom) but
+fully editable afterward. Every node can hold its own prose *and* have children at the same time —
+the original container-vs-leaf split meant a node with prose couldn't gain subsections, which was a
+real UX gap found after rebuilding and using the app live, not caught by tests. Fixed by dropping
+`isContainer` entirely and renaming `leafIds` → `contentIds` (self + descendants, self first).
+Forced simplifying Goal scoping too: `GoalScope.act`/`.scene` dropped (no consistent concept of
+"act" once structure is freeform) — goals are now `project` or `global` only, with old act/scene
+goals falling back to `project` scope on load rather than failing.
+
+Verified live in the running Windows app: created a project with the "Chapters only" seed, added a
+subsection under a chapter, and confirmed the chapter's own prose editor stayed reachable while
+also showing the child — the exact case the redesign was for.
+
+## Data protection — tamper-evidence, corruption resilience, password-protected vault
+
+Started from the user asking how Version History's on-disk JSON format works, then walking through
+a malware-tampering scenario and a corruption-recovery scenario. Design went through several real
+pivots worth keeping for context:
+
+1. **First attempt: per-device HMAC signing via `flutter_secure_storage`** (Windows DPAPI / Android
+   Keystore). Caught during design review, not after building: a device-local key means a snapshot
+   signed on Windows can never verify on Android once Drive sync brings the file across — false
+   "tampered" flags on genuinely good history.
+2. **Corruption resilience, separately from tamper-evidence:** content-hash verification on read,
+   periodic full-text keyframes to bound replay depth, and a `.history_backup/` mirror folder for
+   auto-repair when the primary copy fails verification.
+3. **"Nearly guarantee integrity":** discussed content-addressed storage, redundancy across
+   independent failure domains, active scrubbing, majority reconciliation — concluded nothing
+   survives the whole machine being destroyed without a copy that leaves it.
+4. **The actual answer, proposed by the user:** a password-protected Vault file as a second,
+   independent backup artifact. This solves the cross-device problem too — a human password
+   derives the same key on every device, unlike OS-specific secure storage.
+
+**What got built:**
+- `SceneHistoryService`: every snapshot HMAC-signed, chained to the previous snapshot's signature.
+  On read, a signature/chain mismatch is treated as tampered (quarantined — renamed `.tampered`,
+  never deleted) *unless* the `.history_backup/` mirror copy verifies clean, in which case the
+  primary is auto-repaired from it. `SnapshotVerification` has three states: `valid`,
+  `legacyUnsigned` (predates signing, or written with no password set — trusted, not flagged), and
+  `locked` (has a real signature but no password unlocked this session to check it against — a real
+  bug caught in review: without this third state, opening the app without the password would
+  falsely flag genuinely signed history as tampered). `pruneAutoSnapshots` refuses to run if it
+  would need to re-sign entries without having the key available, rather than silently downgrading
+  them to unsigned.
+- `HistorySigningKeyManager`: derives the signing key from the vault password via Argon2id — no
+  OS secure storage at all. Deliberately not `flutter_secure_storage`: its Windows backend needs
+  Visual Studio's ATL component (not installed here, and upgrading the package's major version
+  didn't drop the requirement), and a device-local key can't verify snapshots synced from another
+  device regardless.
+- `VaultService`: password-protected AES-256-GCM archive of the whole project directory
+  (Argon2id-derived key; GCM's auth tag is the tamper/corruption check, no separate signing scheme
+  needed). Generational rotation (`refreshVault`, default 10 kept, configurable) so a single bad
+  auto-refresh can't overwrite the last known-good backup.
+
+**Verified:** 92/92 tests passing (added `vault_service_test.dart`, rewrote
+`scene_history_service_test.dart` for the new signing API), `flutter analyze` clean, **both**
+`flutter build windows` and `flutter build apk --debug` succeed — confirmed by actually running
+each build, not just assumed from removing the offending dependency.
+
+**Not built yet:** settings UI (enable vault, enter/change password, adjust retention count),
+auto-refresh scheduling (the service call exists, nothing calls it on a timer or app-close yet),
+restore-flow UI (decrypt + pick a generation + write back — the service methods exist, no screen
+uses them), and per-project vault passwords (explicitly deferred — current design is one password
+per library).
+
+---
+
 ## Current status
 
-Phases 0 through 1.7 built and verified. 83 automated tests passing, `flutter analyze` clean. Only
-Phases 0/0.5/1 are committed to git (`3097c4b`) — dictation, goals, and version history are on disk
-but not yet committed, pending user confirmation.
+Phases 0 through 1.7, the manuscript structure generalization, and the data protection work above
+are all built, verified, and committed. 92 automated tests passing, `flutter analyze` clean, both
+`flutter build windows` and `flutter build apk --debug` succeed. Commits: `3097c4b` (Phases
+0/0.5/1), `bd27566` (dictation, goals, version history, manuscript generalization), `8416beb`
+(data protection).
 
 Next candidates per `PLAN.md`: Phase 2 (Character profiles, Worldbuilding, Story Notes) or Phase
-2.5 (Reference Panel).
+2.5 (Reference Panel) — or the data-protection UI wiring listed above.

@@ -80,11 +80,29 @@ full breakdown and what changes per platform when that day comes.
   one-click restore — restoring creates a *new* history entry rather than overwriting, so the
   restore itself is undoable
 
+### Data protection
+- Every history snapshot is HMAC-signed and chained to the one before it, so an edited, deleted, or
+  reordered snapshot file is detected on read (not just trusted) and quarantined rather than
+  silently replayed — catches both deliberate tampering and ordinary corruption (a flipped byte
+  breaks the signature check either way)
+- A `.history_backup/` mirror of every snapshot enables auto-repair: a corrupted primary file is
+  restored in place from its backup copy if the backup still verifies clean
+- The signing key is derived from a user password (Argon2id) rather than OS-specific secure
+  storage — pure Dart, no native platform dependency, and the same key on every device once Drive
+  sync exists, avoiding a false-tamper mismatch a device-local key would cause
+- Optional password-protected **Vault**: a single encrypted (AES-256-GCM) archive of the whole
+  project, independent of the many small live files, for disaster recovery — kept in rotating
+  generations (default 10) so one bad refresh can't destroy the last good backup
+- UI for enabling the vault, entering the password, and restoring from a generation isn't built
+  yet — the service layer (`VaultService`, `HistorySigningKeyManager`) is complete and tested
+
 ## Tech stack
 
 - **Flutter** + **Riverpod** for state
 - **Local file storage** — JSON + Markdown, no embedded database
 - **`diff_match_patch`** for Version History's diff/patch storage
+- **`crypto`** + **`cryptography`** (HMAC-SHA256, Argon2id, AES-256-GCM) for history tamper-evidence
+  and the password-protected Vault — no native platform dependency, works identically on every OS
 - **`record`** (cross-platform mic capture) + a hand-written FFI binding for Windows dictation
 - **`speech_to_text`** for Android dictation
 - No servers, no accounts, no telemetry — everything above runs entirely on-device
