@@ -331,15 +331,77 @@ Worth reaching for first next time rather than re-running clean.
 
 ---
 
+## Phase 2.5 — Reference Panel
+
+The differentiator Phase 2 was the prerequisite for: contextual character/world info docked beside
+the editor, driven by `@` mentions and pins, showing only the fields starred as `quickRef`.
+
+**The one decision that needed the user: what `@mention` inserts.** PLAN.md specified an id-based tag
+(`[[char:elena-vance]]`), but real ids are uuids, and in a plain-text editor that tag sits visibly in
+the middle of the sentence being written. Chose **name-based `[[Elena Vance]]`** (user's call): readable
+in prose, wiki-style. The trade-off is explicit — renaming a character orphans existing mentions until
+Find & Replace fixes them — and it's handled gracefully rather than silently: an unmatched mention
+becomes an "unresolved" card offering to create that profile, which doubles as the natural path for a
+character who shows up in the prose before they have a profile.
+
+**Other design decisions:**
+- **Mention parsing and `@`-query detection are a pure library** (`mention_scanner.dart`), no Flutter
+  imports, so the fiddly parts are unit-tested rather than only reachable through a running editor.
+  The `@` must follow whitespace or opening punctuation, so `elena@example.com` never triggers
+  autocomplete, and a query stops matching once it spans a newline, a bracket, or 40 characters.
+- **Keys are intercepted on the text field's own `FocusNode`, not an ancestor `Focus`.** An ancestor
+  never sees Enter or the arrow keys in a multiline field — the field consumes them first — so the
+  popup's keyboard navigation would silently not work.
+- **Mentions publish on the save debounce, not per keystroke**, so the panel settles when you pause
+  instead of flickering through partial names as you type. The publish is also diffed against current
+  state to avoid pointless panel rebuilds.
+- **Pins live in app preferences, keyed by project id, not in the project folder.** Pins are this
+  machine's workspace state, not part of the manuscript — putting them in the project would ride them
+  along into vault backups and (later) Drive sync. Keyed by id rather than folder name because a
+  rename changes the folder.
+- **Inline quick-edit resolves its service when editing starts**, so the debounced save can run from
+  `dispose()` — where reading providers isn't safe — and captures the controller text before awaiting,
+  since the controller may be disposed by the time the write lands.
+- **Panel content is one derived provider** combining pins, mentions, and both entry lists, with
+  `resolveMentions` extracted as a pure function (characters win a name collision with world entries;
+  order follows mention order). Deleted entries silently drop out of the pin list rather than erroring.
+- **Focus Mode hides the panel**, since the entire point of Focus Mode is nothing but prose on screen.
+- The resize handle's visible divider is 1px but its grab area is 8px — a 1px drag target is painful.
+
+**Deliberately deferred:** the autocomplete popup is anchored to the top of the editor area rather
+than to the caret. Caret anchoring needs `TextPainter` geometry that has to be tuned by eye against a
+running window, which this session couldn't do (see caveat) — a popup in a predictable place beats one
+that lands slightly wrong. Worth revisiting alongside the rich-text editor, which will also be the
+point at which `[[…]]` tags can be rendered as chips instead of raw brackets.
+
+**Verified:** `flutter analyze` clean, **169 tests passing** (was 148), both `flutter build windows`
+and `flutter build apk --debug` succeed. New coverage: `mention_scanner_test.dart` (14 cases:
+extraction, de-duplication, nested/empty brackets, email non-trigger, newline/length limits, caret
+mid-text), `reference_panel_provider_test.dart` (`resolveMentions` — case-insensitive matching, world
+entries, character-wins collision, unresolved ordering), and a widget test proving a mentioned
+character's starred field renders on a card with its value while unstarred fields stay hidden, and
+that an unmatched mention offers "Create".
+
+**Caveat, unchanged from the last two sessions:** computer-use can't resolve the Narraity window on
+this machine, so the GUI was not clicked through. The panel's live feel — popup placement, drag-resize,
+inline-edit focus behaviour — is unconfirmed by eye.
+
+---
+
 ## Current status
 
-Phases 0 through 1.7, the manuscript structure generalization, the data protection work and its UI,
-and Phase 2 are all built and verified. 148 automated tests passing, `flutter analyze` clean, both
-`flutter build windows` and `flutter build apk --debug` succeed. Commits: `3097c4b` (Phases
-0/0.5/1), `bd27566` (dictation, goals, version history, manuscript generalization), `8416beb`
-(data protection services), `62d1baf` (docs), `8d414ac` (data-protection UI).
+Phases 0 through 2.5 are built and verified: manuscript editor, dictation, goals, version history,
+data protection and its UI, characters/worldbuilding/notes, and the Reference Panel. 169 automated
+tests passing, `flutter analyze` clean, both `flutter build windows` and `flutter build apk --debug`
+succeed. Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals, version history, manuscript
+generalization), `8416beb` (data protection services), `62d1baf` (docs), `8d414ac` (data-protection
+UI), `0dbb050` (Phase 2).
 
-Next per `PLAN.md`: **Phase 2.5 — the Reference Panel**, which now has content to display: character
-and worldbuilding entries with `quickRef` fields already curated and persisted. Its remaining pieces
-are the docking panel UI, `@mention` autocomplete inserting `[[char:<id>]]` tags, pin/unpin, and
-scene-level `linkedReferences` auto-population.
+Next per `PLAN.md`: **Phase 3** (Plot Grid, Timeline, relationship diagram) or **Phase 4** (comments,
+highlights, sticky notes, footnotes on a shared text-anchor mechanism, plus the AI/external review
+round-trip). Worth noting Phase 4's anchor mechanism is the same machinery a rich-text editor would
+need to render `[[…]]` mentions as chips, so pairing them is sensible.
+
+Still outstanding from earlier phases: scene-level `linkedReferences` (the fourth Reference Panel
+trigger from PLAN.md — mentions, pins, and auto-detect cover the other three), per-project vault
+passwords, export format priority, and Play Store readiness (privacy policy, data safety form).

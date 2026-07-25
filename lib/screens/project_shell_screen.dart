@@ -11,6 +11,7 @@ import '../services/app_logger.dart';
 import '../services/manuscript_service.dart';
 import '../state/library_provider.dart';
 import '../state/manuscript_provider.dart';
+import '../state/reference_panel_provider.dart';
 import '../state/reference_provider.dart';
 import '../state/vault_provider.dart';
 import '../widgets/editor_settings_dialog.dart';
@@ -20,6 +21,7 @@ import '../widgets/notes_panel.dart';
 import '../widgets/profile_editor.dart';
 import '../widgets/profile_panel.dart';
 import '../widgets/quick_capture_dialog.dart';
+import '../widgets/reference_panel.dart';
 import '../widgets/scene_editor.dart';
 import '../widgets/todo_panel.dart';
 import '../widgets/vault_unlock_dialog.dart';
@@ -100,6 +102,7 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
     _autoBackupEnabled = ref.watch(vaultAutoRefreshProvider);
     final focusMode = ref.watch(focusModeProvider);
     final reference = ref.watch(openReferenceProvider);
+    final referenceVisible = ref.watch(referencePanelVisibleProvider);
     final serviceAsync = ref.watch(manuscriptServiceProvider(project));
     final structureAsync = ref.watch(manuscriptStructureProvider(project));
 
@@ -131,6 +134,15 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                   tooltip: 'Editor settings',
                   icon: const Icon(Icons.text_fields),
                   onPressed: () => showEditorSettingsDialog(context, ref),
+                ),
+                IconButton(
+                  tooltip: referenceVisible
+                      ? 'Hide Reference Panel'
+                      : 'Show Reference Panel',
+                  isSelected: referenceVisible,
+                  icon: const Icon(Icons.menu_open),
+                  onPressed: () =>
+                      ref.read(referencePanelVisibleProvider.notifier).toggle(),
                 ),
                 IconButton(
                   tooltip: 'Focus Mode (Esc to exit)',
@@ -212,6 +224,21 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                     structure: structure,
                   ),
                 ),
+                // Focus Mode hides the panel too — the point of Focus Mode is
+                // nothing but prose on screen.
+                if (!focusMode && referenceVisible) ...[
+                  _ReferencePanelResizeHandle(
+                    onDrag: (delta) => ref
+                        .read(referencePanelWidthProvider.notifier)
+                        .set(ref.read(referencePanelWidthProvider) - delta),
+                    onDragEnd: () =>
+                        ref.read(referencePanelWidthProvider.notifier).save(),
+                  ),
+                  SizedBox(
+                    width: ref.watch(referencePanelWidthProvider),
+                    child: ReferencePanel(project: project),
+                  ),
+                ],
               ],
             ),
           );
@@ -272,6 +299,33 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
     }
 
     return search(structure.nodes) ?? 'Untitled';
+  }
+}
+
+/// Thin draggable divider that resizes the Reference Panel. Dragging left
+/// widens the panel, so the delta is inverted by the caller.
+class _ReferencePanelResizeHandle extends StatelessWidget {
+  const _ReferencePanelResizeHandle({required this.onDrag, required this.onDragEnd});
+
+  final ValueChanged<double> onDrag;
+  final VoidCallback onDragEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeLeftRight,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragUpdate: (details) => onDrag(details.delta.dx),
+        onHorizontalDragEnd: (_) => onDragEnd(),
+        // The visible divider is 1px, but the grab area is padded out to 8px:
+        // a 1px drag target is painful to hit.
+        child: const SizedBox(
+          width: 8,
+          child: Center(child: VerticalDivider(width: 1)),
+        ),
+      ),
+    );
   }
 }
 

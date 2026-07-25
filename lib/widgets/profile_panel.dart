@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/profile_entry.dart';
 import '../models/project.dart';
 import '../services/profile_service.dart';
+import '../state/reference_panel_provider.dart';
 import '../state/reference_provider.dart';
 
 /// Sidebar list of character profiles or worldbuilding entries.
@@ -153,6 +154,7 @@ class _EntryTile extends ConsumerWidget {
 
     final imageFile = service?.imageFile(entry);
     final hasImage = imageFile != null && imageFile.existsSync();
+    final isPinned = ref.watch(pinnedReferencesProvider(project)).contains(entry.id);
 
     return ListTile(
       dense: true,
@@ -163,10 +165,33 @@ class _EntryTile extends ConsumerWidget {
         child: Text(_initials(entry.name)),
       ),
       title: Text(entry.name, overflow: TextOverflow.ellipsis),
-      trailing: IconButton(
-        icon: const Icon(Icons.more_vert, size: 18),
-        tooltip: 'Options',
-        onPressed: () => _confirmDelete(context, ref),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isPinned)
+            const Padding(
+              padding: EdgeInsets.only(right: 4),
+              child: Icon(Icons.push_pin, size: 14),
+            ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, size: 18),
+            tooltip: 'Options',
+            onSelected: (action) {
+              if (action == 'pin') {
+                ref.read(pinnedReferencesProvider(project).notifier).toggle(entry.id);
+              } else {
+                _confirmDelete(context, ref);
+              }
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'pin',
+                child: Text(isPinned ? 'Unpin from panel' : 'Pin to Reference Panel'),
+              ),
+              const PopupMenuItem(value: 'delete', child: Text('Delete')),
+            ],
+          ),
+        ],
       ),
       onTap: () => ref.read(openReferenceProvider.notifier).state =
           ReferenceSelection(referenceKind, entry.id),

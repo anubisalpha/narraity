@@ -9,10 +9,12 @@ import 'package:narraity/app.dart';
 import 'package:narraity/services/library_service.dart';
 import 'package:narraity/state/library_provider.dart';
 import 'package:narraity/state/manuscript_provider.dart';
+import 'package:narraity/state/reference_panel_provider.dart';
 import 'package:narraity/state/reference_provider.dart';
 import 'package:narraity/state/theme_provider.dart';
 import 'package:narraity/state/vault_provider.dart';
 import 'package:narraity/widgets/profile_editor.dart';
+import 'package:narraity/widgets/reference_panel.dart';
 
 // Project creation itself (real file I/O) is covered by the pure-Dart
 // library_service_test.dart, which doesn't fight flutter_test's fake-time
@@ -189,5 +191,62 @@ void main() {
     expect(container.read(openReferenceProvider)?.kind, ReferenceKind.character);
     expect(find.byType(ProfileEditor), findsOneWidget,
         reason: 'selecting a character must route the main pane to its profile');
+  });
+
+  testWidgets('Reference Panel shows quick-reference fields for a mentioned character',
+      (tester) async {
+    final projectRoot = Directory.systemTemp.createTempSync('narraity_refpanel_test_');
+    addTearDown(() => projectRoot.deleteSync(recursive: true));
+    final library = LibraryService(rootOverride: projectRoot);
+
+    final container = ProviderContainer(
+      overrides: [libraryServiceProvider.overrideWithValue(library)],
+    );
+    addTearDown(container.dispose);
+
+    final project =
+        (await tester.runAsync(() => library.createProject(title: 'Test Novel')))!;
+    await tester.runAsync(() async {
+      final characters = await container.read(characterServiceProvider(project).future);
+      final elena = await characters.create(name: 'Elena Vance');
+      await characters.save(elena.copyWith(
+        fields: {...elena.fields, 'Role': 'Captain of the guard'},
+        quickRef: ['Role'],
+      ));
+
+      await container.read(manuscriptStructureProvider(project).future);
+      await container.read(characterListProvider(project).future);
+      await container.read(worldListProvider(project).future);
+      await container.read(storyNoteListProvider(project).future);
+      await container.read(noteFoldersProvider(project).future);
+      await container.read(todoListProvider(project).future);
+    });
+    container.read(currentProjectProvider.notifier).state = project;
+
+    // What SceneEditor publishes after scanning `[[Elena Vance]]` in the prose.
+    container.read(sceneMentionedNamesProvider.notifier).state = ['Elena Vance'];
+    await tester.runAsync(
+        () => container.read(referencePanelContentProvider(project).future));
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: const NarraityApp()),
+    );
+    await tester.pump();
+
+    expect(find.byType(ReferencePanel), findsOneWidget);
+    // The starred field shows with its value; unstarred fields stay hidden.
+    expect(find.text('Role'), findsOneWidget);
+    expect(find.text('Captain of the guard'), findsOneWidget);
+    expect(find.text('Backstory'), findsNothing,
+        reason: 'only starred fields belong on a card');
+
+    // A mention with no matching profile offers to create one.
+    container.read(sceneMentionedNamesProvider.notifier).state = ['Nobody At All'];
+    await tester.runAsync(
+        () => container.read(referencePanelContentProvider(project).future));
+    await tester.pump();
+
+    expect(find.textContaining('No profile named "Nobody At All"'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Create'), findsOneWidget);
   });
 }

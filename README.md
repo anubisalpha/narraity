@@ -59,6 +59,19 @@ full breakdown and what changes per platform when that day comes.
 - Deleting a folder moves its notes back to the top level rather than deleting them
 - Notes promoted from Global Ideas appear here automatically, marked with their origin
 
+### Reference Panel
+- Dockable, resizable, collapsible panel on the right of the editor — reference material **while you
+  write**, never a navigation away from the manuscript
+- Type `@` in a scene to get an autocomplete of your characters and world entries (↑↓ to choose, Enter
+  to insert, Esc to dismiss); it inserts a readable wiki-style `[[Elena Vance]]` mention
+- The panel automatically shows a card for everything the open scene mentions, plus anything you've
+  **pinned** to keep visible regardless of scene
+- Cards show only the fields you starred as quick reference, and any of them can be **edited inline**
+  without leaving the editor
+- A mention with no matching profile shows as an unresolved card with a one-click "Create" — useful
+  when a character turns up in the prose before they have a profile
+- Panel visibility, width, and pins persist between sessions (per project for pins)
+
 ### Voice dictation (offline)
 - Windows: a hand-written Dart FFI binding straight to the real Vosk engine (`libvosk.dll`,
   vendored — see "Why not a Vosk plugin?" below)
