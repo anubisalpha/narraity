@@ -850,18 +850,61 @@ in `CONSIDERATIONS.md` — full SMTP/credential setup is a meaningfully bigger, 
 
 **269 tests** (was 207 at the start of the phase).
 
+**✅ Read Aloud (text-to-speech) — `1e7abc7`.** Phase 4's last unbuilt sub-feature. Adds
+`TtsService`, a thin wrapper around the `flutter_tts` package — the OS's built-in speech engine on
+both v1 platforms (Windows WinRT voices, Android `TextToSpeech`), no model download needed unlike
+dictation's Vosk models. Unlike the Vosk Flutter plugin this project replaced with a hand-written FFI
+binding (see "Why not a Vosk plugin?" above), `flutter_tts` ships a real native Windows
+implementation, so no such workaround was needed here.
+
+Wired into the scene editor as its own toolbar icon next to dictation's mic (input vs. output —
+same pairing logic as the rest of that toolbar section). Reads from the caret position (or the
+start of the scene if none), and extends `AnnotationHighlightController` with a transient "speaking
+range" — a plain `(start, end)` pair, not an `Annotation`, since it changes on every word boundary
+and is never persisted. Implemented as a genuine overlay (splits and re-merges whichever annotation
+spans it crosses) rather than a second competing "first wins" range, so a highlight or comment
+underneath stays visible while its words are read. Auto-stops on a real edit (offsets after the edit
+point go stale) or a scene switch. Settings → Read Aloud adds voice/speed/pitch controls, persisted
+the same way as `EditorSettings`.
+
+**A real bug found while fixing test fallout, worth remembering:** caching the `TtsService` eagerly
+in `initState` (mirroring the `_vaultActions = ref.read(...)` pattern from the project shell) made
+every `SceneEditor` mount create the platform plugin merely to populate the cache — and the
+provider's disposal unconditionally called `stop()`, which threw `MissingPluginException` in the
+test environment (no `flutter_tts` mock) for tests that never touched Read Aloud at all. Fixed by
+creating the service lazily, only on first actual use — the eager-cache pattern is fine for
+something like vault actions that's always needed, but wrong for a plugin only a fraction of
+sessions will ever touch.
+
+**One-time environment gap, fixed with the user's explicit OK:** `flutter_tts`'s Windows plugin needs
+`nuget.exe` on PATH at *build* time (its CMake fetches `Microsoft.Windows.CppWinRT` via NuGet) — not
+installed on this machine. Downloaded from the official NuGet distribution to
+`Development/tools/nuget.exe` (not on PATH persistently — prefix `export PATH="…/tools:$PATH"` before
+any future `flutter build windows` until that's fixed properly). Doesn't affect Android builds (a
+wholly separate native implementation, ordinary Gradle) or end users on either platform — WinRT
+speech synthesis ships with Windows itself, same as how Vosk models are the only "extra" thing users
+ever download, and even that's unrelated.
+
+**279 tests** (was 269) — pure-logic coverage for the raw-platform-response parser
+(`parseTtsVoices`) and the highlight controller's new overlay behavior (paints with no annotations
+present, overlays on top of an existing highlight rather than replacing it, clears cleanly). `flutter
+analyze` clean, `flutter build windows` verified, and **the user confirmed it works live**: reading
+from the caret, live word highlighting, voice/rate/pitch settings, clean stop on both manual stop and
+typing.
+
 ---
 
 ## Current status
 
-Phases 0 through 4 are built and verified: manuscript editor, dictation, goals, version history,
-data protection and its UI, characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the
-Timeline, the Relationship Diagram, and Phase 4's annotations + AI/external review round-trip. 269
-automated tests passing, `flutter analyze` clean, `flutter build windows` succeeds. Commits:
-`3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals, version history, manuscript
-generalization), `8416beb` (data protection services), `62d1baf` (docs), `8d414ac` (data-protection
-UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card id-guess fix), `7466997`
-(Phase 3), `d8481f5` (Phase 3.5), `8adcd8a`/`cdaab87`/`a9cc096` (Phase 4).
+Phases 0 through 4 are built and verified, **Phase 4 fully complete**: manuscript editor, dictation,
+goals, version history, data protection and its UI, characters/worldbuilding/notes, the Reference
+Panel, the Plot Grid, the Timeline, the Relationship Diagram, and Phase 4's annotations,
+AI/external review round-trip, and Read Aloud. 279 automated tests passing, `flutter analyze`
+clean, `flutter build windows` succeeds. Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation,
+goals, version history, manuscript generalization), `8416beb` (data protection services), `62d1baf`
+(docs), `8d414ac` (data-protection UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b`
+(reference-card id-guess fix), `7466997` (Phase 3), `d8481f5` (Phase 3.5), `8adcd8a`/`cdaab87`/
+`a9cc096`/`502f68d`/`1e7abc7` (Phase 4).
 
 **All three Phase 3/3.5 screens (Plot Grid, Relationship Diagram, Timeline) have now had a real
 GUI/gesture pass.** Two genuine bugs were found and fixed on the first two (Plot Grid's zero-height
@@ -870,22 +913,19 @@ reused the already-fixed drag technique from the start, so it didn't need its ow
 the same way, though it's only been exercised by the user for the reorder/stagger request above, not
 exhaustively.
 
-**Phase 4's editor-facing pieces (highlight rendering, the annotations panel) have had a real
-click-through** (see above, two bugs found/fixed). **The full author/reviewer round-trip has also
-been GUI-verified end to end**, same session: exported a scene from the project, opened it in the
-standalone reviewer tool, added a comment, exported the comments JSON, then re-imported that JSON
-back into the project — worked without any bugs surfacing. Session persistence across an app
-restart and the metadata header's exact visual polish are the only pieces still unconfirmed by eye.
+**Every Phase 4 sub-feature has now had a real click-through by the user, not just automated
+tests.** Editor-facing pieces (highlight rendering, the annotations panel) — two bugs found/fixed.
+The full author/reviewer round-trip — exported a scene, reviewed it in the standalone tool, added a
+comment, exported comments, re-imported — worked cleanly. Read Aloud — reading from the caret, live
+highlighting, and settings all confirmed working. Session persistence across an app restart and the
+metadata header's exact visual polish are the only Phase 4 pieces still unconfirmed by eye.
 
 Next per `PLAN.md`: **Phase 4.5** (spell check via Hunspell, multi-language, en-GB default;
-thesaurus + dictionary via Open English WordNet) — or continue polishing Phase 4 (see below) per user
-direction.
+thesaurus + dictionary via Open English WordNet).
 
 Still outstanding: scene-level `linkedReferences` (the fourth Reference Panel trigger from PLAN.md —
 mentions, pins, and auto-detect cover the other three), per-project vault passwords, export format
 priority, Play Store readiness (privacy policy, data safety form), the Plot Grid's dangling-point
-cleanup, the Relationship Diagram's dangling-edge cleanup on character delete and its "mini view in
-the Reference Panel," and — new from Phase 4 — the Plot Grid/Relationship Diagram-style dangling-data
-gap for annotations was avoided proactively, but text-to-speech (Phase 4's remaining unbuilt
-sub-feature) is still not started. See `CONSIDERATIONS.md` for open design questions (annotations
-panel position, per-project vault passwords, email/sharing from the review screens).
+cleanup, and the Relationship Diagram's dangling-edge cleanup on character delete and its "mini view
+in the Reference Panel." See `CONSIDERATIONS.md` for open design questions (annotations panel
+position, per-project vault passwords, email/sharing from the review screens).

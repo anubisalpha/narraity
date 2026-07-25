@@ -141,6 +141,14 @@ full breakdown and what changes per platform when that day comes.
   3rd-party reviewer opens the exported file, comments paragraph-by-paragraph, and exports their
   comments to send back. Every review session persists so it survives closing the app
 
+### Read Aloud (text-to-speech)
+- Reads from wherever your cursor is (or the start of the scene if nothing's placed) using the
+  OS's own speech engine — Windows WinRT voices, Android `TextToSpeech` — no download needed
+- The word currently being spoken highlights live in the text as it's read
+- Voice, speed, and pitch controls in Settings, remembered between sessions
+- Stops cleanly if you start typing (a real edit would otherwise leave the reading position
+  pointing at stale text) or switch scenes
+
 ### Voice dictation (offline)
 - Windows: a hand-written Dart FFI binding straight to the real Vosk engine (`libvosk.dll`,
   vendored — see "Why not a Vosk plugin?" below)
