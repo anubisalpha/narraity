@@ -119,6 +119,28 @@ full breakdown and what changes per platform when that day comes.
 - Add relationships via the "+" picker instead (pick both characters, a type, an optional label) when
   drag-and-drop isn't convenient; manage existing ones from a side list
 
+### Comments, highlights & sticky notes
+- Select text in the editor to add a highlight (4-swatch picker), a comment, or a sticky note — all
+  three (plus footnotes) anchor to that exact span, painted as background tints directly in the
+  plain-text editor
+- A footnote anchors to the caret itself rather than a selection
+- If the surrounding prose gets edited later, an anchored range self-heals if its text just moved
+  elsewhere in the scene; if the text is genuinely gone, it's flagged rather than silently misplaced
+- An Annotations panel lists everything on the current scene — jump to any one, mark a comment
+  resolved, or delete it
+
+### AI/external review round-trip
+- **Export for Review**, reachable from the project's top app bar: pick any set of scenes via a
+  checklist, and get one Markdown file with a stable anchor id before every paragraph — readable by
+  any human reviewer or pasted straight into an LLM
+- The file leads with a metadata header (project title, subtitle, author, export date) so whoever
+  opens it knows whose work they're looking at
+- **Import Review Comments** reads a reviewer's JSON reply back in and re-attaches each comment to
+  the exact right spot, using the same self-healing anchor mechanism as in-editor comments
+- **Reviewing tool**, reachable from the Library screen itself — no project or account needed. A
+  3rd-party reviewer opens the exported file, comments paragraph-by-paragraph, and exports their
+  comments to send back. Every review session persists so it survives closing the app
+
 ### Voice dictation (offline)
 - Windows: a hand-written Dart FFI binding straight to the real Vosk engine (`libvosk.dll`,
   vendored — see "Why not a Vosk plugin?" below)

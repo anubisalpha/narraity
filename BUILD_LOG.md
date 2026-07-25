@@ -779,15 +779,89 @@ next track's baseline. Rebuilt `flutter build windows`.
 
 ---
 
+## Phase 4 — Comments, highlights, sticky notes, footnotes; AI/external review round-trip
+
+Built across three commits in one extended session: `8adcd8a` (shared anchor mechanism), `cdaab87`
+(wiring it into the editor), `a9cc096` (the export/import round-trip plus a standalone reviewer
+tool). 207 → 269 tests over the phase, `flutter analyze` clean throughout, `flutter build windows`
+verified after each commit.
+
+**✅ Foundation (`8adcd8a`).** `lib/models/annotation.dart` — one `Annotation` model (`AnnotationKind`
+enum: comment/highlight/stickyNote/footnote) serving all four sub-features, same "one model, kind
+enum" precedent as Phase 2's `ProfileEntry`/`ProfileKind`. `TextAnchor` is a `[start, end)` character
+range plus a `quotedText` snapshot, with `resolveIn(content)` returning `exact` (offsets still
+match), `moved` (text found verbatim at a different offset — content shifted around it), or
+`orphaned` (text genuinely gone; clamped offsets are a display-only fallback, never persisted as if
+real). Zero-length anchors are footnote point-markers. `AnnotationService` (`annotations/
+annotations.json`, single array like `PlotGridService`) does CRUD plus `resolveForScene`, which
+self-heals `moved` offsets by persisting the correction and leaves `orphaned` ones alone. Deliberate
+deviation from PLAN.md: lives in a new `annotations/` folder, not the literal `notes/note-<id>.json`
+the plan specifies — `notes/` is already Story Notes' (Phase 2) folder-and-tag system. Cascade delete
+wired proactively into `ManuscriptService.deleteSceneFile` (unlike Plot Grid/Relationship Diagram,
+where that gap was left for later).
+
+**✅ Editor wiring (`cdaab87`).** `AnnotationHighlightController` (custom `TextEditingController`)
+paints highlight/comment/sticky-note ranges as background tints directly in the plain-text editor —
+no rich-text delta model needed. `AnnotationPanel` lists a scene's annotations with jump-to/delete/
+resolve-toggle. Wired into `SceneEditor` with toolbar actions and `resolveForScene` called on scene
+load. **Two real bugs found on first click-through, both fixed same session:**
+1. Five separate toolbar icons overflowed the toolbar's plain (non-scrolling) `Row`. **Release builds
+   silently swallow `RenderFlex` overflow** — the debug overflow-stripe painter is wrapped in an
+   `assert`, stripped in Release — so the trailing icons (including the one that opened the
+   annotations panel) just vanished with zero visual error. First fixed by collapsing five icons into
+   one `PopupMenuButton`; when the user later asked for separate icons again (see below), the toolbar
+   Row was wrapped in a horizontal `SingleChildScrollView` instead — the actual root-cause fix, so
+   icon count can grow without this recurring.
+2. Add Footnote silently no-op'd when the editor had never been focused (`TextSelection.invalid`),
+   unlike the other three actions which already showed a "select some text first" snackbar.
+
+**✅ AI/external review round-trip + reviewer tool (`a9cc096`).** `ReviewExportService` builds
+Markdown with a `<!-- id: <sceneId>-p<NNN> -->` marker per paragraph (`paragraph_splitter.dart`, pure
+blank-line splitter), merging each paragraph's `TextAnchor` into a persistent `review/anchors.json`
+store (never sent to the reviewer — the export file only carries ids). `importComments` parses a
+reviewer's `{"comments": [{"anchorId","text","category"?}]}` reply and creates ordinary
+`AnnotationKind.comment` annotations, reusing the existing exact/moved/orphaned resolution instead of
+building a separate "nearest paragraph" fallback — a deliberate deviation from PLAN.md's literal
+wording, since whole-content substring search is a strictly finer-grained version of the same idea.
+
+User feedback reshaped the UI twice during this build:
+- First pass put single-scene Export/Import in the scene editor toolbar. User wanted multi-scene
+  selection and a location outside the editor entirely — landed on `ReviewExportScreen` (checklist
+  over `sceneColumnsProvider`, Select All/Clear), reached via a new icon in the project's top app bar;
+  the per-scene toolbar icons were removed once this screen subsumed them.
+- Second round: the user pointed out the real gap was the **reviewer's** side — a 3rd party with just
+  the exported `.md` needs a tool that works with **no Narraity project or account at all**. Built
+  `ReviewSessionsScreen`/`ReviewSessionDetailScreen`, reachable from the **Library screen** itself
+  (top app level, before opening any project). Sessions persist to `_ReviewSessions/` at the library
+  root — same "works without a project open" convention as Global Ideas' `_GlobalIdeas/` — so a
+  review in progress survives closing the app, per explicit request ("keep it as a proper section").
+  `review_markdown_parser.dart` parses the exported file back into paragraphs; comments collected
+  per-paragraph via a dialog (text + optional category), autosaved on every edit; "Export Comments"
+  writes the exact JSON `importComments` expects, plus a "Copy Path" snackbar action.
+- Third addition: export now embeds project title/subtitle/author/export-timestamp — a
+  human-readable header plus a hidden `<!-- narraity-review-export {...json...} -->` comment,
+  invisible to `parseReviewMarkdown`'s paragraph collection. `ReviewSession.metadata` carries it
+  through so the reviewer's session list and detail screen show whose work they're looking at, and
+  `createFromMarkdown` prefers the embedded project title over the filename-derived fallback.
+
+Email/sharing the exported file directly from the app was raised and deliberately deferred — logged
+in `CONSIDERATIONS.md` — full SMTP/credential setup is a meaningfully bigger, separate feature; a
+"Copy Path" snackbar action is the cheap version for now.
+
+**269 tests** (was 207 at the start of the phase).
+
+---
+
 ## Current status
 
-Phases 0 through 3.5 are built and verified: manuscript editor, dictation, goals, version history,
+Phases 0 through 4 are built and verified: manuscript editor, dictation, goals, version history,
 data protection and its UI, characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the
-Timeline, and the Relationship Diagram. 207 automated tests passing, `flutter analyze` clean,
-`flutter build windows` succeeds. Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals,
-version history, manuscript generalization), `8416beb` (data protection services), `62d1baf` (docs),
-`8d414ac` (data-protection UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card
-id-guess fix), `7466997` (Phase 3), `d8481f5` (Phase 3.5).
+Timeline, the Relationship Diagram, and Phase 4's annotations + AI/external review round-trip. 269
+automated tests passing, `flutter analyze` clean, `flutter build windows` succeeds. Commits:
+`3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals, version history, manuscript
+generalization), `8416beb` (data protection services), `62d1baf` (docs), `8d414ac` (data-protection
+UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card id-guess fix), `7466997`
+(Phase 3), `d8481f5` (Phase 3.5), `8adcd8a`/`cdaab87`/`a9cc096` (Phase 4).
 
 **All three Phase 3/3.5 screens (Plot Grid, Relationship Diagram, Timeline) have now had a real
 GUI/gesture pass.** Two genuine bugs were found and fixed on the first two (Plot Grid's zero-height
@@ -796,14 +870,22 @@ reused the already-fixed drag technique from the start, so it didn't need its ow
 the same way, though it's only been exercised by the user for the reorder/stagger request above, not
 exhaustively.
 
-Next per `PLAN.md`: **Phase 4** (comments, highlights, sticky notes, footnotes on a shared
-text-anchor mechanism, plus the AI/external review round-trip). Its anchor mechanism is the same
-machinery a rich-text editor would need to render `[[…]]` mentions as chips, so pairing them is
-sensible. Also worth a session clicking through the Timeline given what the Plot Grid and
-Relationship Diagram passes both just found.
+**Phase 4's editor-facing pieces (highlight rendering, the annotations panel) have had a real
+click-through** (see above, two bugs found/fixed). **The full author/reviewer round-trip has also
+been GUI-verified end to end**, same session: exported a scene from the project, opened it in the
+standalone reviewer tool, added a comment, exported the comments JSON, then re-imported that JSON
+back into the project — worked without any bugs surfacing. Session persistence across an app
+restart and the metadata header's exact visual polish are the only pieces still unconfirmed by eye.
 
-Still outstanding from earlier phases: scene-level `linkedReferences` (the fourth Reference Panel
-trigger from PLAN.md — mentions, pins, and auto-detect cover the other three), per-project vault
-passwords, export format priority, Play Store readiness (privacy policy, data safety form), the Plot
-Grid's dangling-point cleanup, and the Relationship Diagram's dangling-edge cleanup on character
-delete and its "mini view in the Reference Panel."
+Next per `PLAN.md`: **Phase 4.5** (spell check via Hunspell, multi-language, en-GB default;
+thesaurus + dictionary via Open English WordNet) — or continue polishing Phase 4 (see below) per user
+direction.
+
+Still outstanding: scene-level `linkedReferences` (the fourth Reference Panel trigger from PLAN.md —
+mentions, pins, and auto-detect cover the other three), per-project vault passwords, export format
+priority, Play Store readiness (privacy policy, data safety form), the Plot Grid's dangling-point
+cleanup, the Relationship Diagram's dangling-edge cleanup on character delete and its "mini view in
+the Reference Panel," and — new from Phase 4 — the Plot Grid/Relationship Diagram-style dangling-data
+gap for annotations was avoided proactively, but text-to-speech (Phase 4's remaining unbuilt
+sub-feature) is still not started. See `CONSIDERATIONS.md` for open design questions (annotations
+panel position, per-project vault passwords, email/sharing from the review screens).
