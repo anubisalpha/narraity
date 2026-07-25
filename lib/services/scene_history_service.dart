@@ -9,6 +9,18 @@ import '../models/scene_snapshot.dart';
 import 'history_signing_key_manager.dart';
 import 'snapshot_pruner.dart';
 
+/// Thrown by [SceneHistoryService.resignAll] when existing history can't be
+/// safely re-signed — either an entry doesn't verify under the old key, or a
+/// file is unreadable. Re-signing anyway would launder tampered or corrupted
+/// content into apparently-valid history, so the whole operation aborts
+/// having written nothing.
+class HistoryResignException implements Exception {
+  HistoryResignException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 /// Per-scene version history: auto snapshots on save, named checkpoints,
 /// diff-based storage, pruning, and tamper-evidence (PLAN.md "Version
 /// History").
@@ -103,8 +115,11 @@ class SceneHistoryService {
   String? _sign(String payload) {
     final key = _keyManager?.currentKey;
     if (key == null) return null;
-    return Hmac(sha256, key).convert(utf8.encode(payload)).toString();
+    return _signWith(key, payload);
   }
+
+  String _signWith(List<int> key, String payload) =>
+      Hmac(sha256, key).convert(utf8.encode(payload)).toString();
 
   /// Ids quarantined the last time this scene's history was listed.
   List<String> tamperedIdsFor(String sceneId) => _lastTamperedByScene[sceneId] ?? const [];
@@ -402,6 +417,123 @@ class SceneHistoryService {
     final targetContent = await reconstructContent(sceneId, upToId: snapshotId);
     await recordAutoSnapshot(sceneId, targetContent);
     return targetContent;
+  }
+
+  /// Every scene that has history recorded in this project.
+  Future<List<String>> scenesWithHistory() async {
+    final scenesDir = Directory(p.join(projectDir.path, 'manuscript', 'scenes'));
+    if (!await scenesDir.exists()) return [];
+
+    final ids = <String>[];
+    await for (final entity in scenesDir.list()) {
+      if (entity is! Directory) continue;
+      final name = p.basename(entity.path);
+      if (!name.endsWith('.history')) continue;
+      ids.add(name.substring(0, name.length - '.history'.length));
+    }
+    ids.sort();
+    return ids;
+  }
+
+  /// Re-signs every snapshot in this project from [oldKey] to [newKey] — the
+  /// migration a password change requires, since the signing key is derived
+  /// from the password and every existing signature was made with the old one.
+  ///
+  /// Verification of the *entire* project happens before anything is written:
+  /// if any entry fails to verify under [oldKey], the whole call throws
+  /// [HistoryResignException] having changed nothing on disk. Re-signing
+  /// unverifiable content would convert "this was tampered with" into "this is
+  /// valid," destroying the only evidence that something was wrong.
+  ///
+  /// Legacy-unsigned entries (written before signing existed, or while the
+  /// vault was locked) are signed fresh under [newKey] — an upgrade, not a
+  /// failure. Quarantined `.tampered` files are left alone; they're already
+  /// outside the trusted chain.
+  Future<void> resignAll({required List<int> oldKey, required List<int> newKey}) async {
+    final sceneIds = await scenesWithHistory();
+
+    // Phase 1: read and verify everything up front, so a failure anywhere
+    // aborts before the first write rather than half-migrating the library.
+    final verifiedByScene = <String, List<SceneSnapshot>>{};
+    for (final sceneId in sceneIds) {
+      verifiedByScene[sceneId] = await _readVerifiedChain(sceneId, oldKey);
+    }
+
+
+    // Phase 2: rewrite with new signatures.
+    for (final sceneId in sceneIds) {
+      final snapshots = verifiedByScene[sceneId]!;
+      if (snapshots.isEmpty) continue;
+
+      var previousSignature = '';
+      for (final snapshot in snapshots) {
+        final relinked = snapshot.copyWith(prevSignature: previousSignature);
+        final signature = _signWith(newKey, relinked.canonicalPayload());
+        final signed = relinked.copyWith(signature: signature);
+
+        await _writeMirrored(
+          File(p.join(_historyDir(sceneId).path, '${signed.id}.json')),
+          _backupSnapshotFile(sceneId, signed.id),
+          const JsonEncoder.withIndent('  ').convert(signed.toJson()),
+        );
+        previousSignature = signature;
+      }
+
+      await _writeMirrored(
+        _latestSignatureFile(sceneId),
+        _backupLatestSignatureFile(sceneId),
+        previousSignature,
+      );
+    }
+  }
+
+  /// Checks every scene's chain against [key] without writing anything,
+  /// throwing [HistoryResignException] on the first failure. Lets a
+  /// multi-project password change verify the whole library before it starts
+  /// rewriting any of it.
+  Future<void> verifyAllSignatures(List<int> key) async {
+    for (final sceneId in await scenesWithHistory()) {
+      await _readVerifiedChain(sceneId, key);
+    }
+  }
+
+  /// Reads one scene's snapshots oldest-first, checking each signed entry
+  /// against [key] and its place in the chain. Throws
+  /// [HistoryResignException] on the first problem.
+  Future<List<SceneSnapshot>> _readVerifiedChain(String sceneId, List<int> key) async {
+    final dir = _historyDir(sceneId);
+    if (!await dir.exists()) return [];
+
+    final snapshots = <SceneSnapshot>[];
+    await for (final entity in dir.list()) {
+      if (entity is! File || !entity.path.endsWith('.json')) continue;
+      try {
+        final json = jsonDecode(await entity.readAsString()) as Map<String, dynamic>;
+        snapshots.add(SceneSnapshot.fromJson(json));
+      } catch (_) {
+        throw HistoryResignException(
+          'Could not read history file ${p.basename(entity.path)} in scene $sceneId. '
+          'Open that scene\'s history first so damaged entries can be repaired or '
+          'quarantined, then try again.',
+        );
+      }
+    }
+    snapshots.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+    var expectedPrev = '';
+    for (final snapshot in snapshots) {
+      if (snapshot.signature == null) continue; // legacy — nothing to check
+      final expectedSignature = _signWith(key, snapshot.canonicalPayload());
+      if (snapshot.prevSignature != expectedPrev || snapshot.signature != expectedSignature) {
+        throw HistoryResignException(
+          'History entry ${snapshot.id} in scene $sceneId does not verify under the '
+          'current password. Open that scene\'s history to review the flagged '
+          'entries before changing the password.',
+        );
+      }
+      expectedPrev = snapshot.signature!;
+    }
+    return snapshots;
   }
 
   /// Thins old auto-snapshots per PLAN.md's pruning policy (see

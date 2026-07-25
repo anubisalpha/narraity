@@ -1,28 +1,96 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/manuscript.dart';
 import '../models/project.dart';
+import '../services/app_logger.dart';
 import '../state/library_provider.dart';
 import '../state/manuscript_provider.dart';
+import '../state/vault_provider.dart';
 import '../widgets/editor_settings_dialog.dart';
 import '../widgets/manuscript_tree.dart';
 import '../widgets/quick_capture_dialog.dart';
 import '../widgets/scene_editor.dart';
 import '../widgets/todo_panel.dart';
+import '../widgets/vault_unlock_dialog.dart';
 import 'goals_screen.dart';
+
+/// How often the open project's vault is refreshed while writing. Frequent
+/// enough that an unnoticed disaster loses at most half an hour, infrequent
+/// enough that zipping and encrypting the project doesn't become a recurring
+/// interruption.
+const _autoBackupInterval = Duration(minutes: 30);
 
 /// The open-project shell: manuscript tree + to-dos in a sidebar, the scene
 /// editor as the main pane, and Focus Mode that collapses everything but the
 /// prose.
-class ProjectShellScreen extends ConsumerWidget {
+class ProjectShellScreen extends ConsumerStatefulWidget {
   const ProjectShellScreen({super.key, required this.project});
 
   final Project project;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProjectShellScreen> createState() => _ProjectShellScreenState();
+}
+
+class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
+  late final VaultActions _vaultActions;
+  Timer? _backupTimer;
+
+  /// Mirrored from the provider during build so [dispose] doesn't have to read
+  /// providers after the widget is unmounted.
+  bool _autoBackupEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _vaultActions = ref.read(vaultActionsProvider);
+    _backupTimer = Timer.periodic(_autoBackupInterval, (_) => _autoBackup());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybePromptUnlock());
+  }
+
+  @override
+  void dispose() {
+    _backupTimer?.cancel();
+    if (_autoBackupEnabled) {
+      // Fire-and-forget: closing a project must not wait on (or fail because
+      // of) a backup. refreshProject is a no-op when the vault is locked.
+      _vaultActions.refreshProject(widget.project).catchError((Object error, StackTrace stack) {
+        AppLogger.logError(error, stack, context: 'vault-backup-on-close');
+        return null;
+      });
+    }
+    super.dispose();
+  }
+
+  Future<void> _maybePromptUnlock() async {
+    if (ref.read(unlockPromptDismissedProvider)) return;
+    final status = await ref.read(vaultStatusProvider.future);
+    if (status != VaultStatus.locked || !mounted) return;
+
+    final unlocked = await showVaultUnlockDialog(context);
+    if (!unlocked) {
+      ref.read(unlockPromptDismissedProvider.notifier).state = true;
+    }
+  }
+
+  Future<void> _autoBackup() async {
+    if (!_autoBackupEnabled) return;
+    try {
+      await _vaultActions.refreshProject(widget.project);
+      if (mounted) ref.invalidate(vaultGenerationsProvider(widget.project));
+    } catch (error, stack) {
+      AppLogger.logError(error, stack, context: 'vault-backup-periodic');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final project = widget.project;
+    _autoBackupEnabled = ref.watch(vaultAutoRefreshProvider);
     final focusMode = ref.watch(focusModeProvider);
     final serviceAsync = ref.watch(manuscriptServiceProvider(project));
     final structureAsync = ref.watch(manuscriptStructureProvider(project));

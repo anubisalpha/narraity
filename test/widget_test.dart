@@ -9,6 +9,7 @@ import 'package:narraity/app.dart';
 import 'package:narraity/services/library_service.dart';
 import 'package:narraity/state/library_provider.dart';
 import 'package:narraity/state/theme_provider.dart';
+import 'package:narraity/state/vault_provider.dart';
 
 // Project creation itself (real file I/O) is covered by the pure-Dart
 // library_service_test.dart, which doesn't fight flutter_test's fake-time
@@ -102,5 +103,29 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(container.read(themeModeProvider), ThemeMode.dark);
+  });
+
+  testWidgets('Settings > Backup & Vault offers first-time setup', (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        libraryServiceProvider.overrideWithValue(LibraryService(rootOverride: tempDir)),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.runAsync(() => container.read(projectListProvider.future));
+    await tester.runAsync(() => container.read(vaultStatusProvider.future));
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: const NarraityApp()),
+    );
+    await tester.pump();
+
+    await tester.tap(find.widgetWithIcon(IconButton, Icons.settings_outlined));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Backup & Vault'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(FilledButton, 'Set up vault password'), findsOneWidget);
+    expect(find.textContaining('no way to recover this password'), findsOneWidget);
   });
 }

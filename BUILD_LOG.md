@@ -205,13 +205,77 @@ per library).
 
 ---
 
+## Data-protection UI wiring
+
+The service layer from the previous section was complete and tested but entirely unreachable from
+the app: nothing set a password, `sceneHistoryServiceProvider` never passed the key manager (so no
+snapshot was ever actually signed in the running app), nothing called `refreshVault`, and restore had
+no screen. This session wired all of it in.
+
+**Design decisions made during the build:**
+- **Vaults live in `Documents/Narraity/_Vault/`, outside every project folder.** `buildVault` zips a
+  whole project directory, so vaults stored inside one would seal every earlier generation into each
+  new one. `LibraryService.listProjects` already skips `_`-prefixed folders, so it never appears as a
+  project.
+- **A verifier file was needed, and its absence was a real bug.** `unlock` previously returned void
+  and accepted *any* password — the derived key was simply wrong, so the app would then sign new
+  snapshots with a key that couldn't verify existing ones, surfacing later as tampering. Fixed by
+  storing an HMAC of a fixed string under the correct key (`_Vault/verifier`); `unlock` now returns
+  false on a mismatch and leaves any already-unlocked key alone.
+- **The session has to hold the password, not just the derived signing key.** `VaultService`
+  generates a fresh salt per vault file and derives its own key from the password, so unattended
+  auto-refresh can't work from the signing key. Both now live in memory for the session, cleared on
+  lock, never written to disk.
+- **Restore writes to a new sibling folder, never in place** (user's call). A restore happens when
+  something already looks wrong, which is exactly when destroying current state would be worst.
+- **Password change re-signs before it rekeys.** Every snapshot's signature depends on the password,
+  so changing it means re-signing the whole library. `SceneHistoryService.resignAll` verifies an
+  entire project under the old key *before* writing anything, and the orchestration verifies *every*
+  project before rewriting any — the stored verifier flips only after all of them succeed, since
+  flipping it early would leave a library claiming a password that can't verify its own history. A
+  mid-run write failure rolls already-migrated projects back to the old key. `resignAll` also refuses
+  to re-sign an entry that doesn't verify: doing so would launder tampered content into apparently
+  valid history, destroying the only evidence anything was wrong.
+- **Skipping the unlock prompt is fully supported.** Locking someone out of their own manuscript
+  because they can't recall a *backup* password would be far worse than an unsigned session, so
+  declining leaves writing working normally (new entries unsigned, no auto-backup) and the prompt
+  doesn't nag again that session.
+- `Ref` and `WidgetRef` share no supertype in Riverpod 2, so the multi-provider operations live on a
+  `VaultActions` class behind a provider rather than as free functions — otherwise the same helper
+  couldn't be called from both a widget and the project shell's timer.
+
+**Verified:** `flutter analyze` clean, **113 tests passing** (was 92), and *both* `flutter build
+windows` and `flutter build apk --debug` succeed. New coverage:
+`test/history_signing_key_manager_test.dart` (wrong password rejected, failed unlock doesn't clobber
+the key, rekey swaps which password works, salt stays stable), `resignAll` cases in
+`scene_history_service_test.dart` (re-signed history verifies under the new key, `_latest.sig` stays
+consistent so later snapshots still chain, all scenes migrate, legacy-unsigned entries get upgraded,
+a tampered entry aborts the run leaving every file byte-identical), and
+`test/vault_flow_test.dart` — an end-to-end walk of the flows as the UI drives them: setup → signed
+history → backup lands under `_Vault/` → simulated restart shows `locked` (not tampered) → wrong
+password rejected, right one unlocks → history verifies → restore into a sibling folder → change
+password → restart → only the new password works and nothing is falsely flagged.
+
+**Caveat on verification:** the desktop app was built and launched, but the computer-use tooling on
+this machine couldn't resolve the window, so the GUI was **not** clicked through by hand this time.
+The flow test above covers the same provider calls the screens make, and a widget test confirms the
+Backup & Vault section renders its first-time setup card — but the pixel-level walkthrough
+(dialog layout, slider feel, snackbars) is still unconfirmed by eye.
+
+**Not built yet:** per-project vault passwords (still one password per library, deliberately
+deferred), and no "export vault to another drive" action — `buildVault` takes an arbitrary path, so
+that's a UI-only gap.
+
+---
+
 ## Current status
 
-Phases 0 through 1.7, the manuscript structure generalization, and the data protection work above
-are all built, verified, and committed. 92 automated tests passing, `flutter analyze` clean, both
+Phases 0 through 1.7, the manuscript structure generalization, the data protection work, and its UI
+wiring are all built and verified. 113 automated tests passing, `flutter analyze` clean, both
 `flutter build windows` and `flutter build apk --debug` succeed. Commits: `3097c4b` (Phases
 0/0.5/1), `bd27566` (dictation, goals, version history, manuscript generalization), `8416beb`
-(data protection).
+(data protection services), `62d1baf` (docs).
 
 Next candidates per `PLAN.md`: Phase 2 (Character profiles, Worldbuilding, Story Notes) or Phase
-2.5 (Reference Panel) — or the data-protection UI wiring listed above.
+2.5 (Reference Panel) — Phase 2 realistically comes first either way, since the Reference Panel has
+nothing to display without it.

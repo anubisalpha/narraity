@@ -5,11 +5,13 @@ import '../models/dictation_model.dart';
 import '../state/dictation_provider.dart';
 import '../state/theme_provider.dart';
 import '../widgets/editor_settings_form.dart';
+import '../widgets/vault_settings_section.dart';
 
 enum _SettingsCategory {
   appearance,
   editor,
   dictation,
+  backup,
   spellCheck,
   drive,
   export,
@@ -20,6 +22,7 @@ extension on _SettingsCategory {
         _SettingsCategory.appearance => 'Appearance',
         _SettingsCategory.editor => 'Editor',
         _SettingsCategory.dictation => 'Dictation',
+        _SettingsCategory.backup => 'Backup & Vault',
         _SettingsCategory.spellCheck => 'Spell Check & Language',
         _SettingsCategory.drive => 'Google Drive Sync',
         _SettingsCategory.export => 'Export',
@@ -29,6 +32,7 @@ extension on _SettingsCategory {
         _SettingsCategory.appearance => Icons.palette_outlined,
         _SettingsCategory.editor => Icons.edit_note,
         _SettingsCategory.dictation => Icons.mic_outlined,
+        _SettingsCategory.backup => Icons.shield_outlined,
         _SettingsCategory.spellCheck => Icons.spellcheck,
         _SettingsCategory.drive => Icons.cloud_sync_outlined,
         _SettingsCategory.export => Icons.ios_share,
@@ -111,6 +115,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _SettingsCategory.appearance => const _AppearanceSection(),
       _SettingsCategory.editor => const _EditorSection(),
       _SettingsCategory.dictation => const _DictationSection(),
+      _SettingsCategory.backup => const _BackupSection(),
       _ => const SizedBox.shrink(),
     };
   }
@@ -235,6 +240,24 @@ class _EditorSection extends StatelessWidget {
             child: EditorSettingsForm(),
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _BackupSection extends StatelessWidget {
+  const _BackupSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: const [
+        _SectionHeader(
+          title: 'Backup & Vault',
+          subtitle: 'Encrypted backups and tamper-evident version history.',
+        ),
+        VaultSettingsSection(),
       ],
     );
   }

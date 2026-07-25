@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:cryptography/cryptography.dart';
 
 /// Derives and holds, in memory only, the key used to sign scene-history
@@ -32,14 +33,28 @@ import 'package:cryptography/cryptography.dart';
 /// tier), [currentKey] is null and history snapshots are written/read as
 /// legacy-unsigned — trusted but unverifiable, exactly like snapshots
 /// written before this feature existed at all.
+///
+/// A second non-secret file, the *verifier*, holds an HMAC of a fixed string
+/// under the derived key. It exists so a wrong password can be rejected up
+/// front: without it, any password would "unlock" successfully and then
+/// silently sign new snapshots with a key that can't verify the existing
+/// chain, which reads downstream as tampering.
 class HistorySigningKeyManager {
-  HistorySigningKeyManager(this._saltFile);
+  HistorySigningKeyManager({required File saltFile, required File verifierFile})
+      : _saltFile = saltFile,
+        _verifierFile = verifierFile;
 
   final File _saltFile;
+  final File _verifierFile;
 
   static const _argonMemoryKib = 19456;
   static const _argonIterations = 3;
   static const _argonParallelism = 1;
+
+  /// Signed to produce the verifier. Fixed and non-secret — its only job is
+  /// to be the same input every time so the resulting HMAC depends purely on
+  /// the key.
+  static const _verifierPayload = 'narraity-vault-verifier';
 
   List<int>? _key;
 
@@ -47,15 +62,44 @@ class HistorySigningKeyManager {
   /// snapshots will be signed and existing signed ones can be verified.
   bool get isUnlocked => _key != null;
 
+  /// Whether a vault password has ever been set for this library. False means
+  /// the user hasn't opted into the vault tier at all.
+  Future<bool> get isConfigured => _verifierFile.exists();
+
   /// The current signing key, or null if [unlock] hasn't been called this
   /// session. Never persisted anywhere; the caller must re-supply the
   /// password each time the app starts (or the app can choose to keep this
   /// manager alive for the process lifetime once unlocked).
   List<int>? get currentKey => _key;
 
-  /// Derives the signing key from [password] and this library's persisted
-  /// (non-secret) salt, creating the salt file on first use.
-  Future<void> unlock(String password) async {
+  /// Sets the vault password for the first time: creates the salt, derives
+  /// the key, writes the verifier, and leaves the manager unlocked.
+  Future<void> setup(String password) async {
+    final key = await deriveKeyFor(password);
+    await _writeVerifier(key);
+    _key = key;
+  }
+
+  /// Derives the key for [password] and unlocks only if it matches the
+  /// stored verifier. Returns false on a wrong password, leaving any
+  /// previously unlocked key untouched.
+  ///
+  /// If no verifier exists yet this is treated as a wrong password rather
+  /// than an implicit setup — silently adopting whatever was typed as *the*
+  /// password would be a bad surprise for a user who mistyped at a prompt.
+  Future<bool> unlock(String password) async {
+    if (!await _verifierFile.exists()) return false;
+    final expected = (await _verifierFile.readAsString()).trim();
+    final key = await deriveKeyFor(password);
+    if (_verifierFor(key) != expected) return false;
+    _key = key;
+    return true;
+  }
+
+  /// Derives a key from [password] without changing this manager's state —
+  /// needed by the change-password flow, which has to hold the old and new
+  /// keys at once to re-sign existing history.
+  Future<List<int>> deriveKeyFor(String password) async {
     final salt = await _getOrCreateSalt();
     final argon2id = Argon2id(
       memory: _argonMemoryKib,
@@ -64,13 +108,36 @@ class HistorySigningKeyManager {
       hashLength: 32,
     );
     final secretKey = await argon2id.deriveKeyFromPassword(password: password, nonce: salt);
-    _key = await secretKey.extractBytes();
+    return secretKey.extractBytes();
+  }
+
+  /// Switches the library to [newPassword] — rewrites the verifier and swaps
+  /// the in-memory key. The salt deliberately stays the same; it's not a
+  /// secret, and keeping it stable means only the password changes.
+  ///
+  /// Call this *after* re-signing existing history with the new key
+  /// (see SceneHistoryService.resignAll), never before: the verifier is what
+  /// tells the next session which password is current, so flipping it while
+  /// history is still signed with the old key would leave the library
+  /// unverifiable.
+  Future<void> rekey(String newPassword) async {
+    final key = await deriveKeyFor(newPassword);
+    await _writeVerifier(key);
+    _key = key;
   }
 
   /// Discards the in-memory key — e.g. on app lock or sign-out. Existing
   /// signed history is unaffected; it just can't be verified again until
   /// [unlock] is called with the correct password.
   void lock() => _key = null;
+
+  String _verifierFor(List<int> key) =>
+      crypto.Hmac(crypto.sha256, key).convert(utf8.encode(_verifierPayload)).toString();
+
+  Future<void> _writeVerifier(List<int> key) async {
+    await _verifierFile.parent.create(recursive: true);
+    await _verifierFile.writeAsString(_verifierFor(key));
+  }
 
   Future<List<int>> _getOrCreateSalt() async {
     if (await _saltFile.exists()) {

@@ -93,8 +93,16 @@ full breakdown and what changes per platform when that day comes.
 - Optional password-protected **Vault**: a single encrypted (AES-256-GCM) archive of the whole
   project, independent of the many small live files, for disaster recovery — kept in rotating
   generations (default 10) so one bad refresh can't destroy the last good backup
-- UI for enabling the vault, entering the password, and restoring from a generation isn't built
-  yet — the service layer (`VaultService`, `HistorySigningKeyManager`) is complete and tested
+- **Settings → Backup & Vault** covers the whole lifecycle: set the password, unlock, adjust how many
+  generations to keep, back up any project on demand, restore a chosen generation, change the password
+- Backups refresh automatically while a project is open (every 30 minutes) and once when it's closed
+- Opening a project with a locked vault offers a **skippable** unlock prompt — declining keeps
+  writing working normally, it just leaves new history unsigned until you unlock from Settings
+- Restoring never overwrites: a generation is unpacked into a new project folder beside the original,
+  so you compare the two and decide which to keep
+- Changing the password re-signs every snapshot in every project first, and only then switches the
+  stored password — so a failure part-way through can't leave history it can no longer verify.
+  Vault files made before the change still open with the old password
 
 ## Tech stack
 
