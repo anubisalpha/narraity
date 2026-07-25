@@ -61,16 +61,16 @@ class ReferencePanel extends ConsumerWidget {
               return ListView(
                 padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
                 children: [
-                  for (final entry in content.pinned)
-                    _ReferenceCard(project: project, entry: entry, pinned: true),
+                  for (final item in content.pinned)
+                    _ReferenceCard(project: project, item: item, pinned: true),
                   if (content.mentioned.isNotEmpty && content.pinned.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
                       child: Text('In this scene',
                           style: Theme.of(context).textTheme.labelSmall),
                     ),
-                  for (final entry in content.mentioned)
-                    _ReferenceCard(project: project, entry: entry, pinned: false),
+                  for (final item in content.mentioned)
+                    _ReferenceCard(project: project, item: item, pinned: false),
                   for (final name in content.unresolved)
                     _UnresolvedMentionCard(project: project, name: name),
                 ],
@@ -86,15 +86,17 @@ class ReferencePanel extends ConsumerWidget {
 class _ReferenceCard extends ConsumerWidget {
   const _ReferenceCard({
     required this.project,
-    required this.entry,
+    required this.item,
     required this.pinned,
   });
 
   final Project project;
-  final ProfileEntry entry;
+  final ReferenceCardItem item;
   final bool pinned;
 
-  bool get _isCharacter => entry.id.startsWith('char-');
+  ProfileEntry get entry => item.entry;
+
+  bool get _isCharacter => item.kind == ProfileKind.character;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

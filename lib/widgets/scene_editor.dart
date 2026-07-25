@@ -15,7 +15,7 @@ import '../services/voice_command_processor.dart';
 import '../state/dictation_provider.dart';
 import '../state/editor_settings_provider.dart';
 import '../state/manuscript_provider.dart';
-import '../state/reference_panel_provider.dart';
+import '../state/reference_panel_provider.dart' show ReferenceCardItem, sceneMentionedNamesProvider;
 import '../state/reference_provider.dart';
 import '../state/scene_history_provider.dart';
 import 'dictation_model_dialog.dart';
@@ -64,7 +64,7 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
   /// the caret is inside a mention being typed, and [_mentionMatches] holds
   /// the profiles offered for it.
   MentionQuery? _mentionQuery;
-  List<ProfileEntry> _mentionMatches = const [];
+  List<ReferenceCardItem> _mentionMatches = const [];
   int _mentionHighlighted = 0;
 
   @override
@@ -187,14 +187,20 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     final world = ref.read(worldListProvider(widget.project)).valueOrNull ?? const [];
     final lower = query.query.trim().toLowerCase();
 
-    final candidates = [...characters, ...world];
+    final candidates = [
+      for (final entry in characters) ReferenceCardItem(entry, ProfileKind.character),
+      for (final entry in world) ReferenceCardItem(entry, ProfileKind.world),
+    ];
+    bool startsWithQuery(ReferenceCardItem item) =>
+        item.entry.name.toLowerCase().startsWith(lower);
+
     final matches = lower.isEmpty
         ? candidates
         : [
-            ...candidates.where((e) => e.name.toLowerCase().startsWith(lower)),
-            ...candidates.where((e) =>
-                !e.name.toLowerCase().startsWith(lower) &&
-                e.name.toLowerCase().contains(lower)),
+            ...candidates.where(startsWithQuery),
+            ...candidates.where((item) =>
+                !startsWithQuery(item) &&
+                item.entry.name.toLowerCase().contains(lower)),
           ];
 
     setState(() {
@@ -214,13 +220,13 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
   }
 
   /// Replaces the typed `@query` with `[[Name]] `, leaving the caret after it.
-  void _insertMention(ProfileEntry entry) {
+  void _insertMention(ReferenceCardItem item) {
     final query = _mentionQuery;
     if (query == null) return;
 
     final text = _controller.text;
     final caret = _controller.selection.baseOffset;
-    final insertion = '[[${entry.name}]] ';
+    final insertion = '[[${item.entry.name}]] ';
 
     _controller.value = TextEditingValue(
       text: text.replaceRange(query.start, caret, insertion),
@@ -631,9 +637,9 @@ class _MentionSuggestions extends StatelessWidget {
     required this.onSelected,
   });
 
-  final List<ProfileEntry> matches;
+  final List<ReferenceCardItem> matches;
   final int highlighted;
-  final ValueChanged<ProfileEntry> onSelected;
+  final ValueChanged<ReferenceCardItem> onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -646,17 +652,21 @@ class _MentionSuggestions extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final (index, entry) in matches.indexed)
+            for (final (index, item) in matches.indexed)
               ListTile(
                 dense: true,
                 selected: index == highlighted,
                 leading: Icon(
-                  entry.id.startsWith('char-') ? Icons.person_outline : Icons.public,
+                  item.kind == ProfileKind.character
+                      ? Icons.person_outline
+                      : Icons.public,
                   size: 18,
                 ),
-                title: Text(entry.name, overflow: TextOverflow.ellipsis),
-                subtitle: entry.category == null ? null : Text(entry.category!),
-                onTap: () => onSelected(entry),
+                title: Text(item.entry.name, overflow: TextOverflow.ellipsis),
+                subtitle: item.entry.category == null
+                    ? null
+                    : Text(item.entry.category!),
+                onTap: () => onSelected(item),
               ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),

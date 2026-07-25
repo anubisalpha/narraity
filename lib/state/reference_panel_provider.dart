@@ -109,7 +109,7 @@ final sceneMentionedNamesProvider = StateProvider<List<String>>((ref) => const [
 class ResolvedMentions {
   const ResolvedMentions(this.entries, this.unresolved);
 
-  final List<ProfileEntry> entries;
+  final List<ReferenceCardItem> entries;
   final List<String> unresolved;
 }
 
@@ -128,18 +128,35 @@ ResolvedMentions resolveMentions(
     return null;
   }
 
-  final resolved = <ProfileEntry>[];
+  final resolved = <ReferenceCardItem>[];
   final unresolved = <String>[];
   for (final name in names) {
     final lower = name.trim().toLowerCase();
-    final entry = findIn(characters, lower) ?? findIn(world, lower);
-    if (entry != null) {
-      resolved.add(entry);
+    final character = findIn(characters, lower);
+    if (character != null) {
+      resolved.add(ReferenceCardItem(character, ProfileKind.character));
+      continue;
+    }
+    final worldEntry = findIn(world, lower);
+    if (worldEntry != null) {
+      resolved.add(ReferenceCardItem(worldEntry, ProfileKind.world));
     } else {
       unresolved.add(name);
     }
   }
   return ResolvedMentions(resolved, unresolved);
+}
+
+/// An entry plus which collection it came from. The kind travels with the
+/// entry rather than being inferred from its id prefix: the panel has to know
+/// which service to save an inline edit through, and guessing from the id
+/// would write a hand-edited character into the worldbuilding folder — the
+/// project invites hand-editing files, so ids can't be trusted to encode type.
+class ReferenceCardItem {
+  const ReferenceCardItem(this.entry, this.kind);
+
+  final ProfileEntry entry;
+  final ProfileKind kind;
 }
 
 /// Everything the panel shows for [project]: pinned entries (all of them,
@@ -152,8 +169,8 @@ class ReferencePanelContent {
     required this.unresolved,
   });
 
-  final List<ProfileEntry> pinned;
-  final List<ProfileEntry> mentioned;
+  final List<ReferenceCardItem> pinned;
+  final List<ReferenceCardItem> mentioned;
   final List<String> unresolved;
 
   bool get isEmpty => pinned.isEmpty && mentioned.isEmpty && unresolved.isEmpty;
@@ -166,7 +183,10 @@ final referencePanelContentProvider =
   final pinnedIds = ref.watch(pinnedReferencesProvider(project));
   final mentionedNames = ref.watch(sceneMentionedNamesProvider);
 
-  final byId = {for (final entry in [...characters, ...world]) entry.id: entry};
+  final byId = {
+    for (final entry in characters) entry.id: ReferenceCardItem(entry, ProfileKind.character),
+    for (final entry in world) entry.id: ReferenceCardItem(entry, ProfileKind.world),
+  };
   // Preserve pin order; silently drop ids whose entry has been deleted.
   final pinned = [
     for (final id in pinnedIds)
@@ -174,9 +194,9 @@ final referencePanelContentProvider =
   ];
 
   final mentions = resolveMentions(mentionedNames, characters, world);
-  final pinnedIdSet = pinned.map((e) => e.id).toSet();
+  final pinnedIdSet = pinned.map((item) => item.entry.id).toSet();
   final mentioned =
-      mentions.entries.where((e) => !pinnedIdSet.contains(e.id)).toList();
+      mentions.entries.where((item) => !pinnedIdSet.contains(item.entry.id)).toList();
 
   return ReferencePanelContent(
     pinned: pinned,
