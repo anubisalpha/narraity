@@ -39,7 +39,7 @@ class TimelineTrack {
 /// only its position within that row's freeform space is unconstrained.
 class TimelineEvent {
   final String id;
-  final String trackId;
+  String trackId;
   String label;
   String timeLabel;
   double x;
@@ -65,6 +65,7 @@ class TimelineEvent {
         linkedWorldIds = linkedWorldIds ?? [];
 
   TimelineEvent copyWith({
+    String? trackId,
     String? label,
     String? timeLabel,
     double? x,
@@ -76,7 +77,7 @@ class TimelineEvent {
   }) =>
       TimelineEvent(
         id: id,
-        trackId: trackId,
+        trackId: trackId ?? this.trackId,
         label: label ?? this.label,
         timeLabel: timeLabel ?? this.timeLabel,
         x: x ?? this.x,

@@ -65,6 +65,55 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('dragging a card past the row midpoint lands it near the next track\'s baseline',
+      (tester) async {
+    final projectRoot = Directory.systemTemp.createTempSync('narraity_timeline_swap_test_');
+    addTearDown(() => projectRoot.deleteSync(recursive: true));
+    final library = LibraryService(rootOverride: projectRoot);
+
+    final container = ProviderContainer(
+      overrides: [libraryServiceProvider.overrideWithValue(library)],
+    );
+    addTearDown(container.dispose);
+
+    final project = (await tester.runAsync(() => library.createProject(title: 'Test Novel')))!;
+    await tester.runAsync(() async {
+      final timeline = await container.read(timelineServiceProvider(project).future);
+      final main = await timeline.addTrack('Main');
+      await timeline.addTrack('Backstory');
+      await timeline.addEvent(trackId: main.id, label: 'Reveal');
+
+      await container.read(timelineTrackListProvider(project).future);
+      await container.read(timelineEventListProvider(project).future);
+    });
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(home: TimelineScreen(project: project)),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final startY = tester.getCenter(find.text('Reveal')).dy;
+
+    final gesture = await tester.startGesture(tester.getCenter(find.text('Reveal')));
+    await tester.pump();
+    // Rows are 220px apart (_rowHeight) — dragging down by that much clears
+    // the midpoint into "Backstory"'s row, which is the threshold that
+    // decides reassignment (persistence of that decision is covered by
+    // timeline_service_test.dart's setEventPosition/trackId coverage).
+    await gesture.moveBy(const Offset(0, 220));
+    await tester.pump();
+
+    final draggedY = tester.getCenter(find.text('Reveal')).dy;
+    expect(draggedY - startY, closeTo(220, 0.5));
+
+    await gesture.up();
+    await tester.pump();
+  });
+
   testWidgets('track sidebar disables move-up on the first track and move-down on the last',
       (tester) async {
     final projectRoot = Directory.systemTemp.createTempSync('narraity_timeline_sidebar_test_');

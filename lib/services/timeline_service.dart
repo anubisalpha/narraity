@@ -74,6 +74,13 @@ class TimelineService {
   /// Swaps [id] with its neighbour in row order — same "nudge one step"
   /// contract used throughout the app's other reordering (todos, plot
   /// points, plotlines).
+  ///
+  /// Re-sequences every track to distinct, contiguous values first: tracks
+  /// created before track ordering existed (or otherwise sharing an `order`
+  /// value, e.g. all defaulting to 0) would make a same-value swap a no-op —
+  /// this was a real bug, the up/down buttons visibly did nothing for a
+  /// project with pre-existing tracks. Re-sequencing is self-healing and
+  /// only needs to happen once; afterwards every track has its own value.
   Future<void> moveTrack(String id, int delta) async {
     final tracks = await listTracks();
     final index = tracks.indexWhere((t) => t.id == id);
@@ -81,13 +88,18 @@ class TimelineService {
     final target = index + delta;
     if (target < 0 || target >= tracks.length) return;
 
+    for (var i = 0; i < tracks.length; i++) {
+      tracks[i].order = i;
+    }
     final track = tracks[index];
     final other = tracks[target];
     final trackOrder = track.order;
     track.order = other.order;
     other.order = trackOrder;
-    await saveTrack(track);
-    await saveTrack(other);
+
+    for (final t in tracks) {
+      await saveTrack(t);
+    }
   }
 
   // ---- events -------------------------------------------------------------
@@ -141,9 +153,16 @@ class TimelineService {
     if (await file.exists()) await file.delete();
   }
 
-  /// Persists a freeform drag — sets the event's horizontal position and its
-  /// stagger offset from the track's baseline in one write.
-  Future<void> setEventPosition(TimelineEvent event, double x, double yOffset) async {
-    await saveEvent(event.copyWith(x: x, yOffset: yOffset));
+  /// Persists a freeform drag — the event's horizontal position, its
+  /// stagger offset from the track's baseline, and (if the drag landed
+  /// closer to a different track's baseline than its own) a reassignment to
+  /// that track, all in one write.
+  Future<void> setEventPosition(
+    TimelineEvent event,
+    double x,
+    double yOffset, {
+    String? trackId,
+  }) async {
+    await saveEvent(event.copyWith(x: x, yOffset: yOffset, trackId: trackId));
   }
 }

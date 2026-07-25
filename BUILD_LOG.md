@@ -735,11 +735,55 @@ disabled. Rebuilt `flutter build windows`.
 
 ---
 
+## Timeline follow-up: fix track reorder, connector lines, drag-to-swap-track
+
+Three pieces of feedback right after the freeform rework: the sidebar's up/down track-reorder arrows
+didn't do anything; events should show a line back to their track so a staggered card's home track is
+still obvious; and dragging a card onto a different track's row should reassign it there.
+
+**Track reorder arrows — real bug, not cosmetic.** `TimelineService.moveTrack` swapped the `order`
+*values* between two tracks — correct in general, but every track that already existed before this
+session's track-ordering feature defaults to `order: 0` (no field in its old JSON). Swapping `0` with
+`0` is a no-op: the buttons visibly did nothing for the user's existing project, which is exactly what
+was reported. Fixed by having `moveTrack` re-sequence *every* track to distinct values (`0..n-1`,
+matching current display order) before performing the swap — self-healing, only needs to happen the
+first time a project's tracks are reordered post-upgrade. New test creates two tracks with the same
+`order: 0` (via `saveTrack` directly, bypassing `addTrack`'s auto-increment, to reproduce the
+degenerate state) and confirms `moveTrack` still reorders them.
+
+**Connector lines** (`_ConnectorPainter` in `timeline_screen.dart`): a line from each card to its own
+track's baseline, anchored from whichever card edge (top or bottom) is nearer the line so it doesn't
+cut through the card, plus a small dot marking where it meets the baseline. Drawn between the baseline
+lines and the cards in the `Stack` so cards visually sit on top of their own connector.
+
+**Drag-to-reassign:** dragging a card past the midpoint between two tracks' baselines now reassigns it
+to the nearer one on release — `_nearestTrackId(y, baselineByTrackId)` picks the closest baseline,
+used both to decide the actual reassignment and, live during the drag, to preview which track the
+connector will snap to (the connector's target track — and therefore which baseline it's drawn to —
+updates in real time as you drag, before you even release). Required promoting drag state from
+purely-local to `_TimelineCanvas` (now tracking `_draggingEventId`/`_draggingTopLeft`, fed by
+`onDragUpdate`/`onDragEnd` on `_EventCard`) — the same "lift state up so a painter can see it live"
+pattern the Relationship Diagram's edges already use, and for the same reason (a connector that only
+updates after the drag ends, not during, would read as sluggish the same way the Relationship
+Diagram's edges did before that fix).
+
+**Model/service:** `TimelineEvent.trackId` is no longer `final`; `copyWith` gained an optional
+`trackId` param. `TimelineService.setEventPosition` gained an optional named `trackId` — when given,
+reassigns in the same write as the position update; when omitted, the event stays on its own track
+(existing callers unaffected).
+
+**Verified:** `flutter analyze` clean, **207 tests passing** (was 203) — new service tests for the
+degenerate-order reorder fix and for `setEventPosition`'s track-reassignment (both with and without a
+`trackId`), new widget test dragging a card past a row's midpoint and confirming it lands near the
+next track's baseline. Rebuilt `flutter build windows`.
+
+---
+
 ## Current status
 
 Phases 0 through 3.5 are built and verified: manuscript editor, dictation, goals, version history,
 data protection and its UI, characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the
-Timeline, and the Relationship Diagram. 203 automated tests passing, `flutter analyze` clean,
+Timeline, and the Relationship Diagram. 207 automated tests passing, `flutter analyze` clean,
 `flutter build windows` succeeds. Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals,
 version history, manuscript generalization), `8416beb` (data protection services), `62d1baf` (docs),
 `8d414ac` (data-protection UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card

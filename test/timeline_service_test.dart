@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:narraity/models/timeline.dart';
 import 'package:narraity/services/timeline_service.dart';
 
 void main() {
@@ -59,6 +60,27 @@ void main() {
     expect(reloaded.yOffset, -35);
   });
 
+  test('setEventPosition can reassign the event to a different track', () async {
+    final main = await service.addTrack('Main');
+    final backstory = await service.addTrack('Backstory');
+    final event = await service.addEvent(trackId: main.id, label: 'Reveal');
+
+    await service.setEventPosition(event, 200, 0, trackId: backstory.id);
+
+    final reloaded = (await service.listEvents()).single;
+    expect(reloaded.trackId, backstory.id);
+  });
+
+  test('setEventPosition without a trackId keeps the event on its own track', () async {
+    final track = await service.addTrack('Main');
+    final event = await service.addEvent(trackId: track.id, label: 'Reveal');
+
+    await service.setEventPosition(event, 200, 40);
+
+    final reloaded = (await service.listEvents()).single;
+    expect(reloaded.trackId, track.id);
+  });
+
   test('saveEvent round-trips linked ids and time label', () async {
     final track = await service.addTrack('Main');
     final event = await service.addEvent(trackId: track.id, label: 'Reveal');
@@ -105,6 +127,21 @@ void main() {
     final names = (await service.listTracks()).map((t) => t.name).toList();
     expect(names, ['Main', 'Backstory']);
     expect((await service.listTracks()).map((t) => t.id), [main.id, backstory.id]);
+  });
+
+  test('moveTrack still reorders tracks that share the same order value', () async {
+    // Real bug: tracks written before track ordering existed (or otherwise
+    // sharing an order, e.g. every track defaulting to 0) made a same-value
+    // swap a no-op — the up/down buttons visibly did nothing.
+    await service.saveTrack(TimelineTrack(id: 'timeline-a', name: 'Main'));
+    await service.saveTrack(TimelineTrack(id: 'timeline-b', name: 'Backstory'));
+    // Sanity check the degenerate starting state this test is guarding against.
+    expect((await service.listTracks()).map((t) => t.order).toSet(), {0});
+
+    await service.moveTrack('timeline-a', 1);
+
+    final names = (await service.listTracks()).map((t) => t.name).toList();
+    expect(names, ['Backstory', 'Main']);
   });
 
   test('deleteTrack cascades to drop every event on it, leaves other tracks alone', () async {

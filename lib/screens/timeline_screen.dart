@@ -275,6 +275,14 @@ class _TimelineCanvasState extends ConsumerState<_TimelineCanvas> {
   /// doc comment for the bug this avoids).
   final _stackKey = GlobalKey();
 
+  /// The event currently mid-drag and its live (not-yet-persisted) top-left,
+  /// surfaced here — rather than staying purely local to the card — so the
+  /// connector line can follow it in real time and preview which track it'll
+  /// snap to on release, the same reason Relationship Diagram lifts drag
+  /// state up to its canvas for the edges.
+  String? _draggingEventId;
+  Offset? _draggingTopLeft;
+
   Offset _globalToLocal(Offset global) {
     final box = _stackKey.currentContext?.findRenderObject() as RenderBox?;
     return box?.globalToLocal(global) ?? global;
@@ -286,12 +294,12 @@ class _TimelineCanvasState extends ConsumerState<_TimelineCanvas> {
     final visibleTracks = [
       for (final track in widget.tracks) if (!hidden.contains(track.id)) track,
     ];
-    final baselineY = {
+    final baselineByTrackId = {
       for (var i = 0; i < visibleTracks.length; i++)
         visibleTracks[i].id: _topPadding + i * _rowHeight + _rowHeight / 2,
     };
     final visibleEvents = [
-      for (final event in widget.events) if (baselineY.containsKey(event.trackId)) event,
+      for (final event in widget.events) if (baselineByTrackId.containsKey(event.trackId)) event,
     ];
 
     final maxEventX =
@@ -313,23 +321,44 @@ class _TimelineCanvasState extends ConsumerState<_TimelineCanvas> {
             for (final track in visibleTracks)
               Positioned(
                 left: 0,
-                top: baselineY[track.id]!,
+                top: baselineByTrackId[track.id]!,
                 width: canvasWidth,
                 child: Container(height: 1, color: Theme.of(context).dividerColor),
               ),
             for (final track in visibleTracks)
               Positioned(
                 left: 8,
-                top: baselineY[track.id]! - 18,
+                top: baselineByTrackId[track.id]! - 18,
                 child: Text(track.name, style: Theme.of(context).textTheme.labelSmall),
               ),
+            // Below the cards (painted first, so a card visually sits on
+            // top of its own connector) but above the baseline lines.
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _ConnectorPainter(
+                  events: visibleEvents,
+                  baselineByTrackId: baselineByTrackId,
+                  draggingEventId: _draggingEventId,
+                  draggingTopLeft: _draggingTopLeft,
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+              ),
+            ),
             for (final event in visibleEvents)
               _EventCard(
                 key: ValueKey(event.id),
                 project: widget.project,
                 event: event,
-                trackBaselineY: baselineY[event.trackId]!,
+                baselineByTrackId: baselineByTrackId,
                 globalToLocal: _globalToLocal,
+                onDragUpdate: (topLeft) => setState(() {
+                  _draggingEventId = event.id;
+                  _draggingTopLeft = topLeft;
+                }),
+                onDragEnd: () => setState(() {
+                  _draggingEventId = null;
+                  _draggingTopLeft = null;
+                }),
               ),
           ],
         ),
@@ -338,23 +367,105 @@ class _TimelineCanvasState extends ConsumerState<_TimelineCanvas> {
   }
 }
 
+/// The track whose baseline is vertically closest to [y] — used both to
+/// preview which track a mid-drag card will snap to (the connector line)
+/// and to decide the actual reassignment on release. [baselineByTrackId] is
+/// always non-empty here: the screen shows its "no tracks" empty state
+/// instead of the canvas when there are none.
+String _nearestTrackId(double y, Map<String, double> baselineByTrackId) {
+  String? nearest;
+  double? bestDistance;
+  for (final entry in baselineByTrackId.entries) {
+    final distance = (entry.value - y).abs();
+    if (bestDistance == null || distance < bestDistance) {
+      bestDistance = distance;
+      nearest = entry.key;
+    }
+  }
+  return nearest!;
+}
+
+/// Draws a line from each event card to its track's baseline — so a
+/// staggered card still visibly shows which track it belongs to — plus a
+/// small dot where it meets the line. Drawn from whichever card edge (top or
+/// bottom) is nearer the baseline, so the line doesn't cut through the card.
+class _ConnectorPainter extends CustomPainter {
+  _ConnectorPainter({
+    required this.events,
+    required this.baselineByTrackId,
+    required this.draggingEventId,
+    required this.draggingTopLeft,
+    required this.color,
+  });
+
+  final List<TimelineEvent> events;
+  final Map<String, double> baselineByTrackId;
+  final String? draggingEventId;
+  final Offset? draggingTopLeft;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final linePaint = Paint()
+      ..color = color
+      ..strokeWidth = 1.5;
+    final dotPaint = Paint()..color = color;
+
+    for (final event in events) {
+      final Offset cardCenter;
+      final String trackId;
+      if (event.id == draggingEventId && draggingTopLeft != null) {
+        cardCenter = draggingTopLeft! + const Offset(_cardWidth / 2, _cardHeight / 2);
+        trackId = _nearestTrackId(cardCenter.dy, baselineByTrackId);
+      } else {
+        final baselineY = baselineByTrackId[event.trackId]!;
+        cardCenter = Offset(event.x + _cardWidth / 2, baselineY + event.yOffset);
+        trackId = event.trackId;
+      }
+
+      final baselineY = baselineByTrackId[trackId]!;
+      final anchorY = baselineY < cardCenter.dy
+          ? cardCenter.dy - _cardHeight / 2
+          : cardCenter.dy + _cardHeight / 2;
+      canvas.drawLine(Offset(cardCenter.dx, anchorY), Offset(cardCenter.dx, baselineY), linePaint);
+      canvas.drawCircle(Offset(cardCenter.dx, baselineY), 3, dotPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ConnectorPainter oldDelegate) =>
+      oldDelegate.events != events ||
+      oldDelegate.baselineByTrackId != baselineByTrackId ||
+      oldDelegate.draggingEventId != draggingEventId ||
+      oldDelegate.draggingTopLeft != draggingTopLeft;
+}
+
 class _EventCard extends ConsumerStatefulWidget {
   const _EventCard({
     super.key,
     required this.project,
     required this.event,
-    required this.trackBaselineY,
+    required this.baselineByTrackId,
     required this.globalToLocal,
+    required this.onDragUpdate,
+    required this.onDragEnd,
   });
 
   final Project project;
   final TimelineEvent event;
 
-  /// This event's own track's row centre — its rendered position is this
-  /// plus the event's `yOffset` (the stagger), never another track's.
-  final double trackBaselineY;
+  /// Every visible track's baseline Y, keyed by id — this event only ever
+  /// renders relative to its *own* track's entry, but the full map is needed
+  /// on drop to find which track a drag landed nearest to.
+  final Map<String, double> baselineByTrackId;
 
   final Offset Function(Offset global) globalToLocal;
+
+  /// Reports the live drag top-left up to _TimelineCanvas so the connector
+  /// line can track it and preview the snap target, and clears it again once
+  /// the drag ends.
+  final ValueChanged<Offset> onDragUpdate;
+  final VoidCallback onDragEnd;
 
   @override
   ConsumerState<_EventCard> createState() => _EventCardState();
@@ -368,8 +479,10 @@ class _EventCardState extends ConsumerState<_EventCard> {
   /// is what makes the drag track the cursor exactly instead of lagging.
   Offset? _grabOffset;
 
+  double get _ownBaselineY => widget.baselineByTrackId[widget.event.trackId]!;
+
   Offset get _restingTopLeft =>
-      Offset(widget.event.x, widget.trackBaselineY + widget.event.yOffset - _cardHeight / 2);
+      Offset(widget.event.x, _ownBaselineY + widget.event.yOffset - _cardHeight / 2);
 
   @override
   Widget build(BuildContext context) {
@@ -390,7 +503,9 @@ class _EventCardState extends ConsumerState<_EventCard> {
               recognizer.onMove = (globalPosition) {
                 final grabOffset = _grabOffset;
                 if (grabOffset == null) return;
-                setState(() => _dragTopLeft = widget.globalToLocal(globalPosition) - grabOffset);
+                final next = widget.globalToLocal(globalPosition) - grabOffset;
+                setState(() => _dragTopLeft = next);
+                widget.onDragUpdate(next);
               };
               recognizer.onEnd = () => _handleDragEnd();
             },
@@ -444,10 +559,20 @@ class _EventCardState extends ConsumerState<_EventCard> {
   Future<void> _handleDragEnd() async {
     final topLeft = _dragTopLeft;
     if (topLeft == null) return;
+    widget.onDragEnd();
+
+    // Snap to whichever track's baseline the card landed closest to — the
+    // same track it started on, unless it was dragged past the midpoint
+    // toward a neighbour, which is also what the connector line previewed
+    // while dragging.
+    final cardCenterY = topLeft.dy + _cardHeight / 2;
+    final trackId = _nearestTrackId(cardCenterY, widget.baselineByTrackId);
+    final baselineY = widget.baselineByTrackId[trackId]!;
     final x = topLeft.dx;
-    final yOffset = topLeft.dy - (widget.trackBaselineY - _cardHeight / 2);
+    final yOffset = topLeft.dy - (baselineY - _cardHeight / 2);
+
     final service = await ref.read(timelineServiceProvider(widget.project).future);
-    await service.setEventPosition(widget.event, x, yOffset);
+    await service.setEventPosition(widget.event, x, yOffset, trackId: trackId);
     if (mounted) invalidateTimeline(ref, widget.project);
   }
 }

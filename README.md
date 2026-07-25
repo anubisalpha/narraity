@@ -92,6 +92,10 @@ full breakdown and what changes per platform when that day comes.
   stagger cards that are close together so they don't overlap — rather than only nudging along a
   fixed left-to-right order. A thin baseline line marks each track's row; there's no visible grid,
   it's just an alignment guide
+- Each card shows a **connector line back to its own track's baseline**, so a staggered card's home
+  track is never ambiguous. Drag a card onto a different track's row and it reassigns there —
+  releasing past the midpoint between two tracks snaps the card (and its connector) to the nearer one,
+  previewed live while you drag
 - Events carry a freeform "when" (a real date, "Day 3", "Spring, Year 1" — whatever fits the story's
   own sense of time) plus notes, and can link to scenes, characters, and world entries
 - A linked scene shows as a chip on the event card — tap it to jump straight to that scene in the
