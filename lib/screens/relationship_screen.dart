@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,11 +14,16 @@ const _canvasSize = Size(2400, 1600);
 /// Family tree / relationship diagram (PLAN.md "Feature: Family Tree /
 /// Relationship Diagram"): nodes are characters pulled from Character
 /// Profiles, edges are relationships with a type and optional custom label.
-/// The canvas is pan/zoomable and nodes are draggable; edges are added via a
-/// picker dialog rather than a freehand draw gesture, and managed from a
-/// side list rather than by tapping the drawn line — both simplifications
-/// trade a little of "draw on the canvas" directness for something that
-/// doesn't depend on precise line hit-testing.
+/// The canvas is pan/zoomable; dragging a character node onto another opens
+/// the relationship dialog with the dragged character as A and the one it
+/// landed on as B (or the existing relationship between them, if there is
+/// one) — the dragged node snaps back to its own saved position rather than
+/// staying wherever it was dropped, since that gesture's purpose is linking,
+/// not moving. Dragging onto empty canvas is an ordinary reposition. The "+"
+/// toolbar icon opens the same dialog via two character dropdowns instead,
+/// for when drag-and-drop isn't convenient. Either way, edges are managed
+/// (edited/deleted) from the side list rather than by tapping the drawn
+/// line, which would need precise hit-testing against a painted line.
 class RelationshipScreen extends ConsumerWidget {
   const RelationshipScreen({super.key, required this.project});
 
@@ -152,6 +158,9 @@ class _Canvas extends ConsumerWidget {
                 project: project,
                 character: character,
                 position: positions[character.id]!,
+                otherCharacters: [for (final c in characters) if (c.id != character.id) c],
+                positions: positions,
+                relationships: relationships,
               ),
           ],
         ),
@@ -166,11 +175,22 @@ class _DraggableNode extends ConsumerStatefulWidget {
     required this.project,
     required this.character,
     required this.position,
+    required this.otherCharacters,
+    required this.positions,
+    required this.relationships,
   });
 
   final Project project;
   final ProfileEntry character;
   final Offset position;
+
+  /// Every other character on the canvas, for drop-target hit-testing.
+  final List<ProfileEntry> otherCharacters;
+
+  /// Every node's current (persisted, pre-drag) position, keyed by character
+  /// id — used to test whether a drop lands on top of another node.
+  final Map<String, Offset> positions;
+  final List<Relationship> relationships;
 
   @override
   ConsumerState<_DraggableNode> createState() => _DraggableNodeState();
@@ -179,27 +199,56 @@ class _DraggableNode extends ConsumerStatefulWidget {
 class _DraggableNodeState extends ConsumerState<_DraggableNode> {
   Offset? _dragPosition;
 
+  /// The other character whose node the current drag position overlaps, or
+  /// null if not currently over anyone — used to drop a relationship rather
+  /// than move the node.
+  ProfileEntry? _dropTarget(Offset dragPosition) {
+    final center = dragPosition + const Offset(_nodeSize / 2, _nodeSize / 2);
+    for (final other in widget.otherCharacters) {
+      final pos = widget.positions[other.id];
+      if (pos == null) continue;
+      final rect = Rect.fromLTWH(pos.dx, pos.dy, _nodeSize, _nodeSize);
+      if (rect.contains(center)) return other;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final position = _dragPosition ?? widget.position;
+    final hovering = _dragPosition == null ? null : _dropTarget(_dragPosition!);
+
     return Positioned(
       left: position.dx,
       top: position.dy,
-      child: GestureDetector(
-        onPanUpdate: (details) =>
-            setState(() => _dragPosition = position + details.delta),
-        onPanEnd: (_) async {
-          final result = _dragPosition;
-          if (result == null) return;
-          final service =
-              await ref.read(relationshipServiceProvider(widget.project).future);
-          await service.setNodePosition(widget.character.id, result.dx, result.dy);
-          invalidateRelationships(ref, widget.project);
+      // Not a plain GestureDetector: its PanGestureRecognizer competes with
+      // InteractiveViewer's own scale/pan recognizer for the same pointer,
+      // and InteractiveViewer wins that arena (confirmed — node drags never
+      // moved anything, even before this feature). _ImmediateDragRecognizer
+      // claims the pointer synchronously on pointer-down, before
+      // InteractiveViewer's movement-triggered recognizer gets a chance to.
+      child: RawGestureDetector(
+        gestures: {
+          _ImmediateDragRecognizer:
+              GestureRecognizerFactoryWithHandlers<_ImmediateDragRecognizer>(
+            _ImmediateDragRecognizer.new,
+            (recognizer) {
+              recognizer.onUpdate =
+                  (delta) => setState(() => _dragPosition = position + delta);
+              recognizer.onEnd = () => _handleDrop(context);
+            },
+          ),
         },
         child: SizedBox(
           width: _nodeSize,
           height: _nodeSize,
           child: Card(
+            shape: hovering == null
+                ? null
+                : RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                    side: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
+                  ),
             child: Padding(
               padding: const EdgeInsets.all(6),
               child: Column(
@@ -214,6 +263,12 @@ class _DraggableNodeState extends ConsumerState<_DraggableNode> {
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (hovering != null)
+                    Text('→ ${hovering.name}',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Theme.of(context).colorScheme.primary, fontSize: 9),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
                 ],
               ),
             ),
@@ -222,6 +277,99 @@ class _DraggableNodeState extends ConsumerState<_DraggableNode> {
       ),
     );
   }
+
+  Future<void> _handleDrop(BuildContext context) async {
+    final dragPosition = _dragPosition;
+    if (dragPosition == null) return;
+
+    final target = _dropTarget(dragPosition);
+    if (target == null) {
+      // Ordinary reposition: persist where it landed.
+      final service = await ref.read(relationshipServiceProvider(widget.project).future);
+      await service.setNodePosition(widget.character.id, dragPosition.dx, dragPosition.dy);
+      if (mounted) invalidateRelationships(ref, widget.project);
+      return;
+    }
+
+    // Dropped on another node: snap back to its persisted position (this
+    // gesture creates/edits a relationship, not a move) and open the
+    // relationship dialog with the dragged character as A, the character it
+    // was dropped onto as B.
+    setState(() => _dragPosition = null);
+
+    final existing = widget.relationships.firstWhereOrNull((r) =>
+        (r.characterAId == widget.character.id && r.characterBId == target.id) ||
+        (r.characterAId == target.id && r.characterBId == widget.character.id));
+
+    if (!context.mounted) return;
+    final allCharacters = [widget.character, ...widget.otherCharacters];
+    if (existing != null) {
+      final result = await _showRelationshipDialog(
+        context,
+        characters: allCharacters,
+        initial: existing,
+      );
+      if (result == null) return;
+      final service = await ref.read(relationshipServiceProvider(widget.project).future);
+      await service.saveRelationship(existing.copyWith(type: result.type, label: result.label));
+    } else {
+      final result = await _showRelationshipDialog(
+        context,
+        characters: allCharacters,
+        presetCharacterAId: widget.character.id,
+        presetCharacterBId: target.id,
+      );
+      if (result == null) return;
+      final service = await ref.read(relationshipServiceProvider(widget.project).future);
+      await service.addRelationship(
+        characterAId: result.characterAId,
+        characterBId: result.characterBId,
+        type: result.type,
+        label: result.label,
+      );
+    }
+    if (mounted) invalidateRelationships(ref, widget.project);
+  }
+}
+
+/// Claims a pointer for a plain single-finger drag the instant it touches
+/// down, rather than waiting to see movement past a touch-slop threshold
+/// like [PanGestureRecognizer] does. Needed because a node sits inside
+/// [InteractiveViewer], whose own scale/pan recognizer competes for the same
+/// pointer and — being also movement-triggered — wins that race often enough
+/// that a plain `GestureDetector.onPanUpdate` on the node never fires at
+/// all. Resolving the arena synchronously in [addPointer], before
+/// InteractiveViewer's recognizer gets a chance to accept, reliably wins
+/// instead.
+class _ImmediateDragRecognizer extends OneSequenceGestureRecognizer {
+  ValueChanged<Offset>? onUpdate;
+  VoidCallback? onEnd;
+
+  Offset? _lastPosition;
+
+  @override
+  void addPointer(PointerDownEvent event) {
+    startTrackingPointer(event.pointer);
+    resolve(GestureDisposition.accepted);
+    _lastPosition = event.position;
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (event is PointerMoveEvent) {
+      onUpdate?.call(event.position - _lastPosition!);
+      _lastPosition = event.position;
+    } else if (event is PointerUpEvent || event is PointerCancelEvent) {
+      stopTrackingPointer(event.pointer);
+      onEnd?.call();
+    }
+  }
+
+  @override
+  void didStopTrackingLastPointer(int pointer) {}
+
+  @override
+  String get debugDescription => 'immediateDrag';
 }
 
 class _EdgePainter extends CustomPainter {
@@ -346,9 +494,12 @@ Future<_RelationshipDraft?> _showRelationshipDialog(
   BuildContext context, {
   required List<ProfileEntry> characters,
   Relationship? initial,
+  String? presetCharacterAId,
+  String? presetCharacterBId,
 }) {
-  var characterA = initial?.characterAId ?? characters.first.id;
+  var characterA = initial?.characterAId ?? presetCharacterAId ?? characters.first.id;
   var characterB = initial?.characterBId ??
+      presetCharacterBId ??
       characters.firstWhere((c) => c.id != characterA, orElse: () => characters.last).id;
   var type = initial?.type ?? RelationshipType.family;
   final labelController = TextEditingController(text: initial?.label ?? '');
@@ -412,4 +563,13 @@ Future<_RelationshipDraft?> _showRelationshipDialog(
       ),
     ),
   );
+}
+
+extension _FirstWhereOrNull<T> on List<T> {
+  T? firstWhereOrNull(bool Function(T) test) {
+    for (final element in this) {
+      if (test(element)) return element;
+    }
+    return null;
+  }
 }

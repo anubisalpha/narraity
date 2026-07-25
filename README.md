@@ -97,8 +97,12 @@ full breakdown and what changes per platform when that day comes.
   positions that persist between sessions
 - Relationships (family, romantic, friend, rival, ally, mentor, other, plus a custom label) drawn as
   labelled lines between characters
-- Add relationships via a picker (pick both characters, a type, an optional label); manage existing
-  ones from a side list
+- **Drag one character's node onto another** to open the relationship dialog pre-filled with the
+  dragged character and the one it landed on — editing the existing relationship between them if
+  there already is one. The dragged node snaps back to its own position afterward; this gesture
+  links, it doesn't move
+- Add relationships via the "+" picker instead (pick both characters, a type, an optional label) when
+  drag-and-drop isn't convenient; manage existing ones from a side list
 
 ### Voice dictation (offline)
 - Windows: a hand-written Dart FFI binding straight to the real Vosk engine (`libvosk.dll`,

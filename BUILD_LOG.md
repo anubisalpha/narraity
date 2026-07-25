@@ -558,25 +558,82 @@ Rebuilt `flutter build windows`, confirmed the render tree shows non-zero row of
 
 ---
 
+## Relationship Diagram: drag-and-drop linking, and a second real GUI bug
+
+User feedback after the Plot Grid fix: dragging one character node onto another should open the
+relationship dialog with the dragged character as A and the one it landed on as B (editing the
+existing relationship if one's already there), rather than only offering the "+" picker-dialog flow.
+Kept the "+" icon as-is alongside it.
+
+**While wiring this up, found that node dragging had never actually worked at all** — not new
+today, a bug present since the original Phase 3.5 commit. Confirmed with a throwaway diagnostic
+widget test: simulating a drag over a node produced no visible reaction whatsoever, not even
+`setState` firing. Root cause: the node's `GestureDetector.onPanUpdate` creates a
+`PanGestureRecognizer`, which competes in the same gesture arena as `InteractiveViewer`'s own
+internal scale/pan recognizer for the same pointer — and `InteractiveViewer` was winning that race
+every time, since both recognizers only accept once they see movement past a touch-slop threshold,
+and `InteractiveViewer`'s apparently resolves first. Fixed with a custom
+`_ImmediateDragRecognizer extends OneSequenceGestureRecognizer` that calls
+`resolve(GestureDisposition.accepted)` synchronously inside `addPointer` — claiming the pointer the
+instant it touches down, before `InteractiveViewer`'s movement-triggered recognizer gets a chance to
+compete at all. Wired in via `RawGestureDetector` in place of the plain `GestureDetector`.
+
+**What's built:**
+- Dragging character A's node onto character B's opens the relationship dialog pre-filled A→B (or
+  the existing relationship between them, edit mode, if one already exists) — checked via a rect
+  containment test against the other nodes' *persisted* positions (not live drag positions of
+  siblings, since only one node is ever being dragged at a time).
+- The dragged node **snaps back to its saved position** rather than staying wherever it was dropped
+  — this gesture's purpose is linking, not moving, so the position is reset in local state before the
+  disk write that would otherwise never happen (dropping on a node never calls `setNodePosition`).
+- A small "→ {target name}" label appears on the dragged card while hovering over a valid drop
+  target, plus a highlighted border, so the gesture has feedback before release.
+- `_showRelationshipDialog` gained optional `presetCharacterAId`/`presetCharacterBId` params (used
+  only when not editing an existing relationship) so both the "+" picker flow and the new drag flow
+  share one dialog implementation.
+
+**New regression coverage:** `test/relationship_screen_test.dart` — drags one node onto another and
+asserts (a) a hover indicator appears mid-drag (proving the gesture actually reaches the node, which
+is exactly what silently failed before the fix), (b) the relationship dialog opens, and (c) the
+dragged node's position afterward equals its position before the drag (the snap-back). Deliberately
+does **not** tap Save through to a real write — same reasoning as `widget_test.dart`'s "New Project
+dialog" test: real file I/O triggered from a simulated tap runs inside flutter_test's fake-async zone
+and never resolves, so persistence is left to `relationship_service_test.dart`'s existing
+`addRelationship`/`saveRelationship` coverage. Confirmed this the hard way — an earlier version of
+this test that awaited a provider `.future` after tapping Save hung until the test-runner's own
+timeout killed it.
+
+**Verified:** `flutter analyze` clean, **198 tests passing** (was 197). Rebuilt `flutter build
+windows`.
+
+**Lesson reinforced:** this is the *second* real bug this session found only by an actual GUI/gesture
+pass — neither the missing-height Table bug nor this gesture-arena conflict would ever show up in
+`flutter analyze`, `flutter test`, or `flutter build`, all of which had been reporting clean/passing
+for this exact code since it was first committed. Every phase's "not clicked through by GUI" caveat
+in this log should be read as "the interactive behaviour is unverified," not just "the visuals are
+unconfirmed."
+
+---
+
 ## Current status
 
 Phases 0 through 3.5 are built and verified: manuscript editor, dictation, goals, version history,
 data protection and its UI, characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the
-Timeline, and the Relationship Diagram. 197 automated tests passing, `flutter analyze` clean,
+Timeline, and the Relationship Diagram. 198 automated tests passing, `flutter analyze` clean,
 `flutter build windows` succeeds. Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals,
 version history, manuscript generalization), `8416beb` (data protection services), `62d1baf` (docs),
 `8d414ac` (data-protection UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card
 id-guess fix), `7466997` (Phase 3), `d8481f5` (Phase 3.5).
 
-**The Plot Grid has now had one real GUI pass** (see entry above) and a genuine layout bug was found
-and fixed as a direct result — Timeline and Relationship Diagram have **not** had that pass yet and
-should be treated with proportionally more suspicion than the service-layer test counts suggest.
+**The Plot Grid and the Relationship Diagram have each now had one real GUI/gesture pass** and a
+genuine bug was found and fixed both times (see the two entries above) — **the Timeline has not**
+and should be treated with proportionally more suspicion than its test count suggests.
 
 Next per `PLAN.md`: **Phase 4** (comments, highlights, sticky notes, footnotes on a shared
 text-anchor mechanism, plus the AI/external review round-trip). Its anchor mechanism is the same
 machinery a rich-text editor would need to render `[[…]]` mentions as chips, so pairing them is
-sensible. Also worth a session clicking through Timeline and Relationships given what the Plot Grid
-pass just found.
+sensible. Also worth a session clicking through the Timeline given what the Plot Grid and
+Relationship Diagram passes both just found.
 
 Still outstanding from earlier phases: scene-level `linkedReferences` (the fourth Reference Panel
 trigger from PLAN.md — mentions, pins, and auto-detect cover the other three), per-project vault
