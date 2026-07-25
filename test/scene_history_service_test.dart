@@ -3,16 +3,20 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:narraity/models/scene_snapshot.dart';
+import 'package:narraity/services/history_signing_key_manager.dart';
 import 'package:narraity/services/scene_history_service.dart';
 
 void main() {
   late Directory tempDir;
   late SceneHistoryService service;
+  late HistorySigningKeyManager keyManager;
   const sceneId = 'scene-test-1';
 
-  setUp(() {
+  setUp(() async {
     tempDir = Directory.systemTemp.createTempSync('narraity_history_test_');
-    service = SceneHistoryService(tempDir);
+    keyManager = HistorySigningKeyManager(File('${tempDir.path}/_history_key_salt'));
+    await keyManager.unlock('test password');
+    service = SceneHistoryService(tempDir, keyManager: keyManager);
   });
 
   tearDown(() => tempDir.deleteSync(recursive: true));

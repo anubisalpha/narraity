@@ -144,7 +144,49 @@ class _SceneHistoryScreenState extends ConsumerState<SceneHistoryScreen> {
             );
           }
 
-          return Row(
+          final tamperedIds = ref
+              .watch(sceneHistoryServiceProvider(widget.project))
+              .maybeWhen(
+                data: (service) => service.tamperedIdsFor(widget.sceneId),
+                orElse: () => const <String>[],
+              );
+
+          return Column(
+            children: [
+              if (tamperedIds.isNotEmpty)
+                MaterialBanner(
+                  backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                  leading: Icon(
+                    Icons.gpp_bad_outlined,
+                    color: Theme.of(context).colorScheme.onErrorContainer,
+                  ),
+                  content: Text(
+                    '${tamperedIds.length} history '
+                    '${tamperedIds.length == 1 ? "entry" : "entries"} failed verification and '
+                    '${tamperedIds.length == 1 ? "was" : "were"} quarantined — the on-disk file may '
+                    'have been edited outside Narraity. The originals were kept, renamed with a '
+                    '.tampered suffix, not deleted.',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+                      },
+                      child: const Text('Dismiss'),
+                    ),
+                  ],
+                ),
+              Expanded(child: _buildHistoryBody(context, snapshots)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildHistoryBody(BuildContext context, List<SceneSnapshot> snapshots) {
+    return Row(
             children: [
               SizedBox(
                 width: 340,
@@ -216,9 +258,6 @@ class _SceneHistoryScreenState extends ConsumerState<SceneHistoryScreen> {
               ),
             ],
           );
-        },
-      ),
-    );
   }
 }
 
