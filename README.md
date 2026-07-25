@@ -72,6 +72,16 @@ full breakdown and what changes per platform when that day comes.
   when a character turns up in the prose before they have a profile
 - Panel visibility, width, and pins persist between sessions (per project for pins)
 
+### Plot Grid
+- Colour-coded **plotlines** (main plot, subplots, POV arcs) as rows, manuscript **scenes** in
+  document order as columns — a spreadsheet-style view of what's happening where
+- Tap a cell to add or edit a plot point (title + notes); an empty cell is a single tap away from a
+  new beat, no separate "add" flow
+- Add/rename/recolour/delete plotlines from the grid itself; deleting a plotline removes every point
+  on it
+- Opens full-screen (like Goals) from its own toolbar icon, since a grid needs real width rather than
+  a 280px sidebar slot
+
 ### Voice dictation (offline)
 - Windows: a hand-written Dart FFI binding straight to the real Vosk engine (`libvosk.dll`,
   vendored — see "Why not a Vosk plugin?" below)

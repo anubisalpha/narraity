@@ -388,20 +388,73 @@ inline-edit focus behaviour — is unconfirmed by eye.
 
 ---
 
+## Reference card id-guessing bug fix
+
+Found by inspecting the user's own test data (no GUI needed): a hand-created worldbuilding entry
+round-tripped correctly, but `ReferenceCard`/autocomplete were inferring character-vs-world by
+checking `entry.id.startsWith('char-')` — a guess that breaks for any hand-edited or imported entry
+with a different id (the project deliberately allows hand-editing files). Fixed by threading a
+`ReferenceCardItem` (entry + `ProfileKind`) through `resolveMentions` and the panel/autocomplete pin
+lookups instead of inferring downstream. 171 tests (was 169). Commit `3f1e79b`.
+
+---
+
+## Phase 3 — Plot Grid
+
+Plot lines (colour-coded threads — main plot, subplots, POV arcs) crossed with manuscript scenes in
+document order; each intersection can hold a plot point. Matches the `plot-grid/plotlines.json` +
+`plot-grid/plotpoints.json` layout from PLAN.md's data model.
+
+**What's built:**
+- `lib/models/plot_grid.dart` — `PlotLine` (id, name, ARGB `color` int) and `PlotPoint` (id,
+  plotlineId, sceneId, title, notes). No Flutter dependency, so the models are unit-testable without
+  a widget test — same pattern as the rest of the data layer.
+- `lib/services/plot_grid_service.dart` — CRUD for both files, same shape as `TodoService`.
+  `setPlotPoint` is upsert-by-cell (one point per plotline/scene pair; writing to an already-filled
+  cell overwrites rather than stacking a second card nobody could see). `deletePlotline` cascades to
+  drop every point on it, so a deleted row never leaves orphaned cells behind.
+- `lib/state/plot_grid_provider.dart` — service/list providers, plus `sceneColumnsProvider`, which
+  walks the manuscript structure once to produce `(id, title)` pairs in document order. This is the
+  grid's column source; the same id→title walk already existed twice (`project_shell_screen`'s
+  `_titleFor` and `ManuscriptService._findTitle`) so this is a third copy rather than a shared helper
+  — small enough not to worth a refactor across three files for it.
+- `lib/screens/plot_grid_screen.dart` — a `Table` (rows = plotlines, columns = scenes) wrapped in
+  nested horizontal/vertical `SingleChildScrollView`s, opened full-screen from a new AppBar icon next
+  to Goals (Plot Grid needs real width, the same reason Goals isn't a sidebar tab). Empty cells show
+  a faint "+"; filled cells show a colour-tinted card with the plotline's colour, tap to edit/delete.
+  Add/edit plotline dialog offers an 8-swatch preset palette rather than a full colour picker — for
+  "pick one of roughly this many visually distinct threads" a picker is overkill.
+
+**Deliberately deferred:** a plot point whose scene gets deleted from the manuscript becomes
+invisible (its column disappears) but isn't cleaned out of `plotpoints.json` — no cascade wired from
+`ManuscriptService.deleteNode`/`deleteSpecialSection` back into the plot grid yet. Dead data, not
+data loss; worth a cleanup pass if it turns out to matter in practice.
+
+**Verified:** `flutter analyze` clean, **179 tests passing** (was 171) — new
+`plot_grid_service_test.dart` covers plotline/point CRUD, cell-overwrite-not-duplicate, cascade
+delete, and reorder. Both `flutter analyze` and `flutter build windows` succeed; `flutter build apk
+--debug` not re-run this session (no Android-specific code touched).
+
+**Not clicked through by GUI** — same standing caveat as Phases 2 and 2.5. Table layout, scroll-sync
+between the two nested scroll views, and dialog feel are unconfirmed by eye.
+
+---
+
 ## Current status
 
-Phases 0 through 2.5 are built and verified: manuscript editor, dictation, goals, version history,
-data protection and its UI, characters/worldbuilding/notes, and the Reference Panel. 169 automated
-tests passing, `flutter analyze` clean, both `flutter build windows` and `flutter build apk --debug`
-succeed. Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals, version history, manuscript
-generalization), `8416beb` (data protection services), `62d1baf` (docs), `8d414ac` (data-protection
-UI), `0dbb050` (Phase 2).
+Phases 0 through 3 are built and verified: manuscript editor, dictation, goals, version history,
+data protection and its UI, characters/worldbuilding/notes, the Reference Panel, and the Plot Grid.
+179 automated tests passing, `flutter analyze` clean, `flutter build windows` succeeds. Commits:
+`3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals, version history, manuscript generalization),
+`8416beb` (data protection services), `62d1baf` (docs), `8d414ac` (data-protection UI), `0dbb050`
+(Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card id-guess fix).
 
-Next per `PLAN.md`: **Phase 3** (Plot Grid, Timeline, relationship diagram) or **Phase 4** (comments,
-highlights, sticky notes, footnotes on a shared text-anchor mechanism, plus the AI/external review
-round-trip). Worth noting Phase 4's anchor mechanism is the same machinery a rich-text editor would
-need to render `[[…]]` mentions as chips, so pairing them is sensible.
+Next per `PLAN.md`: **Phase 3.5** (Timeline page, multi-track; Family tree/relationship diagram) or
+**Phase 4** (comments, highlights, sticky notes, footnotes on a shared text-anchor mechanism, plus the
+AI/external review round-trip). Phase 4's anchor mechanism is the same machinery a rich-text editor
+would need to render `[[…]]` mentions as chips, so pairing them is sensible.
 
 Still outstanding from earlier phases: scene-level `linkedReferences` (the fourth Reference Panel
 trigger from PLAN.md — mentions, pins, and auto-detect cover the other three), per-project vault
-passwords, export format priority, and Play Store readiness (privacy policy, data safety form).
+passwords, export format priority, Play Store readiness (privacy policy, data safety form), and the
+Plot Grid's dangling-point cleanup noted above.
