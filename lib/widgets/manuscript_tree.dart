@@ -6,6 +6,7 @@ import '../models/project.dart';
 import '../screens/section_overview_screen.dart';
 import '../services/manuscript_service.dart';
 import '../state/manuscript_provider.dart';
+import '../state/reference_provider.dart';
 
 /// Sidebar tree: front matter, then a generic arbitrary-depth node tree
 /// (drag-reorder within any level), then back matter. Every node — at any
@@ -82,14 +83,14 @@ class ManuscriptTree extends ConsumerWidget {
                     typeLabel: label,
                     parent: null,
                   );
-                  ref.read(openContentIdProvider.notifier).state = node.id;
+                  openScene(ref, node.id);
                   _refresh(ref);
                 },
               ),
               PopupMenuButton<SpecialSectionType>(
                 onSelected: (type) async {
                   final section = await service.addSpecialSection(structure, type);
-                  ref.read(openContentIdProvider.notifier).state = section.id;
+                  openScene(ref, section.id);
                   _refresh(ref);
                 },
                 itemBuilder: (context) => [
@@ -128,7 +129,7 @@ class _SectionTile extends ConsumerWidget {
       selected: selected,
       leading: const Icon(Icons.auto_awesome, size: 18),
       title: Text(section.title),
-      onTap: () => ref.read(openContentIdProvider.notifier).state = section.id,
+      onTap: () => openScene(ref, section.id),
       trailing: PopupMenuButton<String>(
         onSelected: (_) => onDelete(),
         itemBuilder: (context) => const [
@@ -252,7 +253,7 @@ class _NodeTileState extends ConsumerState<_NodeTile> {
                 : node.typeLabel,
             style: Theme.of(context).textTheme.labelSmall,
           ),
-          onTap: () => ref.read(openContentIdProvider.notifier).state = node.id,
+          onTap: () => openScene(ref, node.id),
           trailing: PopupMenuButton<String>(
             onSelected: (action) async {
               switch (action) {

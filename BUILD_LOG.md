@@ -268,14 +268,78 @@ that's a UI-only gap.
 
 ---
 
+## Phase 2 — Characters, Worldbuilding, Story Notes
+
+The reference material the app was still missing, and the prerequisite for Phase 2.5's Reference
+Panel (which has nothing to show without it). The Phase 0 project skeleton already created
+`characters/`, `worldbuilding/`, and `notes/`, so nothing needed migrating.
+
+**User decisions:** images included this phase; world entries grouped by category; notes get folders
+*and* tags *and* search.
+
+**Design decisions worth keeping:**
+- **One `ProfileService` for both characters and world entries, not two.** They differ only in the
+  folder, the id prefix, and which starter fields a new entry gets — every other behaviour (CRUD,
+  images, categories) is identical, so two classes would have meant two of everything downstream and
+  two places to fix each bug. Same reasoning for one `ProfilePanel` and one `ProfileEditor`. (The plan
+  named separate `character_service.dart`/`world_service.dart`; collapsing them was a deliberate
+  change once the duplication became obvious.)
+- **Fields are an author-defined ordered map, not fixed properties.** Every writer wants a different
+  character sheet, so a fixed schema would be wrong for most of them. `jsonDecode` preserves key
+  order and every save rewrites the whole object, so the author's field order survives round-trips —
+  and renaming a field rebuilds the map in place rather than moving that field to the end.
+- **Note folders are real subdirectories, not a JSON field.** The structure stays visible and
+  rearrangeable outside the app, which is the point of human-readable local-first storage. One level
+  only: deeper nesting is a filing system, and search is the real answer to "where did I put that."
+  A note's folder is derived from where its file actually sits.
+- **Deleting a folder moves its notes to the root.** Removing a container must never destroy writing
+  filed inside it.
+- **Search uses a lazily built in-memory index, dropped on every write.** Notes have to be read to be
+  listed anyway, so an on-disk index would buy no measurable speed at realistic sizes while adding a
+  way for results to go stale — and "the note you know you wrote can't be found" is a much worse
+  failure than a few milliseconds. Terms are ANDed (adding a word should narrow), and title hits
+  outrank tag hits, which outrank body hits.
+- **Images are copied into `assets/images/`, never referenced in place.** The original could be
+  anywhere; a project has to stay self-contained to be portable and backup-able. Replacing an image
+  deletes the old file first, since the new one may have a different extension and wouldn't overwrite
+  it — and deleting an entry deletes its image, or it would be carried into every vault backup forever.
+- **Folder names are sanitised against path separators**, or a name like `../escape` would write
+  outside the notes folder entirely.
+- **Scene selection and reference selection are separate providers.** Opening a character and closing
+  it again returns you to the scene you were writing. Tapping a scene clears the reference selection
+  (via a shared `openScene` helper) — without that, tapping a scene while a profile was open would
+  look like it did nothing.
+- Sidebar tabs went from 2 text labels to **5 icons**: five text tabs don't fit in 280px.
+
+**Verified:** `flutter analyze` clean, **148 tests passing** (was 113), both `flutter build windows`
+and `flutter build apk --debug` succeed. New coverage: `profile_service_test.dart` (starter templates,
+field order round-trip, alphabetical listing, corrupt/hand-written files, categories, and the four
+image behaviours above), `story_notes_service_test.dart` (CRUD, promoted-Global-Idea file shape,
+folder create/move/rename/delete-moves-to-root, path-escape sanitising, and search: ranking,
+narrowing, case-insensitivity, and index invalidation after edit/delete/move), a shell widget test
+(five tabs; selecting a character routes the main pane to `ProfileEditor`), and an addition to
+`vault_flow_test.dart` proving a backup carries characters, world entries, and foldered notes.
+
+**Caveat on verification:** as last session, computer-use can't resolve the Narraity window on this
+machine, so the GUI was not clicked through — the file-picker dialog, profile layout, and sidebar feel
+are unconfirmed by eye. Everything reachable from the service and provider layers is covered by tests.
+
+**Environment note:** `flutter clean` did *not* remove `build/` on this machine, and a stale
+`build/app/intermediates/assets/debug/mergeDebugAssets` made `flutter build apk --debug` fail
+repeatedly with a Gradle "unable to delete directory" error. Deleting `build/` outright fixed it.
+Worth reaching for first next time rather than re-running clean.
+
+---
+
 ## Current status
 
-Phases 0 through 1.7, the manuscript structure generalization, the data protection work, and its UI
-wiring are all built and verified. 113 automated tests passing, `flutter analyze` clean, both
+Phases 0 through 1.7, the manuscript structure generalization, the data protection work and its UI,
+and Phase 2 are all built and verified. 148 automated tests passing, `flutter analyze` clean, both
 `flutter build windows` and `flutter build apk --debug` succeed. Commits: `3097c4b` (Phases
 0/0.5/1), `bd27566` (dictation, goals, version history, manuscript generalization), `8416beb`
-(data protection services), `62d1baf` (docs).
+(data protection services), `62d1baf` (docs), `8d414ac` (data-protection UI).
 
-Next candidates per `PLAN.md`: Phase 2 (Character profiles, Worldbuilding, Story Notes) or Phase
-2.5 (Reference Panel) — Phase 2 realistically comes first either way, since the Reference Panel has
-nothing to display without it.
+Next per `PLAN.md`: **Phase 2.5 — the Reference Panel**, which now has content to display: character
+and worldbuilding entries with `quickRef` fields already curated and persisted. Its remaining pieces
+are the docking panel UI, `@mention` autocomplete inserting `[[char:<id>]]` tags, pin/unpin, and
+scene-level `linkedReferences` auto-population.

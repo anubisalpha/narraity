@@ -44,6 +44,21 @@ full breakdown and what changes per platform when that day comes.
 - Adjustable writing font, size, and line spacing (separate from export formatting)
 - Per-project to-do list, optionally linked to a scene
 
+### Characters, worldbuilding & story notes
+- **Character profiles** with author-defined fields — a starter template (Role, Age, Appearance,
+  Personality, Goals, Backstory, Notes) that can be renamed, removed, reordered, or added to, because
+  no fixed character sheet suits every writer
+- **Worldbuilding entries** grouped by a freeform category (Location, Faction, Magic, or anything you
+  type) — the sidebar builds its groups from the categories actually in use
+- Any field can be starred as **quick reference**, marking what's worth seeing at a glance while
+  writing (consumed by the Reference Panel)
+- Optional image per character/entry, copied into the project so it stays self-contained and portable
+- **Story Notes** with folders *and* tags: file notes into folders, tag them freely, and search across
+  every note's title, body, and tags — extra words narrow the search, and title/tag hits rank above
+  passing mentions in a body
+- Deleting a folder moves its notes back to the top level rather than deleting them
+- Notes promoted from Global Ideas appear here automatically, marked with their origin
+
 ### Voice dictation (offline)
 - Windows: a hand-written Dart FFI binding straight to the real Vosk engine (`libvosk.dll`,
   vendored — see "Why not a Vosk plugin?" below)
@@ -113,6 +128,7 @@ full breakdown and what changes per platform when that day comes.
   and the password-protected Vault — no native platform dependency, works identically on every OS
 - **`record`** (cross-platform mic capture) + a hand-written FFI binding for Windows dictation
 - **`speech_to_text`** for Android dictation
+- **`file_picker`** for choosing character/worldbuilding images
 - No servers, no accounts, no telemetry — everything above runs entirely on-device
 
 ## Why not a Vosk Flutter plugin?

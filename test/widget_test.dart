@@ -8,8 +8,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:narraity/app.dart';
 import 'package:narraity/services/library_service.dart';
 import 'package:narraity/state/library_provider.dart';
+import 'package:narraity/state/manuscript_provider.dart';
+import 'package:narraity/state/reference_provider.dart';
 import 'package:narraity/state/theme_provider.dart';
 import 'package:narraity/state/vault_provider.dart';
+import 'package:narraity/widgets/profile_editor.dart';
 
 // Project creation itself (real file I/O) is covered by the pure-Dart
 // library_service_test.dart, which doesn't fight flutter_test's fake-time
@@ -127,5 +130,64 @@ void main() {
 
     expect(find.widgetWithText(FilledButton, 'Set up vault password'), findsOneWidget);
     expect(find.textContaining('no way to recover this password'), findsOneWidget);
+  });
+
+  // Creating and editing reference entries goes through real file I/O, which
+  // never resolves inside flutter_test's fake-time zone — that behaviour is
+  // covered by profile_service_test.dart and story_notes_service_test.dart.
+  // What's worth testing here is the wiring those tests can't see: that the
+  // shell exposes the new panels and that selecting an entry routes the main
+  // pane to it.
+  testWidgets('Project shell exposes reference panels and opens a character',
+      (tester) async {
+    // A separate root: this test needs a real project, while the tests above
+    // assert the shared library is empty.
+    final projectRoot = Directory.systemTemp.createTempSync('narraity_shell_test_');
+    addTearDown(() => projectRoot.deleteSync(recursive: true));
+    final library = LibraryService(rootOverride: projectRoot);
+
+    final container = ProviderContainer(
+      overrides: [libraryServiceProvider.overrideWithValue(library)],
+    );
+    addTearDown(container.dispose);
+
+    final project =
+        (await tester.runAsync(() => library.createProject(title: 'Test Novel')))!;
+    await tester.runAsync(() async {
+      final characters = await container.read(characterServiceProvider(project).future);
+      await characters.create(name: 'Elena Vance');
+
+      // Warm every provider the shell's tabs read: an unresolved future leaves
+      // a CircularProgressIndicator spinning, which pumpAndSettle waits on
+      // forever.
+      await container.read(manuscriptStructureProvider(project).future);
+      await container.read(characterListProvider(project).future);
+      await container.read(worldListProvider(project).future);
+      await container.read(storyNoteListProvider(project).future);
+      await container.read(noteFoldersProvider(project).future);
+      await container.read(todoListProvider(project).future);
+    });
+    container.read(currentProjectProvider.notifier).state = project;
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: const NarraityApp()),
+    );
+    await tester.pump();
+
+    // Manuscript, Characters, World, Notes, To-dos.
+    expect(find.byType(Tab), findsNWidgets(5));
+
+    await tester.tap(find.byIcon(Icons.people_outline));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400)); // tab transition
+
+    expect(find.text('Elena Vance'), findsOneWidget);
+
+    await tester.tap(find.text('Elena Vance'));
+    await tester.pump();
+
+    expect(container.read(openReferenceProvider)?.kind, ReferenceKind.character);
+    expect(find.byType(ProfileEditor), findsOneWidget,
+        reason: 'selecting a character must route the main pane to its profile');
   });
 }

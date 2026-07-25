@@ -5,13 +5,20 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/manuscript.dart';
+import '../models/profile_entry.dart';
 import '../models/project.dart';
 import '../services/app_logger.dart';
+import '../services/manuscript_service.dart';
 import '../state/library_provider.dart';
 import '../state/manuscript_provider.dart';
+import '../state/reference_provider.dart';
 import '../state/vault_provider.dart';
 import '../widgets/editor_settings_dialog.dart';
 import '../widgets/manuscript_tree.dart';
+import '../widgets/note_editor.dart';
+import '../widgets/notes_panel.dart';
+import '../widgets/profile_editor.dart';
+import '../widgets/profile_panel.dart';
 import '../widgets/quick_capture_dialog.dart';
 import '../widgets/scene_editor.dart';
 import '../widgets/todo_panel.dart';
@@ -92,6 +99,7 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
     final project = widget.project;
     _autoBackupEnabled = ref.watch(vaultAutoRefreshProvider);
     final focusMode = ref.watch(focusModeProvider);
+    final reference = ref.watch(openReferenceProvider);
     final serviceAsync = ref.watch(manuscriptServiceProvider(project));
     final structureAsync = ref.watch(manuscriptStructureProvider(project));
 
@@ -156,13 +164,20 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                   SizedBox(
                     width: 280,
                     child: DefaultTabController(
-                      length: 2,
+                      length: 5,
                       child: Column(
                         children: [
-                          const TabBar(tabs: [
-                            Tab(text: 'Manuscript'),
-                            Tab(text: 'To-dos'),
-                          ]),
+                          // Icons rather than text labels: five text tabs
+                          // don't fit in a 280px sidebar without truncating.
+                          const TabBar(
+                            tabs: [
+                              Tab(icon: Icon(Icons.menu_book_outlined), height: 46),
+                              Tab(icon: Icon(Icons.people_outline), height: 46),
+                              Tab(icon: Icon(Icons.public), height: 46),
+                              Tab(icon: Icon(Icons.sticky_note_2_outlined), height: 46),
+                              Tab(icon: Icon(Icons.checklist), height: 46),
+                            ],
+                          ),
                           Expanded(
                             child: TabBarView(
                               children: [
@@ -171,6 +186,15 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                                   service: service,
                                   structure: structure,
                                 ),
+                                ProfilePanel(
+                                  project: project,
+                                  kind: ProfileKind.character,
+                                ),
+                                ProfilePanel(
+                                  project: project,
+                                  kind: ProfileKind.world,
+                                ),
+                                NotesPanel(project: project),
                                 TodoPanel(project: project),
                               ],
                             ),
@@ -181,20 +205,56 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                   ),
                 if (!focusMode) const VerticalDivider(width: 1),
                 Expanded(
-                  child: openId == null
-                      ? const Center(child: Text('Select a scene to start writing'))
-                      : SceneEditor(
-                          project: project,
-                          service: service,
-                          contentId: openId,
-                          fallbackTitle: _titleFor(structure, openId),
-                        ),
+                  child: _mainPane(
+                    reference: reference,
+                    openId: openId,
+                    service: service,
+                    structure: structure,
+                  ),
                 ),
               ],
             ),
           );
         },
       ),
+    );
+  }
+
+  /// An open reference entry takes over the main pane; otherwise the scene
+  /// editor shows. The two selections are kept independently so closing a
+  /// character returns you to the scene you were writing, not to nothing.
+  Widget _mainPane({
+    required ReferenceSelection? reference,
+    required String? openId,
+    required ManuscriptService service,
+    required ManuscriptStructure structure,
+  }) {
+    final project = widget.project;
+
+    if (reference != null) {
+      return switch (reference.kind) {
+        ReferenceKind.character => ProfileEditor(
+            project: project,
+            kind: ProfileKind.character,
+            entryId: reference.id,
+          ),
+        ReferenceKind.world => ProfileEditor(
+            project: project,
+            kind: ProfileKind.world,
+            entryId: reference.id,
+          ),
+        ReferenceKind.note => NoteEditor(project: project, noteId: reference.id),
+      };
+    }
+
+    if (openId == null) {
+      return const Center(child: Text('Select a scene to start writing'));
+    }
+    return SceneEditor(
+      project: project,
+      service: service,
+      contentId: openId,
+      fallbackTitle: _titleFor(structure, openId),
     );
   }
 

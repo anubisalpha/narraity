@@ -2,11 +2,15 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:narraity/models/profile_entry.dart';
 import 'package:narraity/models/project.dart';
 import 'package:narraity/models/scene_snapshot.dart';
 import 'package:narraity/services/library_service.dart';
+import 'package:narraity/services/profile_service.dart';
+import 'package:narraity/services/story_notes_service.dart';
 import 'package:narraity/services/vault_service.dart';
 import 'package:narraity/state/library_provider.dart';
+import 'package:narraity/state/reference_provider.dart';
 import 'package:narraity/state/scene_history_provider.dart';
 import 'package:narraity/state/vault_provider.dart';
 import 'package:path/path.dart' as p;
@@ -122,6 +126,40 @@ void main() {
         Directory(p.join(restoredDir.path, 'manuscript', 'scenes', '$sceneId.history'));
     expect(await restoredHistoryDir.exists(), isTrue,
         reason: 'the vault must carry version history, not just the prose');
+  });
+
+  test('a vault backup carries characters, world entries and notes', () async {
+    final container = newContainer();
+    await container.read(vaultStatusProvider.notifier).setup(firstPassword);
+
+    // Reference material lives inside the project folder, so it should be
+    // swept up by the vault automatically — this pins that down rather than
+    // assuming it.
+    final characters = await container.read(characterServiceProvider(project).future);
+    final created = await characters.create(name: 'Elena Vance');
+    final world = await container.read(worldServiceProvider(project).future);
+    await world.create(name: 'Ashfall Keep', category: 'Location');
+    final notes = await container.read(storyNotesServiceProvider(project).future);
+    await notes.createFolder('Research');
+    await notes.createNote(title: 'Filed note', folder: 'Research');
+
+    final generation = await container.read(vaultActionsProvider).refreshProject(project);
+    final restoredDir = Directory(p.join(libraryRoot.path, 'restored-with-references'));
+    await container.read(vaultServiceProvider).restoreVault(
+          vaultFile: generation!,
+          targetDir: restoredDir,
+          password: firstPassword,
+        );
+
+    final restoredCharacters = ProfileService(restoredDir, ProfileKind.character);
+    final restoredWorld = ProfileService(restoredDir, ProfileKind.world);
+    final restoredNotes = StoryNotesService(restoredDir);
+
+    expect((await restoredCharacters.list()).map((e) => e.name), ['Elena Vance']);
+    expect((await restoredCharacters.list()).single.id, created.id);
+    expect((await restoredWorld.list()).single.category, 'Location');
+    expect(await restoredNotes.folders(), ['Research']);
+    expect((await restoredNotes.listAll()).single.folder, 'Research');
   });
 
   test('a wrong password cannot open a vault generation', () async {
