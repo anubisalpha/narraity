@@ -124,4 +124,84 @@ void main() {
     // Total plain text is preserved even though the second range is clipped.
     expect(span.toPlainText(), 'Elena stepped inside.');
   });
+
+  group('speakingRange (Read Aloud)', () {
+    testWidgets('paints a speaking range with no annotations present', (tester) async {
+      final controller = AnnotationHighlightController(text: 'Elena stepped inside.');
+      late BuildContext capturedContext;
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Builder(builder: (context) {
+            capturedContext = context;
+            return TextField(controller: controller);
+          }),
+        ),
+      ));
+
+      controller.speakingRange = (0, 5);
+
+      final span =
+          controller.buildTextSpan(context: capturedContext, withComposing: false);
+      expect(span.toPlainText(), 'Elena stepped inside.');
+      final spoken = span.children!.first as TextSpan;
+      expect(spoken.text, 'Elena');
+      expect(spoken.style!.backgroundColor, const Color(0xFFFFB74D));
+    });
+
+    testWidgets('overlays on top of an existing highlight rather than replacing it',
+        (tester) async {
+      final controller = AnnotationHighlightController(text: 'Elena stepped inside.');
+      late BuildContext capturedContext;
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Builder(builder: (context) {
+            capturedContext = context;
+            return TextField(controller: controller);
+          }),
+        ),
+      ));
+
+      controller.annotations = [
+        (
+          _annotation(kind: AnnotationKind.highlight, color: 0xFFFFF59D),
+          const AnchorResolution(status: AnchorStatus.exact, start: 0, end: 21),
+        ),
+      ];
+      controller.speakingRange = (6, 13); // "stepped"
+
+      final span =
+          controller.buildTextSpan(context: capturedContext, withComposing: false);
+      expect(span.toPlainText(), 'Elena stepped inside.');
+
+      // Three pieces: highlighted-only, highlighted+speaking, highlighted-only.
+      final children = span.children!;
+      expect(children.map((c) => c.toPlainText()), ['Elena ', 'stepped', ' inside.']);
+      final spokenPiece = children[1] as TextSpan;
+      expect(spokenPiece.style!.backgroundColor, const Color(0xFFFFB74D));
+    });
+
+    testWidgets('clearing speakingRange stops painting it', (tester) async {
+      final controller = AnnotationHighlightController(text: 'Elena stepped inside.');
+      late BuildContext capturedContext;
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Builder(builder: (context) {
+            capturedContext = context;
+            return TextField(controller: controller);
+          }),
+        ),
+      ));
+
+      controller.speakingRange = (0, 5);
+      controller.speakingRange = null;
+
+      final span =
+          controller.buildTextSpan(context: capturedContext, withComposing: false);
+      expect(span.children, isNull);
+      expect(span.toPlainText(), 'Elena stepped inside.');
+    });
+  });
 }

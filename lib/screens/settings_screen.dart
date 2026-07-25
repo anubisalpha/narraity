@@ -5,12 +5,14 @@ import '../models/dictation_model.dart';
 import '../state/dictation_provider.dart';
 import '../state/theme_provider.dart';
 import '../widgets/editor_settings_form.dart';
+import '../widgets/read_aloud_settings_form.dart';
 import '../widgets/vault_settings_section.dart';
 
 enum _SettingsCategory {
   appearance,
   editor,
   dictation,
+  readAloud,
   backup,
   spellCheck,
   drive,
@@ -22,6 +24,7 @@ extension on _SettingsCategory {
         _SettingsCategory.appearance => 'Appearance',
         _SettingsCategory.editor => 'Editor',
         _SettingsCategory.dictation => 'Dictation',
+        _SettingsCategory.readAloud => 'Read Aloud',
         _SettingsCategory.backup => 'Backup & Vault',
         _SettingsCategory.spellCheck => 'Spell Check & Language',
         _SettingsCategory.drive => 'Google Drive Sync',
@@ -32,6 +35,7 @@ extension on _SettingsCategory {
         _SettingsCategory.appearance => Icons.palette_outlined,
         _SettingsCategory.editor => Icons.edit_note,
         _SettingsCategory.dictation => Icons.mic_outlined,
+        _SettingsCategory.readAloud => Icons.volume_up_outlined,
         _SettingsCategory.backup => Icons.shield_outlined,
         _SettingsCategory.spellCheck => Icons.spellcheck,
         _SettingsCategory.drive => Icons.cloud_sync_outlined,
@@ -115,6 +119,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _SettingsCategory.appearance => const _AppearanceSection(),
       _SettingsCategory.editor => const _EditorSection(),
       _SettingsCategory.dictation => const _DictationSection(),
+      _SettingsCategory.readAloud => const _ReadAloudSection(),
       _SettingsCategory.backup => const _BackupSection(),
       _ => const SizedBox.shrink(),
     };
@@ -238,6 +243,29 @@ class _EditorSection extends StatelessWidget {
           child: Padding(
             padding: EdgeInsets.all(16),
             child: EditorSettingsForm(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReadAloudSection extends StatelessWidget {
+  const _ReadAloudSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeader(
+          title: 'Read Aloud',
+          subtitle: 'Voice, speed, and pitch used when reading a scene back to you.',
+        ),
+        const Card(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: ReadAloudSettingsForm(),
           ),
         ),
       ],

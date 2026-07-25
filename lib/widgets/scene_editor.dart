@@ -12,6 +12,7 @@ import '../screens/scene_history_screen.dart';
 import '../services/dictation_engine.dart';
 import '../services/manuscript_service.dart';
 import '../services/mention_scanner.dart';
+import '../services/tts_service.dart';
 import '../services/voice_command_processor.dart';
 import '../state/annotation_provider.dart';
 import '../state/dictation_provider.dart';
@@ -21,6 +22,8 @@ import '../state/reference_panel_provider.dart'
     show ReferenceCardItem, sceneMentionedNamesProvider;
 import '../state/reference_provider.dart';
 import '../state/scene_history_provider.dart';
+import '../state/tts_provider.dart';
+import '../state/tts_settings_provider.dart';
 import 'annotation_highlight_controller.dart';
 import 'annotation_panel.dart';
 import 'dictation_model_dialog.dart';
@@ -70,6 +73,7 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
   Timer? _saveDebounce;
   bool _dirty = false;
   int _wordCount = 0;
+  String? _lastChangedText;
 
   Timer? _snapshotDebounce;
   int _wordsAtLastSnapshot = 0;
@@ -78,6 +82,17 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
   bool _isDictating = false;
   bool _dictationBusy = false;
   List<(int start, int end)> _unreviewed = [];
+
+  // Lazily created only when Read Aloud is actually used (not cached in
+  // initState) — every SceneEditor mount would otherwise create the
+  // platform plugin just to satisfy the cache, and its eventual disposal
+  // unconditionally calls `stop()`, which throws `MissingPluginException`
+  // in a test environment with no `flutter_tts` mock, even for tests that
+  // never touch Read Aloud at all.
+  TtsService? _tts;
+  bool _isReadingAloud = false;
+  int? _readingStart;
+  bool _disposed = false;
 
   /// Live `@…` autocomplete state (Phase 2.5). Non-null [_mentionQuery] means
   /// the caret is inside a mention being typed, and [_mentionMatches] holds
@@ -101,6 +116,7 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
   void didUpdateWidget(SceneEditor old) {
     super.didUpdateWidget(old);
     if (old.contentId != widget.contentId) {
+      _stopReading();
       _flushSave();
       _load();
     }
@@ -330,12 +346,27 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
 
   void _onChanged() {
     if (_doc == null) return;
+    _updateMentionAutocomplete();
+
+    // The controller also notifies listeners for annotation/speaking-range
+    // updates that don't touch text or selection (see
+    // AnnotationHighlightController) — Read Aloud pings this on every word
+    // boundary, many times a second. Without this guard the save debounce
+    // would keep resetting for as long as reading continues, delaying
+    // autosave until speech stops instead of ~1s after the last real edit.
+    final text = _controller.text;
+    if (text == _lastChangedText) return;
+    _lastChangedText = text;
+
+    // A real edit invalidates the reading position (offsets after the edit
+    // point shift) — stop rather than keep speaking against stale offsets.
+    if (_isReadingAloud) _stopReading();
+
     _dirty = true;
-    final count = _countWords(_controller.text);
+    final count = _countWords(text);
     if (count != _wordCount) setState(() => _wordCount = count);
     _saveDebounce?.cancel();
     _saveDebounce = Timer(const Duration(seconds: 1), _flushSave);
-    _updateMentionAutocomplete();
 
     // PLAN.md: auto snapshot after ~30s of no typing, or ~300 words
     // changed, whichever comes first.
@@ -493,6 +524,8 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
 
   @override
   void dispose() {
+    _disposed = true;
+    if (_isReadingAloud) _tts?.stop(); // fire-and-forget; see _disposed guard below
     _flushSave();
     _saveDebounce?.cancel();
     _snapshotDebounce?.cancel();
@@ -502,6 +535,62 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     _undoController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  // ---- read aloud --------------------------------------------------------
+
+  Future<void> _toggleReadAloud() async {
+    if (_isReadingAloud) {
+      await _stopReading();
+    } else {
+      await _startReading();
+    }
+  }
+
+  Future<void> _startReading() async {
+    final text = _controller.text;
+    final sel = _controller.selection;
+    final start = (sel.isValid ? sel.start : 0).clamp(0, text.length);
+    if (text.substring(start).trim().isEmpty) return;
+
+    _tts ??= ref.read(ttsServiceProvider);
+    final tts = _tts!;
+    final settings = ref.read(ttsSettingsProvider);
+    await tts.setSpeechRate(settings.rate);
+    await tts.setPitch(settings.pitch);
+    final voice = settings.voice;
+    if (voice != null) await tts.setVoice(voice);
+
+    _readingStart = start;
+    setState(() => _isReadingAloud = true);
+    ref.read(isReadingAloudProvider.notifier).state = true;
+
+    await tts.speak(
+      text.substring(start),
+      onProgress: (progress) {
+        if (_disposed) return;
+        final base = _readingStart;
+        if (base == null) return;
+        _controller.speakingRange = (base + progress.start, base + progress.end);
+      },
+      onComplete: () {
+        if (_disposed) return;
+        _controller.speakingRange = null;
+        _readingStart = null;
+        setState(() => _isReadingAloud = false);
+        ref.read(isReadingAloudProvider.notifier).state = false;
+      },
+    );
+  }
+
+  Future<void> _stopReading() async {
+    if (!_isReadingAloud) return;
+    await _tts?.stop();
+    if (_disposed) return;
+    _controller.speakingRange = null;
+    _readingStart = null;
+    setState(() => _isReadingAloud = false);
+    ref.read(isReadingAloudProvider.notifier).state = false;
   }
 
   // ---- dictation -------------------------------------------------------
@@ -845,6 +934,15 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
                                 ? Theme.of(context).colorScheme.error
                                 : null,
                             onPressed: _dictationBusy ? null : _toggleDictation,
+                          ),
+                          const VerticalDivider(width: 16),
+                          IconButton(
+                            tooltip: _isReadingAloud ? 'Stop reading' : 'Read Aloud',
+                            icon: Icon(
+                              _isReadingAloud ? Icons.stop_circle_outlined : Icons.volume_up_outlined,
+                            ),
+                            color: _isReadingAloud ? Theme.of(context).colorScheme.error : null,
+                            onPressed: _toggleReadAloud,
                           ),
                           if (_unreviewed.isNotEmpty)
                             ActionChip(
