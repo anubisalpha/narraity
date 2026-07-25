@@ -1,4 +1,3 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +6,7 @@ import '../models/project.dart';
 import '../models/relationship.dart';
 import '../state/reference_provider.dart';
 import '../state/relationship_provider.dart';
+import '../widgets/immediate_drag_recognizer.dart';
 
 const _nodeSize = 96.0;
 const _canvasSize = Size(2400, 1600);
@@ -335,17 +335,13 @@ class _DraggableNodeState extends ConsumerState<_DraggableNode> {
     return Positioned(
       left: position.dx,
       top: position.dy,
-      // Not a plain GestureDetector: its PanGestureRecognizer competes with
-      // InteractiveViewer's own scale/pan recognizer for the same pointer,
-      // and InteractiveViewer wins that arena (confirmed — node drags never
-      // moved anything, even before this feature). _ImmediateDragRecognizer
-      // claims the pointer synchronously on pointer-down, before
-      // InteractiveViewer's movement-triggered recognizer gets a chance to.
+      // Not a plain GestureDetector — see ImmediateDragRecognizer's doc
+      // comment for why (InteractiveViewer wins the gesture arena otherwise).
       child: RawGestureDetector(
         gestures: {
-          _ImmediateDragRecognizer:
-              GestureRecognizerFactoryWithHandlers<_ImmediateDragRecognizer>(
-            _ImmediateDragRecognizer.new,
+          ImmediateDragRecognizer:
+              GestureRecognizerFactoryWithHandlers<ImmediateDragRecognizer>(
+            ImmediateDragRecognizer.new,
             (recognizer) {
               recognizer.onDown = (globalPosition) {
                 _grabOffset = widget.globalToLocal(globalPosition) - position;
@@ -456,50 +452,6 @@ class _DraggableNodeState extends ConsumerState<_DraggableNode> {
   }
 }
 
-/// Claims a pointer for a plain single-finger drag the instant it touches
-/// down, rather than waiting to see movement past a touch-slop threshold
-/// like [PanGestureRecognizer] does. Needed because a node sits inside
-/// [InteractiveViewer], whose own scale/pan recognizer competes for the same
-/// pointer and — being also movement-triggered — wins that race often enough
-/// that a plain `GestureDetector.onPanUpdate` on the node never fires at
-/// all. Resolving the arena synchronously in [addPointer], before
-/// InteractiveViewer's recognizer gets a chance to accept, reliably wins
-/// instead.
-class _ImmediateDragRecognizer extends OneSequenceGestureRecognizer {
-  /// Raw global (screen-space) pointer position on touch-down.
-  ValueChanged<Offset>? onDown;
-
-  /// Raw global (screen-space) pointer position on every move. Reporting
-  /// the absolute position rather than a delta lets the caller convert it
-  /// through `RenderBox.globalToLocal` and anchor it to a grab offset — a
-  /// delta computed here, in screen pixels, would be wrong the moment the
-  /// canvas is panned or zoomed.
-  ValueChanged<Offset>? onMove;
-  VoidCallback? onEnd;
-
-  @override
-  void addPointer(PointerDownEvent event) {
-    startTrackingPointer(event.pointer);
-    resolve(GestureDisposition.accepted);
-    onDown?.call(event.position);
-  }
-
-  @override
-  void handleEvent(PointerEvent event) {
-    if (event is PointerMoveEvent) {
-      onMove?.call(event.position);
-    } else if (event is PointerUpEvent || event is PointerCancelEvent) {
-      stopTrackingPointer(event.pointer);
-      onEnd?.call();
-    }
-  }
-
-  @override
-  void didStopTrackingLastPointer(int pointer) {}
-
-  @override
-  String get debugDescription => 'immediateDrag';
-}
 
 class _EdgePainter extends CustomPainter {
   _EdgePainter({

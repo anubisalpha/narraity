@@ -27,44 +27,36 @@ void main() {
     expect(File('${tempDir.path}/timelines/${tracks.single.id}.json').existsSync(), isTrue);
   });
 
-  test('addEvent assigns ascending order per track', () async {
+  test('addEvent places events ascending left-to-right on a track', () async {
     final track = await service.addTrack('Main');
     await service.addEvent(trackId: track.id, label: 'Inciting incident');
     await service.addEvent(trackId: track.id, label: 'Midpoint');
 
     final events = await service.listEvents();
     expect(events.map((e) => e.label), ['Inciting incident', 'Midpoint']);
-    expect(events.map((e) => e.order), [0, 1]);
+    expect(events[0].x, lessThan(events[1].x));
+    expect(events.every((e) => e.yOffset == 0), isTrue,
+        reason: 'new events sit on the track baseline until dragged');
   });
 
-  test('addEvent order is independent per track', () async {
+  test("addEvent's placement is independent per track", () async {
     final trackA = await service.addTrack('Main');
     final trackB = await service.addTrack('Backstory');
-    await service.addEvent(trackId: trackA.id, label: 'A1');
+    final a1 = await service.addEvent(trackId: trackA.id, label: 'A1');
     final b1 = await service.addEvent(trackId: trackB.id, label: 'B1');
 
-    expect(b1.order, 0);
+    expect(b1.x, a1.x, reason: 'each track starts its own events from the same default position');
   });
 
-  test('moveEvent swaps order with the neighbour', () async {
+  test('setEventPosition persists a freeform drag (x and yOffset)', () async {
     final track = await service.addTrack('Main');
-    final first = await service.addEvent(trackId: track.id, label: 'First');
-    await service.addEvent(trackId: track.id, label: 'Second');
+    final event = await service.addEvent(trackId: track.id, label: 'Reveal');
 
-    await service.moveEvent(first.id, 1);
+    await service.setEventPosition(event, 480, -35);
 
-    final events = await service.listEvents();
-    expect(events.map((e) => e.label), ['Second', 'First']);
-  });
-
-  test('moveEvent past the end of the track is a no-op', () async {
-    final track = await service.addTrack('Main');
-    final only = await service.addEvent(trackId: track.id, label: 'Only');
-
-    await service.moveEvent(only.id, 1);
-
-    final events = await service.listEvents();
-    expect(events.single.order, 0);
+    final reloaded = (await service.listEvents()).single;
+    expect(reloaded.x, 480);
+    expect(reloaded.yOffset, -35);
   });
 
   test('saveEvent round-trips linked ids and time label', () async {
@@ -82,6 +74,37 @@ void main() {
     expect(reloaded.linkedSceneIds, ['scene-1']);
     expect(reloaded.linkedCharacterIds, ['char-1']);
     expect(reloaded.linkedWorldIds, ['entry-1']);
+  });
+
+  test('listTracks returns tracks in row order', () async {
+    await service.addTrack('Main');
+    await service.addTrack('Backstory');
+    await service.addTrack('Subplot');
+
+    final names = (await service.listTracks()).map((t) => t.name).toList();
+    expect(names, ['Main', 'Backstory', 'Subplot']);
+  });
+
+  test('moveTrack swaps row order with the neighbour', () async {
+    final main = await service.addTrack('Main');
+    await service.addTrack('Backstory');
+    await service.addTrack('Subplot');
+
+    await service.moveTrack(main.id, 1);
+
+    final names = (await service.listTracks()).map((t) => t.name).toList();
+    expect(names, ['Backstory', 'Main', 'Subplot']);
+  });
+
+  test('moveTrack past the end of the list is a no-op', () async {
+    final main = await service.addTrack('Main');
+    final backstory = await service.addTrack('Backstory');
+
+    await service.moveTrack(backstory.id, 1);
+
+    final names = (await service.listTracks()).map((t) => t.name).toList();
+    expect(names, ['Main', 'Backstory']);
+    expect((await service.listTracks()).map((t) => t.id), [main.id, backstory.id]);
   });
 
   test('deleteTrack cascades to drop every event on it, leaves other tracks alone', () async {

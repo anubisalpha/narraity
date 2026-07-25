@@ -686,19 +686,71 @@ never resolves under flutter_test's fake-async zone). Rebuilt `flutter build win
 
 ---
 
+## Timeline: freeform canvas, track reordering, staggered events
+
+User feedback after confirming the Timeline works: they want to reorder tracks themselves, and freely
+move event cards within a track (not just nudge left/right) so a "staggered" layout is possible when
+several events cluster close together in time — closer to a grid-type layout, but without actually
+rendering a visible grid.
+
+**Data model changed** (`lib/models/timeline.dart`): `TimelineTrack` gained `order` (int, row
+position — reordered by swapping with a neighbour, same "nudge one step" contract as the rest of the
+app's reordering, not a freeform index). `TimelineEvent` swapped its `order` (int, strict left-to-right
+sequence) for `x` (double, free horizontal position — time reads left-to-right but nothing snaps to a
+column) and `yOffset` (double, vertical offset from its *own track's* baseline row — this is what
+enables staggering, since a card at `yOffset: -40` sits above the line, `+40` below it, without
+leaving its track). `TimelineEvent.fromJson` reads a legacy `order` field as a one-time fallback
+(`x = order * 180`) so events created before this change don't all pile up at `x=0` the first time
+their project reopens; new writes only ever produce `x`/`yOffset`.
+
+**Service** (`lib/services/timeline_service.dart`): `listTracks()` now sorts by `order` (id as
+tiebreaker, for determinism when several legacy tracks share `order: 0`); `addTrack` appends at the
+end; new `moveTrack(id, delta)` mirrors the existing swap-with-neighbour pattern. `addEvent` now
+places new events to the right of whatever's already on their track (not at `order + 1`) and always at
+`yOffset: 0` (on the baseline, until dragged). New `setEventPosition(event, x, yOffset)` persists a
+drag in one write, replacing the old `moveEvent(id, delta)`.
+
+**Screen rewrite** (`lib/screens/timeline_screen.dart`): moved from a `ListView` of tracks each with a
+horizontally-scrolling row of cards, to a shared canvas — `InteractiveViewer` + `Stack`, tracks are
+rows (each a thin baseline line, deliberately *not* a bordered grid — "the grid should not actually be
+shown"), and event cards are `Positioned` and freely draggable in both axes with the exact same
+grab-offset + `RenderBox.globalToLocal` technique the Relationship Diagram uses (see its two GUI-pass
+bug fixes above) — dragging tracks the cursor precisely at any zoom level from the start, rather than
+needing a second follow-up fix for lag. Track management (visibility toggle, up/down reorder, add
+event, delete) moved into a right-hand sidebar, mirroring the Relationship Diagram's canvas+side-list
+layout, since a "grid of rows" needs somewhere to manage the rows that isn't the canvas itself.
+
+**Shared code:** extracted `ImmediateDragRecognizer` out of `relationship_screen.dart` into
+`lib/widgets/immediate_drag_recognizer.dart` — a second screen needing the exact same
+"claim-the-pointer-before-InteractiveViewer-does" gesture fix was the point at which duplicating it a
+second time stopped being worth it (same threshold as `sceneColumnsProvider`'s move to
+`manuscript_provider.dart` in Phase 3.5).
+
+**Verified:** `flutter analyze` clean, **203 tests passing** (was 199) — `timeline_service_test.dart`
+rewritten for the new model/API (freeform placement, `setEventPosition`, `moveTrack`/row-order
+sorting); new `timeline_screen_test.dart` drags an event card diagonally and asserts it actually moved
+in *both* axes (`dx` and `dy` independently, proving free 2D movement rather than a left/right nudge),
+plus a sidebar test confirming the first track's "move up" and the last track's "move down" are
+disabled. Rebuilt `flutter build windows`.
+
+---
+
 ## Current status
 
 Phases 0 through 3.5 are built and verified: manuscript editor, dictation, goals, version history,
 data protection and its UI, characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the
-Timeline, and the Relationship Diagram. 199 automated tests passing, `flutter analyze` clean,
+Timeline, and the Relationship Diagram. 203 automated tests passing, `flutter analyze` clean,
 `flutter build windows` succeeds. Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals,
 version history, manuscript generalization), `8416beb` (data protection services), `62d1baf` (docs),
 `8d414ac` (data-protection UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card
 id-guess fix), `7466997` (Phase 3), `d8481f5` (Phase 3.5).
 
-**The Plot Grid and the Relationship Diagram have each now had one real GUI/gesture pass** and a
-genuine bug was found and fixed both times (see the two entries above) — **the Timeline has not**
-and should be treated with proportionally more suspicion than its test count suggests.
+**All three Phase 3/3.5 screens (Plot Grid, Relationship Diagram, Timeline) have now had a real
+GUI/gesture pass.** Two genuine bugs were found and fixed on the first two (Plot Grid's zero-height
+rows, Relationship Diagram's gesture-arena conflict) before Timeline was built — Timeline's canvas
+reused the already-fixed drag technique from the start, so it didn't need its own bug-finding pass in
+the same way, though it's only been exercised by the user for the reorder/stagger request above, not
+exhaustively.
 
 Next per `PLAN.md`: **Phase 4** (comments, highlights, sticky notes, footnotes on a shared
 text-anchor mechanism, plus the AI/external review round-trip). Its anchor mechanism is the same

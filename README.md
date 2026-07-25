@@ -85,12 +85,18 @@ full breakdown and what changes per platform when that day comes.
 ### Timeline
 - In-story chronology, distinct from the Plot Grid (structural, manuscript order) — tracks **when
   things happen**, not where they sit in the manuscript
-- Multiple parallel **tracks** ("Main", "Backstory", a POV character's arc, ...), each toggleable so
-  you can overlay or isolate whichever ones matter right now
+- Multiple parallel **tracks** ("Main", "Backstory", a POV character's arc, ...) as freely
+  **reorderable rows** on a shared canvas, each toggleable so you can overlay or isolate whichever
+  ones matter right now
+- Event cards are **freely draggable in both directions** — horizontally for time, vertically to
+  stagger cards that are close together so they don't overlap — rather than only nudging along a
+  fixed left-to-right order. A thin baseline line marks each track's row; there's no visible grid,
+  it's just an alignment guide
 - Events carry a freeform "when" (a real date, "Day 3", "Spring, Year 1" — whatever fits the story's
   own sense of time) plus notes, and can link to scenes, characters, and world entries
 - A linked scene shows as a chip on the event card — tap it to jump straight to that scene in the
   manuscript editor
+- Track management (reorder, show/hide, add event, delete) lives in a side list next to the canvas
 
 ### Family Tree / Relationship Diagram
 - Pan/zoomable canvas of your characters (pulled live from Character Profiles) with draggable

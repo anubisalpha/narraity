@@ -8,6 +8,11 @@ import '../models/timeline.dart';
 
 const _uuid = Uuid();
 
+/// Horizontal gap given to a newly-added event, placed after whatever's
+/// currently rightmost on its track — keeps new events from landing on top
+/// of existing ones.
+const _newEventGap = 200.0;
+
 /// Reads/writes a project's `timelines/timeline-<id>.json` (tracks) and
 /// `timelines/event-<id>.json` (events) — both live in the same directory,
 /// distinguished by filename prefix, matching PLAN.md's data model.
@@ -20,6 +25,9 @@ class TimelineService {
 
   // ---- tracks -----------------------------------------------------------
 
+  /// Sorted by [TimelineTrack.order] (row position), with id as a tiebreaker
+  /// for determinism when two tracks share an order (e.g. every track
+  /// created before track ordering existed, all defaulting to 0).
   Future<List<TimelineTrack>> listTracks() async {
     if (!await _dir.exists()) return [];
     final tracks = <TimelineTrack>[];
@@ -32,11 +40,16 @@ class TimelineService {
         continue; // skip a corrupt file rather than failing the whole screen
       }
     }
+    tracks.sort((a, b) {
+      final byOrder = a.order.compareTo(b.order);
+      return byOrder != 0 ? byOrder : a.id.compareTo(b.id);
+    });
     return tracks;
   }
 
   Future<TimelineTrack> addTrack(String name) async {
-    final track = TimelineTrack(id: 'timeline-${_uuid.v4()}', name: name);
+    final order = (await listTracks()).length;
+    final track = TimelineTrack(id: 'timeline-${_uuid.v4()}', name: name, order: order);
     await saveTrack(track);
     return track;
   }
@@ -58,6 +71,25 @@ class TimelineService {
     }
   }
 
+  /// Swaps [id] with its neighbour in row order — same "nudge one step"
+  /// contract used throughout the app's other reordering (todos, plot
+  /// points, plotlines).
+  Future<void> moveTrack(String id, int delta) async {
+    final tracks = await listTracks();
+    final index = tracks.indexWhere((t) => t.id == id);
+    if (index == -1) return;
+    final target = index + delta;
+    if (target < 0 || target >= tracks.length) return;
+
+    final track = tracks[index];
+    final other = tracks[target];
+    final trackOrder = track.order;
+    track.order = other.order;
+    other.order = trackOrder;
+    await saveTrack(track);
+    await saveTrack(other);
+  }
+
   // ---- events -------------------------------------------------------------
 
   Future<List<TimelineEvent>> listEvents() async {
@@ -72,22 +104,27 @@ class TimelineService {
         continue;
       }
     }
-    events.sort((a, b) => a.order.compareTo(b.order));
+    events.sort((a, b) => a.x.compareTo(b.x));
     return events;
   }
 
+  /// New events land to the right of whatever's already on the track
+  /// (freeform position, but appending reads naturally left-to-right), at
+  /// the track's own baseline (no stagger) until dragged.
   Future<TimelineEvent> addEvent({
     required String trackId,
     required String label,
     String timeLabel = '',
   }) async {
-    final siblingCount = (await listEvents()).where((e) => e.trackId == trackId).length;
+    final onTrack = (await listEvents()).where((e) => e.trackId == trackId);
+    final rightmostX = onTrack.isEmpty ? 40.0 - _newEventGap : onTrack.map((e) => e.x).reduce(
+        (a, b) => a > b ? a : b);
     final event = TimelineEvent(
       id: 'event-${_uuid.v4()}',
       trackId: trackId,
       label: label,
       timeLabel: timeLabel,
-      order: siblingCount,
+      x: rightmostX + _newEventGap,
     );
     await saveEvent(event);
     return event;
@@ -104,25 +141,9 @@ class TimelineService {
     if (await file.exists()) await file.delete();
   }
 
-  /// Swaps [id] with its neighbour in track order — same "nudge one step"
-  /// contract as the rest of the app's reordering (todos, plot points), just
-  /// expressed as delta rather than an index pair since events aren't held
-  /// in one in-memory list between calls.
-  Future<void> moveEvent(String id, int delta) async {
-    final events = await listEvents();
-    final event = events.firstWhere((e) => e.id == id);
-    final track = events.where((e) => e.trackId == event.trackId).toList()
-      ..sort((a, b) => a.order.compareTo(b.order));
-
-    final index = track.indexWhere((e) => e.id == id);
-    final target = index + delta;
-    if (target < 0 || target >= track.length) return;
-
-    final other = track[target];
-    final eventOrder = event.order;
-    event.order = other.order;
-    other.order = eventOrder;
-    await saveEvent(event);
-    await saveEvent(other);
+  /// Persists a freeform drag — sets the event's horizontal position and its
+  /// stagger offset from the track's baseline in one write.
+  Future<void> setEventPosition(TimelineEvent event, double x, double yOffset) async {
+    await saveEvent(event.copyWith(x: x, yOffset: yOffset));
   }
 }
