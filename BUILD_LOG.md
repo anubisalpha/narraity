@@ -515,23 +515,71 @@ Reference Panel gaps above are exactly the kind of thing a GUI pass would likely
 
 ---
 
+## Plot Grid: first real GUI bug, found by the user clicking through the built app
+
+The user launched the built `narraity.exe` for the first time (across every phase — the standing
+"not clicked through by GUI" caveat had been true since Phase 0) and reported the Plot Grid showing
+nothing after adding two plotlines: no name text, no colour dot, rows collapsed to a sliver.
+
+**Two real, independent bugs**, both in `lib/screens/plot_grid_screen.dart`'s `_Grid` widget:
+
+1. **`Table(defaultVerticalAlignment: TableCellVerticalAlignment.fill)` with every cell set to
+   fill.** "Fill" tells `Table` "don't ask me for a height, just stretch me to whatever the row ends
+   up being" — during row-height computation `Table` only measures cells that *do* have a height
+   opinion (top/middle/bottom), so with every cell set to fill, none of them ever assert a height,
+   and the row-height pass has nothing to work from. Every row computed to **zero height**, then that
+   zero got force-fed back down into every cell's constraints — overriding the `SizedBox(height:
+   72)`/`SizedBox(height: 48)` each cell used to declare its own size (`RenderConstrainedBox`
+   intersects its own wish with the incoming parent constraint, and the incoming constraint always
+   wins). Confirmed via `RenderTable.toStringDeep()` inside a widget test: `"row offsets: 0.0, 0.0,
+   0.0"`. Fix: dropped `defaultVerticalAlignment` entirely — the default (`top`) measures each cell's
+   real intrinsic height instead of asking it to just fill an already-computed row height.
+2. **Nested `SingleChildScrollView`s (vertical outer, horizontal inner) with no bounded size handed
+   between them** — a separate, known Flutter footgun: the inner horizontal view needs a *bounded
+   height* from its parent, but a bare vertical-then-horizontal nesting leaves that unbounded. Debug
+   builds throw a large red assertion for this; `flutter build windows` compiles release, which
+   strips the assertion, so it silently degenerated the layout instead of failing loudly — exactly
+   the kind of bug that would never surface without an actual GUI pass. Fixed by swapping the nesting
+   order (horizontal outer, vertical inner) and wrapping the inner view in a `SizedBox` with the
+   table's known total width (`plotlineColumnWidth + columns.length * sceneColumnWidth`), which gives
+   the inner view the bounded cross-axis constraint it needs.
+
+**New regression coverage:** `test/plot_grid_screen_test.dart` pumps the real screen (not just the
+service layer) with a temp project and asserts actual pixel size (`tester.getSize(...).height >
+8`), not just tree presence — `find.text(...)` alone would have passed even on the fully collapsed
+original layout, since the widget was still *present* in the tree, just laid out at zero size. This
+is the general lesson from this bug: `flutter analyze` + `flutter test` + `flutter build windows`
+succeeding, as reported for every phase from 0 through 3.5, verifies the code compiles and the
+service/logic layer is correct — it does **not** verify a screen actually renders visible content.
+Every "not clicked through by GUI" caveat in this log up to now should be read with that in mind.
+
+**Verified:** `flutter analyze` clean, **197 tests passing** (was 196 — the one new widget test).
+Rebuilt `flutter build windows`, confirmed the render tree shows non-zero row offsets.
+
+---
+
 ## Current status
 
 Phases 0 through 3.5 are built and verified: manuscript editor, dictation, goals, version history,
 data protection and its UI, characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the
-Timeline, and the Relationship Diagram. 196 automated tests passing, `flutter analyze` clean,
+Timeline, and the Relationship Diagram. 197 automated tests passing, `flutter analyze` clean,
 `flutter build windows` succeeds. Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals,
 version history, manuscript generalization), `8416beb` (data protection services), `62d1baf` (docs),
 `8d414ac` (data-protection UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card
-id-guess fix), `7466997` (Phase 3).
+id-guess fix), `7466997` (Phase 3), `d8481f5` (Phase 3.5).
+
+**The Plot Grid has now had one real GUI pass** (see entry above) and a genuine layout bug was found
+and fixed as a direct result — Timeline and Relationship Diagram have **not** had that pass yet and
+should be treated with proportionally more suspicion than the service-layer test counts suggest.
 
 Next per `PLAN.md`: **Phase 4** (comments, highlights, sticky notes, footnotes on a shared
 text-anchor mechanism, plus the AI/external review round-trip). Its anchor mechanism is the same
 machinery a rich-text editor would need to render `[[…]]` mentions as chips, so pairing them is
-sensible.
+sensible. Also worth a session clicking through Timeline and Relationships given what the Plot Grid
+pass just found.
 
 Still outstanding from earlier phases: scene-level `linkedReferences` (the fourth Reference Panel
 trigger from PLAN.md — mentions, pins, and auto-detect cover the other three), per-project vault
 passwords, export format priority, Play Store readiness (privacy policy, data safety form), the Plot
-Grid's dangling-point cleanup, and — new this phase — the Relationship Diagram's dangling-edge
-cleanup on character delete and its "mini view in the Reference Panel."
+Grid's dangling-point cleanup, and the Relationship Diagram's dangling-edge cleanup on character
+delete and its "mini view in the Reference Panel."

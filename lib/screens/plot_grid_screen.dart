@@ -130,45 +130,64 @@ class _Grid extends ConsumerWidget {
       for (var i = 0; i < columns.length; i++)
         i + 1: const FixedColumnWidth(_sceneColumnWidth),
     };
+    final totalWidth = _plotlineColumnWidth + columns.length * _sceneColumnWidth;
 
+    final table = Table(
+      columnWidths: columnWidths,
+      border: TableBorder.all(color: Theme.of(context).dividerColor),
+      // Not TableCellVerticalAlignment.fill: "fill" tells Table "don't ask me
+      // for a height, just stretch me to whatever the row ends up being" —
+      // with every cell set to fill, none of them ever assert a height, so
+      // row-height computation has nothing to measure and every row
+      // collapses to zero. Every cell already declares its own height via a
+      // fixed-height SizedBox, so the default (top) alignment measures those
+      // correctly instead.
+      children: [
+        TableRow(
+          decoration:
+              BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHigh),
+          children: [
+            const _HeaderCell(label: ''),
+            for (final column in columns) _HeaderCell(label: column.$2),
+          ],
+        ),
+        for (final plotline in plotlines)
+          TableRow(
+            children: [
+              _PlotlineCell(
+                project: project,
+                plotline: plotline,
+              ),
+              for (final column in columns)
+                _PointCell(
+                  project: project,
+                  plotline: plotline,
+                  sceneId: column.$1,
+                  point: points.firstWhereOrNull(
+                      (pt) => pt.plotlineId == plotline.id && pt.sceneId == column.$1),
+                ),
+            ],
+          ),
+      ],
+    );
+
+    // Two-axis scrolling needs the outer (horizontal) view to hand the inner
+    // (vertical) one a *bounded* width — a bare nested SingleChildScrollView
+    // pair leaves the inner view's cross axis unbounded, which Flutter
+    // resolves by collapsing the layout instead of throwing (in release
+    // builds the assertion that would catch this in debug is stripped). The
+    // fixed SizedBox width, computed from the same column widths the Table
+    // uses, is what makes the inner view's constraint bounded.
     return Scrollbar(
       child: SingleChildScrollView(
-        scrollDirection: Axis.vertical,
-        child: Scrollbar(
-          notificationPredicate: (n) => n.depth == 1,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Table(
-              columnWidths: columnWidths,
-              border: TableBorder.all(color: Theme.of(context).dividerColor),
-              defaultVerticalAlignment: TableCellVerticalAlignment.fill,
-              children: [
-                TableRow(
-                  decoration:
-                      BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHigh),
-                  children: [
-                    const _HeaderCell(label: ''),
-                    for (final column in columns) _HeaderCell(label: column.$2),
-                  ],
-                ),
-                for (final plotline in plotlines)
-                  TableRow(
-                    children: [
-                      _PlotlineCell(
-                        project: project,
-                        plotline: plotline,
-                      ),
-                      for (final column in columns)
-                        _PointCell(
-                          project: project,
-                          plotline: plotline,
-                          sceneId: column.$1,
-                          point: points.firstWhereOrNull(
-                              (pt) => pt.plotlineId == plotline.id && pt.sceneId == column.$1),
-                        ),
-                    ],
-                  ),
-              ],
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: totalWidth,
+          child: Scrollbar(
+            notificationPredicate: (n) => n.depth == 1,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.vertical,
+              child: table,
             ),
           ),
         ),
