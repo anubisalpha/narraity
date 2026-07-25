@@ -13,3 +13,10 @@ questions, not known implementation gaps.
 
 - **Per-project vault passwords.** Current design is one password for the whole library
   (`VaultService`). Explicitly deferred when the vault/backup system was built — see BUILD_LOG.md.
+
+- **Emailing/sharing exported review files directly from the app.** Currently the export/import
+  and reviewer-session screens (Phase 4) just write files to a user-chosen path, plus a "Copy Path"
+  snackbar action on the reviewer's comments export. Actual email sending would need its own
+  SMTP/credential setup — a meaningfully bigger, separate feature with real security surface, not a
+  bolt-on. A lighter middle step worth considering first: a "Reveal in Explorer" action next to the
+  existing save dialogs.

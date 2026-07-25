@@ -17,7 +17,8 @@ import '../state/annotation_provider.dart';
 import '../state/dictation_provider.dart';
 import '../state/editor_settings_provider.dart';
 import '../state/manuscript_provider.dart';
-import '../state/reference_panel_provider.dart' show ReferenceCardItem, sceneMentionedNamesProvider;
+import '../state/reference_panel_provider.dart'
+    show ReferenceCardItem, sceneMentionedNamesProvider;
 import '../state/reference_provider.dart';
 import '../state/scene_history_provider.dart';
 import 'annotation_highlight_controller.dart';
@@ -131,11 +132,18 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
   /// healing any offsets that only moved), feeds the result to the
   /// highlight-painting controller, and refreshes the panel's list.
   Future<void> _resolveAnnotations() async {
-    final service = await ref.read(annotationServiceProvider(widget.project).future);
-    final results = await service.resolveForScene(widget.contentId, _controller.text);
+    final service = await ref.read(
+      annotationServiceProvider(widget.project).future,
+    );
+    final results = await service.resolveForScene(
+      widget.contentId,
+      _controller.text,
+    );
     if (!mounted) return;
     _controller.annotations = results;
-    ref.invalidate(sceneAnnotationsProvider((widget.project, widget.contentId)));
+    ref.invalidate(
+      sceneAnnotationsProvider((widget.project, widget.contentId)),
+    );
   }
 
   Future<String?> _promptForText(String title, String label) async {
@@ -165,8 +173,9 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
   }
 
   void _requireSelection() {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Select some text first')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Select some text first')));
   }
 
   Future<void> _handleAnnotationAction(_AnnotationAction action) async {
@@ -197,7 +206,9 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
       return;
     }
     final quoted = sel.textInside(_controller.text);
-    final service = await ref.read(annotationServiceProvider(widget.project).future);
+    final service = await ref.read(
+      annotationServiceProvider(widget.project).future,
+    );
     await service.create(
       sceneId: widget.contentId,
       kind: AnnotationKind.highlight,
@@ -216,7 +227,9 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     final body = await _promptForText('Add Comment', 'Comment');
     if (body == null || body.trim().isEmpty) return;
     final quoted = sel.textInside(_controller.text);
-    final service = await ref.read(annotationServiceProvider(widget.project).future);
+    final service = await ref.read(
+      annotationServiceProvider(widget.project).future,
+    );
     await service.create(
       sceneId: widget.contentId,
       kind: AnnotationKind.comment,
@@ -235,7 +248,9 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     final body = await _promptForText('Add Sticky Note', 'Note');
     if (body == null || body.trim().isEmpty) return;
     final quoted = sel.textInside(_controller.text);
-    final service = await ref.read(annotationServiceProvider(widget.project).future);
+    final service = await ref.read(
+      annotationServiceProvider(widget.project).future,
+    );
     await service.create(
       sceneId: widget.contentId,
       kind: AnnotationKind.stickyNote,
@@ -254,14 +269,19 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
       // selection (no caret placed yet) — silently no-op'ing here was the
       // actual "footnote button does nothing" bug: give the same kind of
       // feedback the other three actions already give on a bad selection.
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Click in the text where you want the footnote first')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Click in the text where you want the footnote first'),
+        ),
+      );
       return;
     }
     final body = await _promptForText('Add Footnote', 'Footnote text');
     if (body == null || body.trim().isEmpty) return;
     final at = sel.isCollapsed ? sel.baseOffset : sel.end;
-    final service = await ref.read(annotationServiceProvider(widget.project).future);
+    final service = await ref.read(
+      annotationServiceProvider(widget.project).future,
+    );
     await service.create(
       sceneId: widget.contentId,
       kind: AnnotationKind.footnote,
@@ -285,7 +305,10 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     }
     final safeEnd = end.clamp(0, _controller.text.length);
     final safeStart = start.clamp(0, safeEnd);
-    _controller.selection = TextSelection(baseOffset: safeStart, extentOffset: safeEnd);
+    _controller.selection = TextSelection(
+      baseOffset: safeStart,
+      extentOffset: safeEnd,
+    );
     _focusNode.requestFocus();
   }
 
@@ -296,7 +319,10 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     final names = extractMentions(_controller.text);
     final current = ref.read(sceneMentionedNamesProvider);
     if (names.length == current.length &&
-        List.generate(names.length, (i) => names[i] == current[i]).every((x) => x)) {
+        List.generate(
+          names.length,
+          (i) => names[i] == current[i],
+        ).every((x) => x)) {
       return; // unchanged — avoid needless panel rebuilds
     }
     ref.read(sceneMentionedNamesProvider.notifier).state = names;
@@ -318,12 +344,17 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
       _recordAutoSnapshot();
     } else {
       _snapshotDebounce?.cancel();
-      _snapshotDebounce = Timer(const Duration(seconds: 30), _recordAutoSnapshot);
+      _snapshotDebounce = Timer(
+        const Duration(seconds: 30),
+        _recordAutoSnapshot,
+      );
     }
   }
 
   Future<void> _recordAutoSnapshot() async {
-    final history = await ref.read(sceneHistoryServiceProvider(widget.project).future);
+    final history = await ref.read(
+      sceneHistoryServiceProvider(widget.project).future,
+    );
     await history.recordAutoSnapshot(widget.contentId, _controller.text);
     if (!mounted) return;
     _wordsAtLastSnapshot = _countWords(_controller.text);
@@ -367,11 +398,13 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
 
     final characters =
         ref.read(characterListProvider(widget.project)).valueOrNull ?? const [];
-    final world = ref.read(worldListProvider(widget.project)).valueOrNull ?? const [];
+    final world =
+        ref.read(worldListProvider(widget.project)).valueOrNull ?? const [];
     final lower = query.query.trim().toLowerCase();
 
     final candidates = [
-      for (final entry in characters) ReferenceCardItem(entry, ProfileKind.character),
+      for (final entry in characters)
+        ReferenceCardItem(entry, ProfileKind.character),
       for (final entry in world) ReferenceCardItem(entry, ProfileKind.world),
     ];
     bool startsWithQuery(ReferenceCardItem item) =>
@@ -381,9 +414,11 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
         ? candidates
         : [
             ...candidates.where(startsWithQuery),
-            ...candidates.where((item) =>
-                !startsWithQuery(item) &&
-                item.entry.name.toLowerCase().contains(lower)),
+            ...candidates.where(
+              (item) =>
+                  !startsWithQuery(item) &&
+                  item.entry.name.toLowerCase().contains(lower),
+            ),
           ];
 
     setState(() {
@@ -413,7 +448,9 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
 
     _controller.value = TextEditingValue(
       text: text.replaceRange(query.start, caret, insertion),
-      selection: TextSelection.collapsed(offset: query.start + insertion.length),
+      selection: TextSelection.collapsed(
+        offset: query.start + insertion.length,
+      ),
     );
     _closeMentionAutocomplete();
     _publishMentions();
@@ -423,17 +460,24 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
   /// Arrow keys and Enter/Tab drive the popup while it's open; Esc dismisses
   /// it. Everything else falls through to normal typing.
   KeyEventResult _handleEditorKey(FocusNode node, KeyEvent event) {
-    if (_mentionQuery == null || _mentionMatches.isEmpty) return KeyEventResult.ignored;
+    if (_mentionQuery == null || _mentionMatches.isEmpty) {
+      return KeyEventResult.ignored;
+    }
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
     switch (event.logicalKey) {
       case LogicalKeyboardKey.arrowDown:
-        setState(() =>
-            _mentionHighlighted = (_mentionHighlighted + 1) % _mentionMatches.length);
+        setState(
+          () => _mentionHighlighted =
+              (_mentionHighlighted + 1) % _mentionMatches.length,
+        );
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowUp:
-        setState(() => _mentionHighlighted =
-            (_mentionHighlighted - 1 + _mentionMatches.length) % _mentionMatches.length);
+        setState(
+          () => _mentionHighlighted =
+              (_mentionHighlighted - 1 + _mentionMatches.length) %
+              _mentionMatches.length,
+        );
         return KeyEventResult.handled;
       case LogicalKeyboardKey.enter:
       case LogicalKeyboardKey.tab:
@@ -481,8 +525,9 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
       ref.read(isDictatingProvider.notifier).state = true;
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Dictation failed: $error')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Dictation failed: $error')));
       }
     } finally {
       if (mounted) setState(() => _dictationBusy = false);
@@ -512,7 +557,11 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     final insertion = '${needsLeadingSpace ? ' ' : ''}$processed';
 
     _controller.value = TextEditingValue(
-      text: text.replaceRange(insertAt, sel.isValid ? sel.end : insertAt, insertion),
+      text: text.replaceRange(
+        insertAt,
+        sel.isValid ? sel.end : insertAt,
+        insertion,
+      ),
       selection: TextSelection.collapsed(offset: insertAt + insertion.length),
     );
 
@@ -526,7 +575,10 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     final (start, end) = _unreviewed.first;
     final safeEnd = end.clamp(0, _controller.text.length);
     final safeStart = start.clamp(0, safeEnd);
-    _controller.selection = TextSelection(baseOffset: safeStart, extentOffset: safeEnd);
+    _controller.selection = TextSelection(
+      baseOffset: safeStart,
+      extentOffset: safeEnd,
+    );
     _focusNode.requestFocus();
     setState(() => _unreviewed = _unreviewed.skip(1).toList());
   }
@@ -562,16 +614,21 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
 
     final selected = sel.textInside(text);
     String replacement;
-    if (selected.startsWith(marker) && selected.endsWith(marker) &&
+    if (selected.startsWith(marker) &&
+        selected.endsWith(marker) &&
         selected.length >= marker.length * 2) {
-      replacement = selected.substring(marker.length, selected.length - marker.length);
+      replacement = selected.substring(
+        marker.length,
+        selected.length - marker.length,
+      );
     } else {
       replacement = '$marker$selected$marker';
     }
     _controller.value = TextEditingValue(
       text: text.replaceRange(sel.start, sel.end, replacement),
       selection: TextSelection.collapsed(
-        offset: sel.start + (selected.isEmpty ? marker.length : replacement.length),
+        offset:
+            sel.start + (selected.isEmpty ? marker.length : replacement.length),
       ),
     );
     _focusNode.requestFocus();
@@ -619,13 +676,15 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context)
-                .pop((findController.text, replaceController.text, false)),
+            onPressed: () => Navigator.of(
+              context,
+            ).pop((findController.text, replaceController.text, false)),
             child: const Text('Replace first'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context)
-                .pop((findController.text, replaceController.text, true)),
+            onPressed: () => Navigator.of(
+              context,
+            ).pop((findController.text, replaceController.text, true)),
             child: const Text('Replace all'),
           ),
         ],
@@ -637,13 +696,15 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     final text = _controller.text;
     if (!text.contains(find)) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('"$find" not found')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('"$find" not found')));
       }
       return;
     }
-    _controller.text =
-        all ? text.replaceAll(find, replace) : text.replaceFirst(find, replace);
+    _controller.text = all
+        ? text.replaceAll(find, replace)
+        : text.replaceFirst(find, replace);
   }
 
   @override
@@ -680,150 +741,224 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                IconButton(
-                  tooltip: 'Bold',
-                  icon: const Icon(Icons.format_bold),
-                  onPressed: () => _toggleWrap('**'),
-                ),
-                IconButton(
-                  tooltip: 'Italic',
-                  icon: const Icon(Icons.format_italic),
-                  onPressed: () => _toggleWrap('*'),
-                ),
-                IconButton(
-                  tooltip: 'Strikethrough',
-                  icon: const Icon(Icons.format_strikethrough),
-                  onPressed: () => _toggleWrap('~~'),
-                ),
-                const VerticalDivider(width: 16),
-                IconButton(
-                  tooltip: 'Scene break',
-                  icon: const Icon(Icons.more_horiz),
-                  onPressed: () => _insertBlock('***'),
-                ),
-                IconButton(
-                  tooltip: 'Block quote',
-                  icon: const Icon(Icons.format_quote),
-                  onPressed: () => _insertBlock('> '),
-                ),
-                IconButton(
-                  tooltip: 'Heading',
-                  icon: const Icon(Icons.title),
-                  onPressed: () => _insertBlock('## '),
-                ),
-                const VerticalDivider(width: 16),
-                ValueListenableBuilder<UndoHistoryValue>(
-                  valueListenable: _undoController,
-                  builder: (context, value, _) => Row(children: [
-                    IconButton(
-                      tooltip: 'Undo (Ctrl+Z)',
-                      icon: const Icon(Icons.undo),
-                      onPressed: value.canUndo ? _undoController.undo : null,
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    // A plain unwrapped Row here already overflowed once
+                    // (five annotation icons pushed the panel-toggle button
+                    // and this row's own trailing content off the visible
+                    // edge, silently, since Release builds compile out the
+                    // debug overflow warning). Scrolling instead of growing
+                    // forever is the fix that survives future additions.
+                    // IconButtonTheme tightens every button's default 48x48
+                    // tap-target padding at once, rather than repeating
+                    // padding/constraints props on ~15 individual buttons.
+                    child: IconButtonTheme(
+                      data: IconButtonThemeData(
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(36, 36),
+                          padding: const EdgeInsets.all(4),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            tooltip: 'Bold',
+                            icon: const Icon(Icons.format_bold),
+                            onPressed: () => _toggleWrap('**'),
+                          ),
+                          IconButton(
+                            tooltip: 'Italic',
+                            icon: const Icon(Icons.format_italic),
+                            onPressed: () => _toggleWrap('*'),
+                          ),
+                          IconButton(
+                            tooltip: 'Strikethrough',
+                            icon: const Icon(Icons.format_strikethrough),
+                            onPressed: () => _toggleWrap('~~'),
+                          ),
+                          const VerticalDivider(width: 16),
+                          IconButton(
+                            tooltip: 'Scene break',
+                            icon: const Icon(Icons.more_horiz),
+                            onPressed: () => _insertBlock('***'),
+                          ),
+                          IconButton(
+                            tooltip: 'Block quote',
+                            icon: const Icon(Icons.format_quote),
+                            onPressed: () => _insertBlock('> '),
+                          ),
+                          IconButton(
+                            tooltip: 'Heading',
+                            icon: const Icon(Icons.title),
+                            onPressed: () => _insertBlock('## '),
+                          ),
+                          const VerticalDivider(width: 16),
+                          ValueListenableBuilder<UndoHistoryValue>(
+                            valueListenable: _undoController,
+                            builder: (context, value, _) => Row(
+                              children: [
+                                IconButton(
+                                  tooltip: 'Undo (Ctrl+Z)',
+                                  icon: const Icon(Icons.undo),
+                                  onPressed: value.canUndo
+                                      ? _undoController.undo
+                                      : null,
+                                ),
+                                IconButton(
+                                  tooltip: 'Redo (Ctrl+Y)',
+                                  icon: const Icon(Icons.redo),
+                                  onPressed: value.canRedo
+                                      ? _undoController.redo
+                                      : null,
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Find & Replace',
+                            icon: const Icon(Icons.find_replace),
+                            onPressed: _findReplace,
+                          ),
+                          IconButton(
+                            tooltip: 'Version History',
+                            icon: const Icon(Icons.history),
+                            onPressed: _openHistory,
+                          ),
+                          const VerticalDivider(width: 16),
+                          IconButton(
+                            tooltip: _isDictating
+                                ? 'Stop dictation'
+                                : 'Start dictation',
+                            icon: _dictationBusy
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Icon(
+                                    _isDictating ? Icons.mic : Icons.mic_none,
+                                  ),
+                            color: _isDictating
+                                ? Theme.of(context).colorScheme.error
+                                : null,
+                            onPressed: _dictationBusy ? null : _toggleDictation,
+                          ),
+                          if (_unreviewed.isNotEmpty)
+                            ActionChip(
+                              avatar: const Icon(
+                                Icons.fact_check_outlined,
+                                size: 16,
+                              ),
+                              label: Text(
+                                'Review ${_unreviewed.length} dictated',
+                              ),
+                              onPressed: _reviewNextDictatedRange,
+                            ),
+                          const VerticalDivider(width: 16),
+                          // One button, not five: five separate IconButtons here
+                          // overflowed the toolbar Row (which has no scroll/wrap) at
+                          // ordinary window widths — a Release build swallows that
+                          // overflow silently (the debug overflow-stripe painter is
+                          // wrapped in an `assert`, stripped in Release), so the
+                          // trailing icons just vanished with no visible error.
+                          PopupMenuButton<_AnnotationAction>(
+                            tooltip:
+                                'Comments, highlights, sticky notes, footnotes',
+                            icon: const Icon(Icons.chat_bubble_outline),
+                            onSelected: _handleAnnotationAction,
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                enabled: false,
+                                child: Text('Highlight selection'),
+                              ),
+                              for (final swatch in const [
+                                (
+                                  _AnnotationAction.highlightYellow,
+                                  0xFFFFF59D,
+                                  'Yellow',
+                                ),
+                                (
+                                  _AnnotationAction.highlightGreen,
+                                  0xFFA5D6A7,
+                                  'Green',
+                                ),
+                                (
+                                  _AnnotationAction.highlightPink,
+                                  0xFFF48FB1,
+                                  'Pink',
+                                ),
+                                (
+                                  _AnnotationAction.highlightBlue,
+                                  0xFF90CAF9,
+                                  'Blue',
+                                ),
+                              ])
+                                PopupMenuItem(
+                                  value: swatch.$1,
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 16,
+                                        height: 16,
+                                        color: Color(swatch.$2),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(swatch.$3),
+                                    ],
+                                  ),
+                                ),
+                              const PopupMenuDivider(),
+                              const PopupMenuItem(
+                                value: _AnnotationAction.comment,
+                                child: ListTile(
+                                  leading: Icon(Icons.comment_outlined),
+                                  title: Text('Add Comment'),
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: _AnnotationAction.stickyNote,
+                                child: ListTile(
+                                  leading: Icon(Icons.sticky_note_2_outlined),
+                                  title: Text('Add Sticky Note'),
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: _AnnotationAction.footnote,
+                                child: ListTile(
+                                  leading: Icon(Icons.note_alt_outlined),
+                                  title: Text('Add Footnote'),
+                                ),
+                              ),
+                              const PopupMenuDivider(),
+                              PopupMenuItem(
+                                value: _AnnotationAction.togglePanel,
+                                child: ListTile(
+                                  leading: Icon(
+                                    _annotationsPanelOpen
+                                        ? Icons.expand_less
+                                        : Icons.expand_more,
+                                  ),
+                                  title: Text(
+                                    _annotationsPanelOpen
+                                        ? 'Hide Annotations'
+                                        : 'Show Annotations',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    IconButton(
-                      tooltip: 'Redo (Ctrl+Y)',
-                      icon: const Icon(Icons.redo),
-                      onPressed: value.canRedo ? _undoController.redo : null,
-                    ),
-                  ]),
-                ),
-                IconButton(
-                  tooltip: 'Find & Replace',
-                  icon: const Icon(Icons.find_replace),
-                  onPressed: _findReplace,
-                ),
-                IconButton(
-                  tooltip: 'Version History',
-                  icon: const Icon(Icons.history),
-                  onPressed: _openHistory,
-                ),
-                const VerticalDivider(width: 16),
-                IconButton(
-                  tooltip: _isDictating ? 'Stop dictation' : 'Start dictation',
-                  icon: _dictationBusy
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Icon(_isDictating ? Icons.mic : Icons.mic_none),
-                  color: _isDictating ? Theme.of(context).colorScheme.error : null,
-                  onPressed: _dictationBusy ? null : _toggleDictation,
-                ),
-                if (_unreviewed.isNotEmpty)
-                  ActionChip(
-                    avatar: const Icon(Icons.fact_check_outlined, size: 16),
-                    label: Text('Review ${_unreviewed.length} dictated'),
-                    onPressed: _reviewNextDictatedRange,
                   ),
-                const VerticalDivider(width: 16),
-                // One button, not five: five separate IconButtons here
-                // overflowed the toolbar Row (which has no scroll/wrap) at
-                // ordinary window widths — a Release build swallows that
-                // overflow silently (the debug overflow-stripe painter is
-                // wrapped in an `assert`, stripped in Release), so the
-                // trailing icons just vanished with no visible error.
-                PopupMenuButton<_AnnotationAction>(
-                  tooltip: 'Comments, highlights, sticky notes, footnotes',
-                  icon: const Icon(Icons.chat_bubble_outline),
-                  onSelected: _handleAnnotationAction,
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      enabled: false,
-                      child: Text('Highlight selection'),
-                    ),
-                    for (final swatch in const [
-                      (_AnnotationAction.highlightYellow, 0xFFFFF59D, 'Yellow'),
-                      (_AnnotationAction.highlightGreen, 0xFFA5D6A7, 'Green'),
-                      (_AnnotationAction.highlightPink, 0xFFF48FB1, 'Pink'),
-                      (_AnnotationAction.highlightBlue, 0xFF90CAF9, 'Blue'),
-                    ])
-                      PopupMenuItem(
-                        value: swatch.$1,
-                        child: Row(children: [
-                          Container(width: 16, height: 16, color: Color(swatch.$2)),
-                          const SizedBox(width: 8),
-                          Text(swatch.$3),
-                        ]),
-                      ),
-                    const PopupMenuDivider(),
-                    const PopupMenuItem(
-                      value: _AnnotationAction.comment,
-                      child: ListTile(
-                        leading: Icon(Icons.comment_outlined),
-                        title: Text('Add Comment'),
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: _AnnotationAction.stickyNote,
-                      child: ListTile(
-                        leading: Icon(Icons.sticky_note_2_outlined),
-                        title: Text('Add Sticky Note'),
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: _AnnotationAction.footnote,
-                      child: ListTile(
-                        leading: Icon(Icons.note_alt_outlined),
-                        title: Text('Add Footnote'),
-                      ),
-                    ),
-                    const PopupMenuDivider(),
-                    PopupMenuItem(
-                      value: _AnnotationAction.togglePanel,
-                      child: ListTile(
-                        leading: Icon(_annotationsPanelOpen
-                            ? Icons.expand_less
-                            : Icons.expand_more),
-                        title: Text(
-                            _annotationsPanelOpen ? 'Hide Annotations' : 'Show Annotations'),
-                      ),
-                    ),
-                  ],
                 ),
-                const Spacer(),
-                Text('$_wordCount words',
-                    style: Theme.of(context).textTheme.labelMedium),
+                Text(
+                  '$_wordCount words',
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
                 const SizedBox(width: 8),
               ],
             ),
@@ -872,8 +1007,10 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
         if (focusMode)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text('$_wordCount words',
-                style: Theme.of(context).textTheme.labelSmall),
+            child: Text(
+              '$_wordCount words',
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
           ),
       ],
     );

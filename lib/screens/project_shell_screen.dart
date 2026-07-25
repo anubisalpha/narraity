@@ -28,6 +28,7 @@ import '../widgets/vault_unlock_dialog.dart';
 import 'goals_screen.dart';
 import 'plot_grid_screen.dart';
 import 'relationship_screen.dart';
+import 'review_export_screen.dart';
 import 'timeline_screen.dart';
 
 /// How often the open project's vault is refreshed while writing. Frequent
@@ -70,7 +71,10 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
     if (_autoBackupEnabled) {
       // Fire-and-forget: closing a project must not wait on (or fail because
       // of) a backup. refreshProject is a no-op when the vault is locked.
-      _vaultActions.refreshProject(widget.project).catchError((Object error, StackTrace stack) {
+      _vaultActions.refreshProject(widget.project).catchError((
+        Object error,
+        StackTrace stack,
+      ) {
         AppLogger.logError(error, stack, context: 'vault-backup-on-close');
         return null;
       });
@@ -130,28 +134,45 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                   tooltip: 'Goals',
                   icon: const Icon(Icons.flag_outlined),
                   onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => GoalsScreen(project: project)),
+                    MaterialPageRoute(
+                      builder: (_) => GoalsScreen(project: project),
+                    ),
                   ),
                 ),
                 IconButton(
                   tooltip: 'Plot Grid',
                   icon: const Icon(Icons.grid_on_outlined),
                   onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => PlotGridScreen(project: project)),
+                    MaterialPageRoute(
+                      builder: (_) => PlotGridScreen(project: project),
+                    ),
                   ),
                 ),
                 IconButton(
                   tooltip: 'Timeline',
                   icon: const Icon(Icons.timeline),
                   onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => TimelineScreen(project: project)),
+                    MaterialPageRoute(
+                      builder: (_) => TimelineScreen(project: project),
+                    ),
                   ),
                 ),
                 IconButton(
                   tooltip: 'Relationships',
                   icon: const Icon(Icons.hub_outlined),
                   onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => RelationshipScreen(project: project)),
+                    MaterialPageRoute(
+                      builder: (_) => RelationshipScreen(project: project),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Export / Import for Review',
+                  icon: const Icon(Icons.rate_review_outlined),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ReviewExportScreen(project: project),
+                    ),
                   ),
                 ),
                 IconButton(
@@ -188,7 +209,8 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
           }
 
           // Default the editor to the first scene on open.
-          final openId = ref.watch(openContentIdProvider) ??
+          final openId =
+              ref.watch(openContentIdProvider) ??
               structure.allContentIds.firstOrNull;
 
           return _FocusModeEscape(
@@ -207,10 +229,16 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                           // don't fit in a 280px sidebar without truncating.
                           const TabBar(
                             tabs: [
-                              Tab(icon: Icon(Icons.menu_book_outlined), height: 46),
+                              Tab(
+                                icon: Icon(Icons.menu_book_outlined),
+                                height: 46,
+                              ),
                               Tab(icon: Icon(Icons.people_outline), height: 46),
                               Tab(icon: Icon(Icons.public), height: 46),
-                              Tab(icon: Icon(Icons.sticky_note_2_outlined), height: 46),
+                              Tab(
+                                icon: Icon(Icons.sticky_note_2_outlined),
+                                height: 46,
+                              ),
                               Tab(icon: Icon(Icons.checklist), height: 46),
                             ],
                           ),
@@ -285,16 +313,19 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
     if (reference != null) {
       return switch (reference.kind) {
         ReferenceKind.character => ProfileEditor(
-            project: project,
-            kind: ProfileKind.character,
-            entryId: reference.id,
-          ),
+          project: project,
+          kind: ProfileKind.character,
+          entryId: reference.id,
+        ),
         ReferenceKind.world => ProfileEditor(
-            project: project,
-            kind: ProfileKind.world,
-            entryId: reference.id,
-          ),
-        ReferenceKind.note => NoteEditor(project: project, noteId: reference.id),
+          project: project,
+          kind: ProfileKind.world,
+          entryId: reference.id,
+        ),
+        ReferenceKind.note => NoteEditor(
+          project: project,
+          noteId: reference.id,
+        ),
       };
     }
 
@@ -329,7 +360,10 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
 /// Thin draggable divider that resizes the Reference Panel. Dragging left
 /// widens the panel, so the delta is inverted by the caller.
 class _ReferencePanelResizeHandle extends StatelessWidget {
-  const _ReferencePanelResizeHandle({required this.onDrag, required this.onDragEnd});
+  const _ReferencePanelResizeHandle({
+    required this.onDrag,
+    required this.onDragEnd,
+  });
 
   final ValueChanged<double> onDrag;
   final VoidCallback onDragEnd;

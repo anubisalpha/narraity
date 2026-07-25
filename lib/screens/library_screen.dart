@@ -13,6 +13,7 @@ import '../widgets/new_project_dialog.dart';
 import '../widgets/quick_capture_dialog.dart';
 import 'app_goals_screen.dart';
 import 'ideas_screen.dart';
+import 'review_sessions_screen.dart';
 import 'settings_screen.dart';
 
 class LibraryScreen extends ConsumerWidget {
@@ -43,6 +44,13 @@ class LibraryScreen extends ConsumerWidget {
             icon: const Icon(Icons.flag_circle_outlined),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const AppGoalsScreen()),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Review a Manuscript',
+            icon: const Icon(Icons.rate_review_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ReviewSessionsScreen()),
             ),
           ),
           IconButton(
