@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/annotation.dart';
 import '../models/manuscript.dart';
 import '../models/profile_entry.dart';
 import '../models/project.dart';
@@ -12,12 +13,15 @@ import '../services/dictation_engine.dart';
 import '../services/manuscript_service.dart';
 import '../services/mention_scanner.dart';
 import '../services/voice_command_processor.dart';
+import '../state/annotation_provider.dart';
 import '../state/dictation_provider.dart';
 import '../state/editor_settings_provider.dart';
 import '../state/manuscript_provider.dart';
 import '../state/reference_panel_provider.dart' show ReferenceCardItem, sceneMentionedNamesProvider;
 import '../state/reference_provider.dart';
 import '../state/scene_history_provider.dart';
+import 'annotation_highlight_controller.dart';
+import 'annotation_panel.dart';
 import 'dictation_model_dialog.dart';
 
 /// The writing surface for one scene/section: markdown-backed text editor
@@ -41,11 +45,25 @@ class SceneEditor extends ConsumerStatefulWidget {
   ConsumerState<SceneEditor> createState() => _SceneEditorState();
 }
 
+/// Menu entries for the single consolidated annotations toolbar button.
+enum _AnnotationAction {
+  highlightYellow,
+  highlightGreen,
+  highlightPink,
+  highlightBlue,
+  comment,
+  stickyNote,
+  footnote,
+  togglePanel,
+}
+
 class _SceneEditorState extends ConsumerState<SceneEditor> {
-  final _controller = TextEditingController();
+  final _controller = AnnotationHighlightController();
   final _titleController = TextEditingController();
   final _undoController = UndoHistoryController();
   final _focusNode = FocusNode();
+
+  bool _annotationsPanelOpen = false;
 
   SceneDoc? _doc;
   Timer? _saveDebounce;
@@ -104,6 +122,171 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     _titleController.text = doc.title;
     _dirty = false;
     _publishMentions();
+    await _resolveAnnotations();
+  }
+
+  // ---- annotations (Phase 4: comments, highlights, sticky notes, footnotes) --
+
+  /// Re-locates this scene's annotations against the loaded content (self-
+  /// healing any offsets that only moved), feeds the result to the
+  /// highlight-painting controller, and refreshes the panel's list.
+  Future<void> _resolveAnnotations() async {
+    final service = await ref.read(annotationServiceProvider(widget.project).future);
+    final results = await service.resolveForScene(widget.contentId, _controller.text);
+    if (!mounted) return;
+    _controller.annotations = results;
+    ref.invalidate(sceneAnnotationsProvider((widget.project, widget.contentId)));
+  }
+
+  Future<String?> _promptForText(String title, String label) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 4,
+          decoration: InputDecoration(labelText: label),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _requireSelection() {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Select some text first')));
+  }
+
+  Future<void> _handleAnnotationAction(_AnnotationAction action) async {
+    switch (action) {
+      case _AnnotationAction.highlightYellow:
+        await _addHighlight(0xFFFFF59D);
+      case _AnnotationAction.highlightGreen:
+        await _addHighlight(0xFFA5D6A7);
+      case _AnnotationAction.highlightPink:
+        await _addHighlight(0xFFF48FB1);
+      case _AnnotationAction.highlightBlue:
+        await _addHighlight(0xFF90CAF9);
+      case _AnnotationAction.comment:
+        await _addComment();
+      case _AnnotationAction.stickyNote:
+        await _addStickyNote();
+      case _AnnotationAction.footnote:
+        await _addFootnote();
+      case _AnnotationAction.togglePanel:
+        setState(() => _annotationsPanelOpen = !_annotationsPanelOpen);
+    }
+  }
+
+  Future<void> _addHighlight(int color) async {
+    final sel = _controller.selection;
+    if (!sel.isValid || sel.isCollapsed) {
+      _requireSelection();
+      return;
+    }
+    final quoted = sel.textInside(_controller.text);
+    final service = await ref.read(annotationServiceProvider(widget.project).future);
+    await service.create(
+      sceneId: widget.contentId,
+      kind: AnnotationKind.highlight,
+      anchor: TextAnchor(start: sel.start, end: sel.end, quotedText: quoted),
+      color: color,
+    );
+    await _resolveAnnotations();
+  }
+
+  Future<void> _addComment() async {
+    final sel = _controller.selection;
+    if (!sel.isValid || sel.isCollapsed) {
+      _requireSelection();
+      return;
+    }
+    final body = await _promptForText('Add Comment', 'Comment');
+    if (body == null || body.trim().isEmpty) return;
+    final quoted = sel.textInside(_controller.text);
+    final service = await ref.read(annotationServiceProvider(widget.project).future);
+    await service.create(
+      sceneId: widget.contentId,
+      kind: AnnotationKind.comment,
+      anchor: TextAnchor(start: sel.start, end: sel.end, quotedText: quoted),
+      body: body.trim(),
+    );
+    await _resolveAnnotations();
+  }
+
+  Future<void> _addStickyNote() async {
+    final sel = _controller.selection;
+    if (!sel.isValid || sel.isCollapsed) {
+      _requireSelection();
+      return;
+    }
+    final body = await _promptForText('Add Sticky Note', 'Note');
+    if (body == null || body.trim().isEmpty) return;
+    final quoted = sel.textInside(_controller.text);
+    final service = await ref.read(annotationServiceProvider(widget.project).future);
+    await service.create(
+      sceneId: widget.contentId,
+      kind: AnnotationKind.stickyNote,
+      anchor: TextAnchor(start: sel.start, end: sel.end, quotedText: quoted),
+      body: body.trim(),
+    );
+    await _resolveAnnotations();
+  }
+
+  /// Footnotes anchor to a single point, not a range — the caret if there's
+  /// no selection, or the end of the selection if there is one.
+  Future<void> _addFootnote() async {
+    final sel = _controller.selection;
+    if (!sel.isValid) {
+      // A controller that's never been focused/tapped has an invalid
+      // selection (no caret placed yet) — silently no-op'ing here was the
+      // actual "footnote button does nothing" bug: give the same kind of
+      // feedback the other three actions already give on a bad selection.
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Click in the text where you want the footnote first')));
+      return;
+    }
+    final body = await _promptForText('Add Footnote', 'Footnote text');
+    if (body == null || body.trim().isEmpty) return;
+    final at = sel.isCollapsed ? sel.baseOffset : sel.end;
+    final service = await ref.read(annotationServiceProvider(widget.project).future);
+    await service.create(
+      sceneId: widget.contentId,
+      kind: AnnotationKind.footnote,
+      anchor: TextAnchor(start: at, end: at, quotedText: ''),
+      body: body.trim(),
+    );
+    await _resolveAnnotations();
+  }
+
+  /// Selects an annotation's current (possibly self-healed) range in the
+  /// editor and focuses it — the panel's "jump to" action.
+  void _jumpToAnnotation(Annotation annotation) {
+    var start = annotation.anchor.start;
+    var end = annotation.anchor.end;
+    for (final (candidate, resolution) in _controller.annotations) {
+      if (candidate.id == annotation.id) {
+        start = resolution.start;
+        end = resolution.end;
+        break;
+      }
+    }
+    final safeEnd = end.clamp(0, _controller.text.length);
+    final safeStart = start.clamp(0, safeEnd);
+    _controller.selection = TextSelection(baseOffset: safeStart, extentOffset: safeEnd);
+    _focusNode.requestFocus();
   }
 
   /// Tells the Reference Panel which profiles this scene mentions. Runs on
@@ -573,6 +756,71 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
                     label: Text('Review ${_unreviewed.length} dictated'),
                     onPressed: _reviewNextDictatedRange,
                   ),
+                const VerticalDivider(width: 16),
+                // One button, not five: five separate IconButtons here
+                // overflowed the toolbar Row (which has no scroll/wrap) at
+                // ordinary window widths — a Release build swallows that
+                // overflow silently (the debug overflow-stripe painter is
+                // wrapped in an `assert`, stripped in Release), so the
+                // trailing icons just vanished with no visible error.
+                PopupMenuButton<_AnnotationAction>(
+                  tooltip: 'Comments, highlights, sticky notes, footnotes',
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  onSelected: _handleAnnotationAction,
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      enabled: false,
+                      child: Text('Highlight selection'),
+                    ),
+                    for (final swatch in const [
+                      (_AnnotationAction.highlightYellow, 0xFFFFF59D, 'Yellow'),
+                      (_AnnotationAction.highlightGreen, 0xFFA5D6A7, 'Green'),
+                      (_AnnotationAction.highlightPink, 0xFFF48FB1, 'Pink'),
+                      (_AnnotationAction.highlightBlue, 0xFF90CAF9, 'Blue'),
+                    ])
+                      PopupMenuItem(
+                        value: swatch.$1,
+                        child: Row(children: [
+                          Container(width: 16, height: 16, color: Color(swatch.$2)),
+                          const SizedBox(width: 8),
+                          Text(swatch.$3),
+                        ]),
+                      ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      value: _AnnotationAction.comment,
+                      child: ListTile(
+                        leading: Icon(Icons.comment_outlined),
+                        title: Text('Add Comment'),
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: _AnnotationAction.stickyNote,
+                      child: ListTile(
+                        leading: Icon(Icons.sticky_note_2_outlined),
+                        title: Text('Add Sticky Note'),
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: _AnnotationAction.footnote,
+                      child: ListTile(
+                        leading: Icon(Icons.note_alt_outlined),
+                        title: Text('Add Footnote'),
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem(
+                      value: _AnnotationAction.togglePanel,
+                      child: ListTile(
+                        leading: Icon(_annotationsPanelOpen
+                            ? Icons.expand_less
+                            : Icons.expand_more),
+                        title: Text(
+                            _annotationsPanelOpen ? 'Hide Annotations' : 'Show Annotations'),
+                      ),
+                    ),
+                  ],
+                ),
                 const Spacer(),
                 Text('$_wordCount words',
                     style: Theme.of(context).textTheme.labelMedium),
@@ -613,6 +861,14 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
             ],
           ),
         ),
+        if (!focusMode && _annotationsPanelOpen) ...[
+          const Divider(height: 1),
+          AnnotationPanel(
+            project: widget.project,
+            sceneId: widget.contentId,
+            onJumpTo: _jumpToAnnotation,
+          ),
+        ],
         if (focusMode)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),

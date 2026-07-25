@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../models/manuscript.dart';
 import '../models/manuscript_seeds.dart';
+import 'annotation_service.dart';
 
 const _uuid = Uuid();
 
@@ -102,9 +103,14 @@ class ManuscriptService {
     await File(p.join(_scenesDir.path, '${doc.id}.md')).writeAsString(buffer.toString());
   }
 
+  /// Also drops every Phase 4 annotation (comment/highlight/sticky
+  /// note/footnote) anchored to this scene — unlike Plot Grid/Relationship
+  /// Diagram, whose dangling-data-on-delete gaps were left for later, this
+  /// cascade is wired in from the start.
   Future<void> deleteSceneFile(String id) async {
     final file = File(p.join(_scenesDir.path, '$id.md'));
     if (await file.exists()) await file.delete();
+    await AnnotationService(projectDir).deleteAllForScene(id);
   }
 
   SceneDoc _parse(String id, String raw, String fallbackTitle) {

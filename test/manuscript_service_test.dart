@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:narraity/models/annotation.dart';
 import 'package:narraity/models/manuscript.dart';
+import 'package:narraity/services/annotation_service.dart';
 import 'package:narraity/services/manuscript_service.dart';
 
 void main() {
@@ -114,6 +116,34 @@ void main() {
       File('${tempDir.path}/manuscript/scenes/${scene.id}.md').existsSync(),
       isFalse,
     );
+  });
+
+  test('deleteNode cascades to drop annotations anchored to the deleted scene', () async {
+    final structure = await service.loadStructure();
+    final chapter = structure.nodes.first.children.first;
+    final deletedScene = chapter.children.first;
+    await service.addNode(structure, typeLabel: 'Scene', parent: chapter);
+    final keptScene = chapter.children[1];
+
+    final annotations = AnnotationService(tempDir);
+    await annotations.create(
+      sceneId: deletedScene.id,
+      kind: AnnotationKind.comment,
+      anchor: const TextAnchor(start: 0, end: 3, quotedText: 'abc'),
+      body: 'should be dropped',
+    );
+    await annotations.create(
+      sceneId: keptScene.id,
+      kind: AnnotationKind.comment,
+      anchor: const TextAnchor(start: 0, end: 3, quotedText: 'xyz'),
+      body: 'should survive',
+    );
+
+    await service.deleteNode(structure, deletedScene);
+
+    final remaining = await annotations.listAll();
+    expect(remaining, hasLength(1));
+    expect(remaining.single.sceneId, keptScene.id);
   });
 
   test('totalWordCount sums scenes and special sections', () async {
