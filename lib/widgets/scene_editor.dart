@@ -16,6 +16,7 @@ import '../services/dictation_engine.dart';
 import '../services/manuscript_service.dart';
 import '../services/mention_scanner.dart';
 import '../services/spell_check_service.dart';
+import '../services/thesaurus_service.dart';
 import '../services/tts_service.dart';
 import '../services/voice_command_processor.dart';
 import '../state/annotation_provider.dart';
@@ -27,6 +28,7 @@ import '../state/reference_panel_provider.dart'
 import '../state/reference_provider.dart';
 import '../state/scene_history_provider.dart';
 import '../state/spell_check_provider.dart';
+import '../state/thesaurus_provider.dart';
 import '../state/tts_provider.dart';
 import '../state/tts_settings_provider.dart';
 import 'annotation_highlight_controller.dart';
@@ -116,6 +118,14 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
   List<ReferenceCardItem> _mentionMatches = const [];
   int _mentionHighlighted = 0;
 
+  /// Thesaurus popover state (Phase 4.5): non-null [_thesaurusWord] means the
+  /// popover is open, showing synonyms/definitions for the word selected via
+  /// the "Look Up" entry added to the text field's own selection toolbar.
+  String? _thesaurusWord;
+  (int start, int end)? _thesaurusRange;
+  List<WordSense> _thesaurusSenses = const [];
+  bool _thesaurusLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -195,7 +205,11 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     _focusNode.requestFocus();
   }
 
-  void _replaceMisspelled(int start, int end, String replacement) {
+  /// Replaces the `[start, end)` character range with [replacement] and
+  /// leaves the caret just after it. Shared by the spelling panel's
+  /// suggestion chips and the thesaurus popover's synonym chips — both are
+  /// "swap this range for a different word" in the same editor.
+  void _replaceRange(int start, int end, String replacement) {
     final text = _controller.text;
     final safeEnd = end.clamp(0, text.length);
     final safeStart = start.clamp(0, safeEnd);
@@ -479,6 +493,50 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     await widget.service.writeScene(doc);
     _dirty = false;
     if (mounted) _publishMentions();
+  }
+
+  // ---- thesaurus (Phase 4.5) ---------------------------------------------
+
+  Future<void> _lookUpWord(String word, int start, int end) async {
+    setState(() {
+      _thesaurusWord = word;
+      _thesaurusRange = (start, end);
+      _thesaurusSenses = const [];
+      _thesaurusLoading = true;
+    });
+    final ThesaurusService service;
+    try {
+      service = await ref.read(thesaurusServiceProvider.future);
+    } catch (_) {
+      // Dataset unavailable (missing asset, no path_provider in a test
+      // environment, ...) — the popover just shows "no entry" rather than
+      // breaking the rest of the editor, same shape as spell check.
+      if (mounted) setState(() => _thesaurusLoading = false);
+      return;
+    }
+    if (_disposed) return;
+    final senses = service.lookup(word);
+    if (!mounted) return;
+    setState(() {
+      _thesaurusSenses = senses;
+      _thesaurusLoading = false;
+    });
+  }
+
+  void _closeThesaurusPopover() {
+    setState(() {
+      _thesaurusWord = null;
+      _thesaurusRange = null;
+      _thesaurusSenses = const [];
+    });
+  }
+
+  void _replaceWithSynonym(String synonym) {
+    final range = _thesaurusRange;
+    if (range == null) return;
+    final (start, end) = range;
+    _replaceRange(start, end, synonym);
+    _closeThesaurusPopover();
   }
 
   // ---- @mention autocomplete -------------------------------------------
@@ -1165,6 +1223,31 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
                     border: InputBorder.none,
                     hintText: 'Start writing…',
                   ),
+                  contextMenuBuilder: (context, editableTextState) {
+                    final selection = editableTextState.textEditingValue.selection;
+                    final buttonItems = editableTextState.contextMenuButtonItems.toList();
+                    if (selection.isValid && !selection.isCollapsed) {
+                      final selected = selection
+                          .textInside(editableTextState.textEditingValue.text)
+                          .trim();
+                      if (selected.isNotEmpty && !selected.contains(RegExp(r'\s'))) {
+                        buttonItems.insert(
+                          0,
+                          ContextMenuButtonItem(
+                            label: 'Look Up "$selected"',
+                            onPressed: () {
+                              editableTextState.hideToolbar();
+                              _lookUpWord(selected, selection.start, selection.end);
+                            },
+                          ),
+                        );
+                      }
+                    }
+                    return AdaptiveTextSelectionToolbar.buttonItems(
+                      anchors: editableTextState.contextMenuAnchors,
+                      buttonItems: buttonItems,
+                    );
+                  },
                 ),
               ),
               if (_mentionQuery != null && _mentionMatches.isNotEmpty)
@@ -1175,6 +1258,18 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
                     matches: _mentionMatches,
                     highlighted: _mentionHighlighted,
                     onSelected: _insertMention,
+                  ),
+                ),
+              if (_thesaurusWord != null)
+                Positioned(
+                  right: 24,
+                  top: 8,
+                  child: _ThesaurusPopover(
+                    word: _thesaurusWord!,
+                    loading: _thesaurusLoading,
+                    senses: _thesaurusSenses,
+                    onSynonymSelected: _replaceWithSynonym,
+                    onClose: _closeThesaurusPopover,
                   ),
                 ),
             ],
@@ -1194,7 +1289,7 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
             content: _controller.text,
             misspelled: _misspelled,
             onJumpTo: _jumpToMisspelled,
-            onReplace: _replaceMisspelled,
+            onReplace: _replaceRange,
             onAddToDictionary: _addToDictionary,
           ),
         ],
@@ -1263,6 +1358,113 @@ class _MentionSuggestions extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Synonyms/definitions for the word selected via the text field's own
+/// "Look Up" context-menu entry (Phase 4.5). Anchored to a fixed corner of
+/// the editor, not the selection itself — same pragmatic call as
+/// [_MentionSuggestions]: precise caret/selection anchoring needs
+/// `TextPainter` geometry tuned by eye against a running window.
+class _ThesaurusPopover extends StatelessWidget {
+  const _ThesaurusPopover({
+    required this.word,
+    required this.loading,
+    required this.senses,
+    required this.onSynonymSelected,
+    required this.onClose,
+  });
+
+  final String word;
+  final bool loading;
+  final List<WordSense> senses;
+  final ValueChanged<String> onSynonymSelected;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      elevation: 8,
+      borderRadius: BorderRadius.circular(8),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320, maxHeight: 320),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(word, style: Theme.of(context).textTheme.titleMedium),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    icon: const Icon(Icons.close, size: 18),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: onClose,
+                  ),
+                ],
+              ),
+              if (loading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                )
+              else if (senses.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Text('No thesaurus entry found.'),
+                )
+              else
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final sense in senses)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '(${posLabel(sense.partOfSpeech)}) ${sense.definition}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              if (sense.synonyms.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Wrap(
+                                    spacing: 6,
+                                    runSpacing: 4,
+                                    children: [
+                                      for (final synonym in sense.synonyms.take(8))
+                                        ActionChip(
+                                          label: Text(synonym),
+                                          visualDensity: VisualDensity.compact,
+                                          onPressed: () => onSynonymSelected(synonym),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

@@ -21,6 +21,11 @@ questions, not known implementation gaps.
   bolt-on. A lighter middle step worth considering first: a "Reveal in Explorer" action next to the
   existing save dialogs.
 
+- **Hypernym/hyponym (broader/narrower term) browsing in the thesaurus.** PLAN.md's original wording
+  covered this; user scoped v1 down to synonyms + definitions only when the WordNet feature was
+  built. `synsets.hypernym` data exists in the OEWN source but isn't loaded into `wordnet.sqlite` —
+  would need a new table and a rebuild via `tool/build_wordnet_db.dart` if picked up later.
+
 - **A Settings section to view/manage words added to the spell-check dictionary.** Requested right
   after "Add to Dictionary" (spelling panel, Phase 4.5) shipped. Note this needs solving *underneath*
   the UI first, not just a new screen: `Hunspell_add` only adds to the in-memory run-time dictionary

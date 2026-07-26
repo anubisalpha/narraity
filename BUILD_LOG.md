@@ -976,18 +976,75 @@ other half).
 
 ---
 
+## Phase 4.5: WordNet thesaurus/dictionary (second half)
+
+**Built and committed 2026-07-26.** Scope decided with the user up front: SQLite asset queried via
+the `sqlite3`/`sqlite3_flutter_libs` packages (not a pure-Dart index — relational lookups and future
+growth room won over a smaller no-native-dep option), synonyms + definitions only for v1 (hypernym/
+hyponym trees deferred), triggered from a "Look Up" entry added to the text field's own selection
+context menu (right-click on Windows, the same toolbar long-press already produces on Android) rather
+than a persistent docked panel.
+
+**Data source:** Open English WordNet 2025 edition (CC BY 4.0), `english-wordnet-2025-json.zip` from
+the GitHub release (`en-word.net` itself 503'd; `gh release view --repo
+globalwordnet/english-wordnet 2025-edition` found the same asset directly). Base edition, not
+`-plus` — the `-plus` edition adds curated proper nouns not needed for a synonym/definition lookup.
+
+**Build pipeline:** `tool/build_wordnet_db.dart` — a one-off Dart script (using `package:sqlite3`
+directly, no Flutter dependency) that reads the release zip's `entries-*.json` (word → sense →
+synset-id index, 27 files, one per starting letter) and `{noun,verb,adj,adv}.*.json` (45 category
+files, synset-id → definition/members/hypernym) and writes a compact `synsets`/`senses` schema:
+107,519 synsets, 185,129 word-sense rows. Same "committed asset, rebuilt only when picking up a newer
+release" convention as the Hunspell dictionaries — not regenerated at app-build time. Output:
+`assets/wordnet/wordnet.sqlite`, 21.8 MB (dwarfs the 1.3 MB Hunspell `.dic`, but this is a full
+synonym+definition graph, not a wordlist — no attempt made to shrink further since nothing else in
+the app is size-constrained yet).
+
+**Runtime:** `lib/services/wordnet_dictionary_service.dart` extracts the asset to a real file on
+first use (`sqlite3` opens by path, not asset buffers — identical shape to
+`SpellCheckDictionaryService`). `lib/services/thesaurus_service.dart` opens it `OpenMode.readOnly`
+(a static reference dataset, never written to) and exposes `lookup(word)` → one `WordSense` per
+WordNet sense (part of speech, definition, synonyms with the queried word excluded from its own
+list). `posLabel()` maps WordNet's single-letter codes (`n`/`v`/`a`/`s`/`r`) to readable words —
+`s` (adjective satellite) collapses to "adjective" too, since the satellite/head distinction isn't
+meaningful to a novelist looking up a word.
+
+**Editor integration:** `contextMenuBuilder` on the scene editor's `TextField` inserts a "Look Up
+'word'" entry ahead of the platform's own Cut/Copy/Paste items whenever the selection is a single
+word (no whitespace) — reuses Flutter's own selection-toolbar plumbing rather than a hand-rolled
+right-click handler, so it works on both Windows (right-click) and Android (long-press toolbar) for
+free. Renamed `_replaceMisspelled` → `_replaceRange`, a generic `[start,end)` swap-for-a-word helper
+now shared by the spelling panel's suggestion chips and the new thesaurus popover's synonym chips —
+both are the same operation on the same editor. `_ThesaurusPopover` (new widget, same file) shows
+each sense's definition plus synonym chips (tap to replace in place); anchored to a fixed corner of
+the editor Stack rather than the selection itself — same pragmatic call already made for
+`_MentionSuggestions`, logged there: precise caret/selection anchoring needs `TextPainter` geometry
+tuned by eye against a running window, not available this session.
+
+**14 new tests** (`thesaurus_service_test.dart`) against the real bundled database — same rationale
+as spell check's tests: entirely offline and instant, no reason to fake it. Covers lookup, case-
+insensitivity, self-exclusion from its own synonym list, multi-sense words, unknown words, empty
+input, `posLabel`, and extraction idempotency. **310 tests total**, `flutter analyze` clean (only
+`avoid_print` infos on the one-off build script, which is expected to print progress), `flutter build
+windows` verified successful with the sqlite3 native DLL bundled. **Not yet click-tested by the user**
+— launched via `start ""` and handed off for a manual pass, same computer-use window-resolution
+limitation as every other phase.
+
+---
+
 ## Current status
 
-Phases 0 through 4 are fully complete; Phase 4.5 has spell check done, thesaurus/dictionary still to
-come. Manuscript editor, dictation, goals, version history, data protection and its UI,
+**Phases 0 through 4.5 are now fully complete** — spell check and the WordNet thesaurus/dictionary
+both built. Manuscript editor, dictation, goals, version history, data protection and its UI,
 characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the Timeline, the Relationship
-Diagram, Phase 4's annotations/AI review round-trip/Read Aloud, and now Hunspell-backed spell check.
-296 automated tests passing, `flutter analyze` clean, `flutter build windows` succeeds. Commits:
-`3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals, version history, manuscript
-generalization), `8416beb` (data protection services), `62d1baf` (docs), `8d414ac` (data-protection
-UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card id-guess fix), `7466997`
-(Phase 3), `d8481f5` (Phase 3.5), `8adcd8a`/`cdaab87`/`a9cc096`/`502f68d`/`1e7abc7` (Phase 4),
-`a43ee44` (Phase 4.5 spell check).
+Diagram, Phase 4's annotations/AI review round-trip/Read Aloud, Hunspell-backed spell check, and now
+the WordNet-backed synonym/definition lookup. 310 automated tests passing, `flutter analyze` clean,
+`flutter build windows` succeeds. Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals,
+version history, manuscript generalization), `8416beb` (data protection services), `62d1baf` (docs),
+`8d414ac` (data-protection UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b`
+(reference-card id-guess fix), `7466997` (Phase 3), `d8481f5` (Phase 3.5),
+`8adcd8a`/`cdaab87`/`a9cc096`/`502f68d`/`1e7abc7` (Phase 4), `a43ee44` (Phase 4.5 spell check), plus
+this session's WordNet thesaurus commit (see above).
 
 **All three Phase 3/3.5 screens (Plot Grid, Relationship Diagram, Timeline) have now had a real
 GUI/gesture pass.** Two genuine bugs were found and fixed on the first two (Plot Grid's zero-height
@@ -1003,9 +1060,11 @@ comment, exported comments, re-imported — worked cleanly. Read Aloud — readi
 highlighting, and settings all confirmed working. Session persistence across an app restart and the
 metadata header's exact visual polish are the only Phase 4 pieces still unconfirmed by eye.
 
-**Spell check (Hunspell, en-GB) is built and click-through verified** — see the Phase 4.5 section
-above. Next per `PLAN.md`: the other half of Phase 4.5, the WordNet-backed thesaurus/dictionary, plus
-the deferred multi-language/variant picker for spell check.
+**Spell check (Hunspell, en-GB) is built and click-through verified; the WordNet thesaurus/dictionary
+is built but not yet click-tested** — see the Phase 4.5 sections above. Phase 4.5 is otherwise fully
+scoped per `PLAN.md` except the deferred multi-language/variant picker for spell check, hypernym/
+hyponym trees for the thesaurus, and additional downloadable dictionaries — all logged in
+`CONSIDERATIONS.md`/inline above as open items, not required for v1.
 
 Still outstanding: scene-level `linkedReferences` (the fourth Reference Panel trigger from PLAN.md —
 mentions, pins, and auto-detect cover the other three), per-project vault passwords, export format

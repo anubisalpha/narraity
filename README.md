@@ -158,8 +158,16 @@ full breakdown and what changes per platform when that day comes.
 - A Spelling panel (badge shows the count) lists every flagged word with suggestion chips — tap one
   to replace it in place — and an "add to dictionary" action for names and words that are correct
   but not in the wordlist
-- Multi-language/variant support (US/CA/AU/NZ/ZA English, other languages) and a thesaurus/dictionary
-  are planned but not built yet
+- Multi-language/variant support (US/CA/AU/NZ/ZA English, other languages) is planned but not built
+  yet
+
+### Thesaurus & dictionary (offline)
+- Bundled Open English WordNet (CC BY 4.0) queried via `sqlite3` — synonyms and definitions, no
+  network dependency, instant lookups
+- Select a single word and right-click (or use the selection toolbar on Android) for a "Look Up"
+  entry — opens a popover with every WordNet sense: part of speech, definition, and synonym chips
+  you can tap to replace the word in place
+- Hypernym/hyponym (broader/narrower term) browsing is planned but not built yet
 
 ### Voice dictation (offline)
 - Windows: a hand-written Dart FFI binding straight to the real Vosk engine (`libvosk.dll`,

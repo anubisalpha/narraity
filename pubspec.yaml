@@ -51,6 +51,8 @@ dependencies:
   cryptography: ^2.7.0
   file_picker: ^11.0.2
   flutter_tts: ^4.2.5
+  sqlite3: ^2.7.6
+  sqlite3_flutter_libs: ^0.5.28
 
 dev_dependencies:
   flutter_test:
@@ -76,6 +78,7 @@ flutter:
 
   assets:
     - assets/dictionaries/en_GB/
+    - assets/wordnet/
 
   # To add assets to your application, add an assets section, like this:
   # assets:
