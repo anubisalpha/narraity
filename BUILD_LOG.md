@@ -1340,3 +1340,60 @@ priority, Play Store readiness (privacy policy, data safety form, plus now the D
 scope's data-safety disclosure), the Plot Grid's dangling-point cleanup, and the Relationship
 Diagram's dangling-edge cleanup on character delete. See `CONSIDERATIONS.md` for the full list of
 open design questions.
+
+---
+
+## Publishing: GitHub repo, signed MSIX, CI, v1.0.0 release
+
+**Repo:** public, [github.com/anubisalpha/narraity](https://github.com/anubisalpha/narraity), all
+rights reserved (no OSS license — public for visibility, not reuse). Windows only for now, no
+Android artifact published per explicit user decision.
+
+**Real bug found and fixed before anything could even build elsewhere:** BUILD_LOG had repeatedly
+described the vendored Hunspell/Vosk DLLs as "checked in," but they were never actually tracked — a
+machine-wide `*.dll` rule in this developer's **global** gitignore
+(`C:\Users\marca\Documents\gitignore_global.txt`) silently excluded every DLL from every commit in
+every repo on this machine. Fixed with explicit negation patterns in the repo's own `.gitignore`
+(`!windows/hunspell/*.dll`, `!windows/vosk/*.dll`) and committed the real ~53MB of vendored
+binaries — without them, nobody (including CI) could build or test the app at all. Worth checking
+for in any *other* project on this machine that also claims to vendor binaries.
+
+**MSIX packaging — the `msix` pub package's own bundled MakeAppx.exe/signtool.exe are broken on
+this machine.** Both fail with a WinSxS "side-by-side configuration is incorrect" error — a version
+mismatch between the frozen toolkit binaries the package ships and what's actually installed (same
+class of issue as the earlier Flutter/VS-2026 SDK-recognition patch). Worked around by using the
+real Windows SDK's own matched `makeappx.exe`/`signtool.exe` directly
+(`C:\Program Files (x86)\Windows Kits\10\bin\<version>\x64\`) — scripted in
+`windows/build_msix.ps1`, invoked via PowerShell specifically (Bash's backslash-escaping mangled
+the native exe's Windows-style path arguments beyond recognition).
+
+**Self-signed certificate for now** (user's choice — a CA-issued one is a separate paid/verified
+purchase, not something scriptable). Generated via `New-SelfSignedCertificate`, subject `CN=Anubis
+Productions` matching `pubspec.yaml`'s `msix_config.publisher` (must match exactly, or Windows
+rejects the package — the `msix` tool actually auto-overwrites a mismatched `publisher` config value
+with whatever certificate's subject is configured, once one is set via `certificate_path`).
+Public half exported as `narraity_public.cer` (safe to distribute, no private key) so installers can
+import-and-trust it; the `.pfx` itself stays local, gitignored. **Did not attempt to install the
+certificate into any trust store myself** (even `CurrentUser`) — that's a system/security-settings
+change, which is the end user's own step to take, not something to automate on someone's behalf.
+
+**CI (`.github/workflows/ci.yml`) runs on `windows-latest`, not the cheaper `ubuntu-latest`** — the
+test suite loads real vendored native DLLs via `dart:ffi`, which only exist as Windows binaries.
+Real gotcha hit immediately: `flutter analyze`'s exit code doesn't distinguish severity — 5
+info-level `avoid_print` lints on the one-off WordNet build tool (expected; it's a CLI tool that's
+supposed to print progress) were enough to fail the whole CI job, even though the text output
+"looked clean" when read locally. Fixed with `// ignore_for_file: avoid_print` on that one file.
+
+**About screen** (Settings → About): version via `package_info_plus`, license notice, third-party
+attributions (Hunspell, Vosk, Open English WordNet).
+
+**README split**: user feedback mid-session — someone landing on the repo to download and install
+the app doesn't need build/OAuth-setup/MSIX-signing instructions before they reach a download link.
+Moved all of that into `DEVELOPMENT.md`; README now leads with what the app is, a Download section,
+and a License section, with feature descriptions after. Also copied `PLAN.md` into the repo itself
+(the README used to link to it via a relative path that only resolved on the original dev machine,
+outside the actual git repo — a dead link for anyone who'd cloned the public repo).
+
+**Published as [v1.0.0](https://github.com/anubisalpha/narraity/releases/tag/v1.0.0)** — signed
+`narraity.msix` + `narraity_public.cer` attached, release notes covering the install steps and a
+feature summary.
