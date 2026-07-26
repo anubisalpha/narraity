@@ -51,6 +51,7 @@ dependencies:
   cryptography: ^2.7.0
   file_picker: ^11.0.2
   flutter_tts: ^4.2.5
+  package_info_plus: ^8.1.2
   sqlite3: ^2.7.6
   sqlite3_flutter_libs: ^0.5.28
   googleapis: ^13.2.0

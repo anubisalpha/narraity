@@ -7,6 +7,7 @@ import '../state/theme_provider.dart';
 import '../widgets/drive_sync_settings_section.dart';
 import '../widgets/editor_settings_form.dart';
 import '../widgets/read_aloud_settings_form.dart';
+import '../widgets/about_section.dart';
 import '../widgets/vault_settings_section.dart';
 
 enum _SettingsCategory {
@@ -18,6 +19,7 @@ enum _SettingsCategory {
   spellCheck,
   drive,
   export,
+  about,
 }
 
 extension on _SettingsCategory {
@@ -30,6 +32,7 @@ extension on _SettingsCategory {
         _SettingsCategory.spellCheck => 'Spell Check & Language',
         _SettingsCategory.drive => 'Google Drive Sync',
         _SettingsCategory.export => 'Export',
+        _SettingsCategory.about => 'About',
       };
 
   IconData get icon => switch (this) {
@@ -41,6 +44,7 @@ extension on _SettingsCategory {
         _SettingsCategory.spellCheck => Icons.spellcheck,
         _SettingsCategory.drive => Icons.cloud_sync_outlined,
         _SettingsCategory.export => Icons.ios_share,
+        _SettingsCategory.about => Icons.info_outline,
       };
 
   /// Categories for phases not built yet — shown in the nav so the
@@ -119,6 +123,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _SettingsCategory.readAloud => const _ReadAloudSection(),
       _SettingsCategory.backup => const _BackupSection(),
       _SettingsCategory.drive => const _DriveSyncSection(),
+      _SettingsCategory.about => const AboutSectionContent(),
       _ => const SizedBox.shrink(),
     };
   }

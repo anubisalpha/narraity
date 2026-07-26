@@ -1,6 +1,6 @@
 # Builds a signed, installable MSIX package for Narraity.
 #
-# Bypasses the `msix` pub package's own bundled MakeAppx.exe/signtool.exe —
+# Bypasses the `msix` pub package's own bundled MakeAppx.exe/signtool.exe --
 # on this machine (and potentially other newer Windows/SDK installs) those
 # bundled binaries fail with "side-by-side configuration is incorrect", a
 # WinSxS mismatch between the frozen toolkit binaries the package ships and
@@ -9,12 +9,12 @@
 #
 # Prerequisites:
 #   - Windows SDK installed (provides makeappx.exe/signtool.exe)
-#   - windows/narraity_signing.pfx present (gitignored — see
+#   - windows/narraity_signing.pfx present (gitignored -- see
 #     README.md's "Installing on Windows" section for how it's generated)
 #   - oauth_config.json present at the repo root (see README.md's
 #     "Google Drive Sync setup" section)
 #
-# Usage: pwsh windows/build_msix.ps1
+# Usage (Windows PowerShell or PowerShell 7): powershell -File windows\build_msix.ps1
 
 $ErrorActionPreference = "Stop"
 
@@ -35,7 +35,7 @@ $makeappx = Join-Path $sdkVersionDir.FullName "x64\makeappx.exe"
 $signtool = Join-Path $sdkVersionDir.FullName "x64\signtool.exe"
 
 if (-not (Test-Path $pfxPath)) {
-    throw "Certificate not found at $pfxPath — see README.md's `"Installing on Windows`" section."
+    throw "Certificate not found at $pfxPath -- see README.md's Installing on Windows section."
 }
 
 Push-Location $repoRoot
