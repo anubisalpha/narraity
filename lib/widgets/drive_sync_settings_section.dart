@@ -74,6 +74,8 @@ class _ConnectionRowState extends ConsumerState<_ConnectionRow> {
 
   Future<void> _disconnect() => ref.read(driveConnectionProvider.notifier).disconnect();
 
+  void _cancel() => ref.read(driveConnectionProvider.notifier).cancelConnect();
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -97,9 +99,11 @@ class _ConnectionRowState extends ConsumerState<_ConnectionRow> {
                 DriveConnectionStatus.unknown => 'Checking connection...',
               }),
             ),
-            if (widget.status == DriveConnectionStatus.signingIn)
-              const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-            else if (widget.status == DriveConnectionStatus.signedIn)
+            if (widget.status == DriveConnectionStatus.signingIn) ...[
+              const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+              const SizedBox(width: 12),
+              TextButton(onPressed: _cancel, child: const Text('Cancel')),
+            ] else if (widget.status == DriveConnectionStatus.signedIn)
               OutlinedButton(onPressed: _disconnect, child: const Text('Disconnect'))
             else
               FilledButton(onPressed: _connect, child: const Text('Connect')),

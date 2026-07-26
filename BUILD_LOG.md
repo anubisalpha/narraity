@@ -1160,11 +1160,11 @@ highlighting, and settings all confirmed working. Session persistence across an 
 metadata header's exact visual polish are the only Phase 4 pieces still unconfirmed by eye.
 
 **Spell check (Hunspell, en-GB) is click-through verified; the WordNet thesaurus/dictionary and Drive
-sync are both built but not yet click-tested by the user.** Phase 4.5 is otherwise fully scoped per
-`PLAN.md` except the deferred multi-language/variant picker for spell check, hypernym/hyponym trees
-for the thesaurus, and additional downloadable dictionaries. Phase 5 (Drive sync) has its OAuth
-client ID configured but not yet its secret, and needs a real end-to-end pass once both are in place
-— see the Phase 5 section's "Not click-tested end to end against real Drive" note.
+sync are both built but not yet fully click-tested by the user.** Phase 4.5 is otherwise fully scoped
+per `PLAN.md` except the deferred multi-language/variant picker for spell check, hypernym/hyponym
+trees for the thesaurus, and additional downloadable dictionaries. Phase 5's OAuth client ID and
+secret are both configured now; a real end-to-end connect/sync pass against actual Drive is still
+outstanding.
 
 Still outstanding: scene-level `linkedReferences` (the fourth Reference Panel trigger from PLAN.md —
 mentions, pins, and auto-detect cover the other three), per-project vault passwords, export format
@@ -1172,3 +1172,31 @@ priority, Play Store readiness (privacy policy, data safety form, plus now the D
 scope's data-safety disclosure), the Plot Grid's dangling-point cleanup, the Relationship Diagram's
 dangling-edge cleanup on character delete, and Phase 5's on-foreground automatic sync trigger. See
 `CONSIDERATIONS.md` for the full list of open design questions.
+
+---
+
+## Phase 5 follow-up: cancellable sign-in
+
+**Real bug found by the user on first click-through, fixed same session.** Clicking "Connect" showed
+the signing-in spinner as expected, but if the browser flow never completed — closing the tab
+without finishing, the consent screen just sitting there, anything short of an actual success or
+thrown error — the spinner had **no way out**: `clientViaUserConsent`'s underlying future just never
+resolves in that case, and there was no cancel affordance at all.
+
+**Fix:** `DriveConnectionNotifier.connect()` now races the real sign-in attempt against a
+cancellable `Completer`, added a `cancelConnect()` method, and the Settings UI shows a **Cancel**
+button next to the spinner while `signingIn`. There's no way to truly abort
+`clientViaUserConsent`'s local server/browser flow once started (Google's own API gives no
+cancellation hook), so cancelling just stops the *UI* waiting on it — the abandoned attempt keeps
+running in the background and either eventually succeeds (harmless: the next "Connect" click will
+simply find it already signed in) or fails silently, with its result swallowed via
+`.then(_, onError: _)` so it doesn't surface as an unhandled-future error once nobody's listening.
+An identity check on the notifier's cancel-signal field guards against a stale finished attempt
+clobbering a *newer* connect() call's state, in case the user cancels then immediately reconnects.
+
+**2 new tests** (`drive_provider_test.dart`) using a `_HangingDriveAuthService` test double whose
+`ensureSignedIn` never resolves until manually triggered — verifies both that `cancelConnect` resolves
+a stuck `connect()` with no error message (a deliberate cancel isn't a failure), and that a genuine
+failure still surfaces its error text. **334 tests total**, `flutter analyze` clean, `flutter test`
+all green. `flutter build windows` not re-verified this specific fix yet — the user had the app open
+testing Drive sync when this was written; needs a rebuild once closed.
