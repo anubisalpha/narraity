@@ -10,6 +10,7 @@
 // This only needs to be re-run when picking up a newer OEWN release — the
 // resulting wordnet.sqlite is committed to the repo like the Hunspell
 // dictionaries, not rebuilt at app-build time.
+// ignore_for_file: avoid_print — a CLI build tool is supposed to print progress.
 import 'dart:convert';
 import 'dart:io';
 
