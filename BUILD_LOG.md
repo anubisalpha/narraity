@@ -1032,19 +1032,118 @@ limitation as every other phase.
 
 ---
 
+## Phase 5: Google Drive Sync
+
+**Built and committed 2026-07-26.** One correction to PLAN.md caught before writing any code:
+PLAN.md named `google_sign_in` for auth, but that package only supports Android/iOS/macOS/Web —
+**not Windows** (confirmed directly against its pub.dev page). Used `googleapis_auth`'s
+browser-plus-local-loopback OAuth flow (`clientViaUserConsent`) instead: it opens the system browser
+to Google's consent screen and catches the redirect on a `localhost` port it starts itself — works
+identically on Windows and Android, one code path for both v1 platforms instead of two. User
+decisions locked in before building: SQLite-equivalent three-way diff (not a naive timestamp
+comparison), and a **dedicated conflict-resolution screen**, explicitly *not* reusing Version
+History's diff/restore UI (they're different kinds of divergence — cross-device vs.
+same-device-over-time — even though both compare two text versions).
+
+**OAuth client setup:** one app-level "Desktop app" OAuth client registered in Google Cloud Console
+(Drive API enabled, `drive.file` scope, user's own account as a test user while unverified) — this
+identifies the *app* to Google, not any individual user; every end user still signs in with their
+own Google account and only ever grants the app access to files it creates itself. Client ID/secret
+supplied at build time via `--dart-define-from-file=oauth_config.json` (gitignored;
+`oauth_config.example.json` documents the shape) and read through
+`lib/config/drive_oauth_config.dart`'s `String.fromEnvironment` constants — never hardcoded, never
+committed. User's real Client ID is already in place this session; the secret field is still blank
+pending the user pasting it in.
+
+**Token storage:** `lib/services/drive_token_store.dart`. `flutter_secure_storage` was deliberately
+avoided — not just the Windows ATL-component build issue already hit once for the vault signing key
+(see Phase-2-era data-protection notes), but a structural problem specific to this package: adding
+it as a dependency at all pulls its Windows platform implementation into every `flutter build
+windows` regardless of whether Dart code on that platform ever calls it, so it would break the
+Windows build even used Android-only. Windows: real encryption via DPAPI
+(`CryptProtectData`/`CryptUnprotectData`, tied to the current Windows user account) — pure Win32 FFI
+against `crypt32.dll`, which ships with Windows, so no native library build at all. Android: a plain
+file under the app's private sandboxed storage (not additionally encrypted — logged in
+CONSIDERATIONS.md as a deferred Keystore-backed hardening step, not an open door, since Android
+already denies other apps access without root).
+
+**Sync design — three-way diff against a manifest**, same shape as any offline-first sync (Dropbox,
+git): `lib/models/sync_manifest.dart` (`.sync/manifest.json` per project, already scaffolded in
+`LibraryService.createProject` since Phase 0) records every file's local hash + Drive fileId/md5 as
+of the last successful sync. `lib/services/drive_sync_planner.dart` is **pure diff logic, no I/O at
+all** — compares current local hashes, current Drive listing, and the manifest to decide
+upload/download/delete-local/delete-remote/conflict per file, deliberately kept side-effect-free so
+the decision logic is unit-testable without a live Drive connection. Full case breakdown documented
+inline; the one nuance worth calling out here: **a deletion racing an edit is not treated as a
+conflict** — whichever side still has content wins automatically (no ambiguity, no reason to make
+the user choose), so the dedicated conflict screen only ever shows genuine "both sides edited it
+differently" divergence.
+
+**What's built:** `lib/services/sync_manifest_service.dart` (manifest read/write, plus hashing every
+local file with md5 — matching Drive's own `md5Checksum` field so hashes compare directly — excluding
+`.sync/` itself and Version History's `.history_backup/` mirror, which has no reason to double Drive
+storage for purely-local corruption insurance). `lib/services/drive_remote_store.dart` —
+`GoogleDriveRemoteStore` wraps `drive.DriveApi` behind a small `DriveRemoteStore` interface
+(list/upload/download/delete), so `DriveSyncService` never talks to the real API directly and is
+testable against `test/fake_drive_remote_store.dart`'s in-memory fake instead. One dedicated
+`Narraity/` Drive folder, one subfolder per project, nested Drive folders mirroring local
+subdirectories exactly (`manuscript/scenes/` becomes `manuscript` → `scenes` on Drive) since Drive
+itself has no path concept, only parent-folder links; folder ids cached per sync run.
+`lib/services/drive_sync_service.dart` (`DriveSyncService.sync`) applies a computed plan: uploads,
+downloads, propagates deletes both directions, and — critically — **writes nothing to the manifest
+for conflicting paths**, so they keep showing up as conflicts on every future sync until actually
+resolved rather than the sync silently picking a side. `saveConflictCopy`/`resolveKeepRemote`/
+`resolveKeepLocal` implement the three resolution actions the conflict screen offers.
+
+**UI:** `lib/screens/drive_conflict_screen.dart` — the dedicated screen, one card per conflict with
+"Keep this device" / "Keep Drive" / "Keep both" (the last one calls `saveConflictCopy` before pulling
+Drive's version, so nothing is silently discarded — PLAN.md's literal requirement). Settings →
+**Google Drive Sync** (`lib/widgets/drive_sync_settings_section.dart`): connect/disconnect, and once
+signed in, a per-project list with a manual "Sync now" button and last-synced timestamp — opens the
+conflict screen automatically if a sync run finds any. Deliberately no automatic background sync
+loop this session (PLAN.md's "manual Sync Now + on-foreground background sync" — only the manual
+half is wired; the on-foreground trigger is a small follow-up, not built yet).
+
+**28 new tests**: 13 for the pure diff planner (`drive_sync_planner_test.dart` — every case in the
+three-way diff, including the two "not actually a conflict" deletion-racing-an-edit cases), 6 for
+manifest read/write/hashing (`sync_manifest_service_test.dart`), 9 for the full orchestration against
+the fake Drive store (`drive_sync_service_test.dart` — upload, download, no-op resync, in-place
+update, delete propagation, a genuine conflict left untouched, and all three resolution actions).
+**332 tests total**, `flutter analyze` clean, `flutter test` all green, both `flutter build apk
+--debug` and `flutter build windows` verified successful (the Windows build needed the user to
+close a previous session's `narraity.exe`, which was still running and holding its own binary
+locked, before it would link).
+
+**Not click-tested end to end against real Drive** — the OAuth client secret wasn't supplied yet as
+this was written, and even once it is, an actual browser-consent round trip and real file
+push/pull/conflict needs the user to drive it manually (same "hand off for a manual pass" pattern as
+every GUI-dependent feature in this project, compounded here by needing live Google credentials
+which Claude Code cannot supply or exercise itself).
+
+**Deferred, logged in `CONSIDERATIONS.md`:** on-foreground automatic sync trigger (manual "Sync now"
+only for v1), Android Keystore-backed token encryption (currently plain-file-in-sandbox), a
+side-by-side content preview on the conflict screen (currently just filenames + actions, no diff
+view — Version History's diff viewer could potentially be reused for the *preview* rendering even
+though the resolution UI stays separate, worth a follow-up look), and multi-account/multi-Drive
+support (one signed-in account for the whole app, matching PLAN.md's scope).
+
+---
+
 ## Current status
 
-**Phases 0 through 4.5 are now fully complete** — spell check and the WordNet thesaurus/dictionary
-both built. Manuscript editor, dictation, goals, version history, data protection and its UI,
-characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the Timeline, the Relationship
-Diagram, Phase 4's annotations/AI review round-trip/Read Aloud, Hunspell-backed spell check, and now
-the WordNet-backed synonym/definition lookup. 310 automated tests passing, `flutter analyze` clean,
-`flutter build windows` succeeds. Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals,
-version history, manuscript generalization), `8416beb` (data protection services), `62d1baf` (docs),
-`8d414ac` (data-protection UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b`
-(reference-card id-guess fix), `7466997` (Phase 3), `d8481f5` (Phase 3.5),
-`8adcd8a`/`cdaab87`/`a9cc096`/`502f68d`/`1e7abc7` (Phase 4), `a43ee44` (Phase 4.5 spell check), plus
-this session's WordNet thesaurus commit (see above).
+**Phases 0 through 5 are now built.** Manuscript editor, dictation, goals, version history, data
+protection and its UI, characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the
+Timeline, the Relationship Diagram, Phase 4's annotations/AI review round-trip/Read Aloud,
+Hunspell-backed spell check, the WordNet-backed thesaurus/dictionary, and now Google Drive sync
+(OAuth, manifest-based three-way diff, push/pull/delete propagation, and a dedicated conflict
+screen). **332 automated tests passing, `flutter analyze` clean, both `flutter build apk --debug`
+and `flutter build windows` verified successful this session.**
+Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals, version history, manuscript
+generalization), `8416beb` (data protection services), `62d1baf` (docs), `8d414ac` (data-protection
+UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card id-guess fix), `7466997`
+(Phase 3), `d8481f5` (Phase 3.5), `8adcd8a`/`cdaab87`/`a9cc096`/`502f68d`/`1e7abc7` (Phase 4),
+`a43ee44` (Phase 4.5 spell check), `577f336` (Phase 4.5 WordNet thesaurus), plus this session's Drive
+sync commit (see above).
 
 **All three Phase 3/3.5 screens (Plot Grid, Relationship Diagram, Timeline) have now had a real
 GUI/gesture pass.** Two genuine bugs were found and fixed on the first two (Plot Grid's zero-height
@@ -1060,16 +1159,16 @@ comment, exported comments, re-imported — worked cleanly. Read Aloud — readi
 highlighting, and settings all confirmed working. Session persistence across an app restart and the
 metadata header's exact visual polish are the only Phase 4 pieces still unconfirmed by eye.
 
-**Spell check (Hunspell, en-GB) is built and click-through verified; the WordNet thesaurus/dictionary
-is built but not yet click-tested** — see the Phase 4.5 sections above. Phase 4.5 is otherwise fully
-scoped per `PLAN.md` except the deferred multi-language/variant picker for spell check, hypernym/
-hyponym trees for the thesaurus, and additional downloadable dictionaries — all logged in
-`CONSIDERATIONS.md`/inline above as open items, not required for v1.
+**Spell check (Hunspell, en-GB) is click-through verified; the WordNet thesaurus/dictionary and Drive
+sync are both built but not yet click-tested by the user.** Phase 4.5 is otherwise fully scoped per
+`PLAN.md` except the deferred multi-language/variant picker for spell check, hypernym/hyponym trees
+for the thesaurus, and additional downloadable dictionaries. Phase 5 (Drive sync) has its OAuth
+client ID configured but not yet its secret, and needs a real end-to-end pass once both are in place
+— see the Phase 5 section's "Not click-tested end to end against real Drive" note.
 
 Still outstanding: scene-level `linkedReferences` (the fourth Reference Panel trigger from PLAN.md —
 mentions, pins, and auto-detect cover the other three), per-project vault passwords, export format
-priority, Play Store readiness (privacy policy, data safety form), the Plot Grid's dangling-point
-cleanup, and the Relationship Diagram's dangling-edge cleanup on character delete and its "mini view
-in the Reference Panel." See `CONSIDERATIONS.md` for open design questions (annotations panel
-position, per-project vault passwords, email/sharing from the review screens, a Settings section to
-manage added spell-check words).
+priority, Play Store readiness (privacy policy, data safety form, plus now the Drive `drive.file`
+scope's data-safety disclosure), the Plot Grid's dangling-point cleanup, the Relationship Diagram's
+dangling-edge cleanup on character delete, and Phase 5's on-foreground automatic sync trigger. See
+`CONSIDERATIONS.md` for the full list of open design questions.

@@ -39,6 +39,10 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
+# Google Drive OAuth client credentials (per-user, never committed) —
+# see lib/config/drive_oauth_config.dart and README.md's Drive Sync section.
+oauth_config.json
+
 # Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile

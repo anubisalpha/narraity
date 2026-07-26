@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/dictation_model.dart';
 import '../state/dictation_provider.dart';
 import '../state/theme_provider.dart';
+import '../widgets/drive_sync_settings_section.dart';
 import '../widgets/editor_settings_form.dart';
 import '../widgets/read_aloud_settings_form.dart';
 import '../widgets/vault_settings_section.dart';
@@ -45,17 +46,13 @@ extension on _SettingsCategory {
   /// Categories for phases not built yet — shown in the nav so the
   /// structure is ready, with a "coming soon" placeholder as their content.
   bool get isComingSoon => switch (this) {
-        _SettingsCategory.spellCheck ||
-        _SettingsCategory.drive ||
-        _SettingsCategory.export =>
-          true,
+        _SettingsCategory.spellCheck || _SettingsCategory.export => true,
         _ => false,
       };
 
   /// Which phase will implement this — shown in the placeholder.
   String get comingInPhase => switch (this) {
         _SettingsCategory.spellCheck => 'Phase 4.5',
-        _SettingsCategory.drive => 'Phase 5',
         _SettingsCategory.export => 'Phase 6',
         _ => '',
       };
@@ -121,6 +118,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _SettingsCategory.dictation => const _DictationSection(),
       _SettingsCategory.readAloud => const _ReadAloudSection(),
       _SettingsCategory.backup => const _BackupSection(),
+      _SettingsCategory.drive => const _DriveSyncSection(),
       _ => const SizedBox.shrink(),
     };
   }
@@ -286,6 +284,25 @@ class _BackupSection extends StatelessWidget {
           subtitle: 'Encrypted backups and tamper-evident version history.',
         ),
         VaultSettingsSection(),
+      ],
+    );
+  }
+}
+
+class _DriveSyncSection extends StatelessWidget {
+  const _DriveSyncSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: const [
+        _SectionHeader(
+          title: 'Google Drive Sync',
+          subtitle: 'Every save is already local and immediate — sync is best-effort, '
+              'manual, and never overwrites diverging edits without asking.',
+        ),
+        DriveSyncSettingsSection(),
       ],
     );
   }

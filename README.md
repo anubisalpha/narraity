@@ -10,8 +10,8 @@ handful of features Dabble doesn't have (below).
 
 - **You own the files.** Every project is plain JSON + Markdown on your own disk — human-readable,
   diffable, recoverable without the app. No proprietary format, no vendor lock-in.
-- **No subscription.** One-time build, sync (when it lands) uses your own free Google Drive quota
-  instead of a paid backend.
+- **No subscription.** One-time build, sync uses your own free Google Drive quota instead of a
+  paid backend.
 - **Offline-first.** Writing, dictation, and history all work with no internet connection.
 
 ## Platforms
@@ -25,8 +25,9 @@ full breakdown and what changes per platform when that day comes.
 ### Project & library management
 - Local, file-based project library (`Documents/Narraity/`) — create, open, browse projects
 - Dark / light / system theme
-- Settings screen with a side-nav structure ready to grow (Appearance, Editor, Dictation now;
-  Spell Check, Google Drive Sync, Export slotted in as later phases land)
+- Settings screen with a side-nav structure ready to grow (Appearance, Editor, Dictation, Read
+  Aloud, Backup & Vault, Google Drive Sync now; Spell Check's language picker and Export slotted
+  in as later phases land)
 
 ### Global Ideas
 - Quick-capture space for ideas outside any single project, reachable from anywhere in the app
@@ -229,6 +230,24 @@ full breakdown and what changes per platform when that day comes.
   stored password — so a failure part-way through can't leave history it can no longer verify.
   Vault files made before the change still open with the old password
 
+### Google Drive Sync
+- Offline-first: every save is already local and immediate — sync is a manual, best-effort action,
+  never on the write path
+- Sign in with your own Google account (`drive.file` scope only — the app can only see files and
+  folders it creates itself, never your whole Drive)
+- One dedicated `Narraity/` folder on your Drive, mirroring your local project structure exactly
+- A three-way diff (local vs. Drive vs. the last-known-synced state) decides what to push, pull, or
+  leave alone per file — same approach any offline-first sync tool (Dropbox, git) uses
+- A deletion racing an edit resolves itself automatically, keeping whichever side still has content
+  — no reason to ask you to choose when there's only one sensible answer
+- Genuine conflicts (edited differently on this device *and* on Drive) go to a dedicated **Sync
+  Conflicts** screen: keep this device's version, keep Drive's, or keep both (your version is saved
+  aside, never silently discarded)
+- **Settings → Google Drive Sync**: connect/disconnect, and a per-project "Sync now" with a
+  last-synced timestamp
+- OAuth via the system browser (a "Desktop app" client type + local-loopback redirect) rather than
+  the `google_sign_in` package — that package doesn't support Windows
+
 ## Tech stack
 
 - **Flutter** + **Riverpod** for state
@@ -260,6 +279,29 @@ flutter run -d windows      # or -d <android-device-id>
 
 Windows builds need the vendored DLLs in `windows/vosk/` (already checked in) — no extra install
 step required, unlike the plugin this replaces.
+
+### Google Drive Sync setup
+
+Drive sync needs one OAuth client registered to the app (not per-user — see the feature section
+above). To set it up:
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → create/select a project → **APIs &
+   Services → Library** → enable the **Google Drive API**.
+2. **APIs & Services → OAuth consent screen** → User type **External** → add the `drive.file` scope
+   → add your own Google account(s) as test users (fine for personal use; full verification is only
+   needed to publish the app publicly).
+3. **APIs & Services → Credentials → Create Credentials → OAuth client ID** → type **Desktop app**.
+   Copy the **Client ID** and **Client Secret**.
+4. Copy `oauth_config.example.json` to `oauth_config.json` (gitignored) and fill in both values.
+5. Build/run with `--dart-define-from-file=oauth_config.json`, e.g.:
+
+   ```bash
+   flutter run -d windows --dart-define-from-file=oauth_config.json
+   flutter build windows --dart-define-from-file=oauth_config.json
+   ```
+
+Without this, Settings → Google Drive Sync shows a "not configured" message instead of failing
+confusingly deep inside an OAuth call.
 
 Run the test suite:
 
