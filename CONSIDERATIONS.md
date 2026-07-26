@@ -34,6 +34,11 @@ questions, not known implementation gaps.
 - **Multi-account / multi-Drive support.** One signed-in Google account for the whole app at a time,
   matching PLAN.md's v1 scope. Switching accounts means disconnect then reconnect.
 
+- **A Settings toggle to actually turn spell check off.** `spellCheckEnabledProvider` is now
+  correctly persisted (fixed alongside the App Settings sync work — it used to silently reset to
+  "on" every launch), but nothing in the UI sets it yet; there's no toggle anywhere to turn it off
+  in the first place. Small, standalone follow-up.
+
 - **Hypernym/hyponym (broader/narrower term) browsing in the thesaurus.** PLAN.md's original wording
   covered this; user scoped v1 down to synonyms + definitions only when the WordNet feature was
   built. `synsets.hypernym` data exists in the OEWN source but isn't loaded into `wordnet.sqlite` —

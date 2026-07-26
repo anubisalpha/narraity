@@ -243,10 +243,20 @@ full breakdown and what changes per platform when that day comes.
 - Genuine conflicts (edited differently on this device *and* on Drive) go to a dedicated **Sync
   Conflicts** screen: keep this device's version, keep Drive's, or keep both (your version is saved
   aside, never silently discarded)
-- **Settings → Google Drive Sync**: connect/disconnect, and a per-project "Sync now" with a
-  last-synced timestamp
+- **Settings → Google Drive Sync**: connect/disconnect, and a manual "Sync now" (with a
+  last-synced timestamp) for every project, **plus your Vault backups and your app settings** —
+  not just manuscripts
 - OAuth via the system browser (a "Desktop app" client type + local-loopback redirect) rather than
   the `google_sign_in` package — that package doesn't support Windows
+
+Two sync targets beyond your projects, always present once connected (no extra toggle needed):
+- **Vault backups** — without this, the encrypted Vault (disaster-recovery archives, see below)
+  never left the device at all, which quietly defeated its own purpose. Now it syncs the same way
+  a project does.
+- **App settings** — theme, dictation language/accuracy preference, spell check on/off, Read Aloud
+  voice/rate/pitch, editor font, and Vault retention settings all travel to a new device in one
+  consolidated file. (Reference Panel layout state and pins deliberately don't — they're
+  per-machine workspace state, not app options.)
 
 ## Tech stack
 

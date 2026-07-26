@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/spell_check_service.dart';
 
@@ -13,7 +14,31 @@ final spellCheckServiceProvider = FutureProvider<SpellCheckService>((ref) async 
   return service;
 });
 
+const spellCheckEnabledPrefKey = 'spellCheck.enabled';
+
 /// Whether spell check is switched on — a plain toggle, not per-project
 /// settings (matches the "on by default, one Settings flag" shape until
-/// there's a reason for anything fancier).
-final spellCheckEnabledProvider = StateProvider<bool>((ref) => true);
+/// there's a reason for anything fancier). Persisted — previously a plain
+/// `StateProvider` that reset to "on" every launch; needed real persistence
+/// anyway, and Phase 5's app-settings sync needs a real key to read/write.
+class SpellCheckEnabledNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    _restore();
+    return true;
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getBool(spellCheckEnabledPrefKey) ?? true;
+  }
+
+  Future<void> set(bool enabled) async {
+    state = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(spellCheckEnabledPrefKey, enabled);
+  }
+}
+
+final spellCheckEnabledProvider =
+    NotifierProvider<SpellCheckEnabledNotifier, bool>(SpellCheckEnabledNotifier.new);

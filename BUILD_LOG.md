@@ -1129,52 +1129,6 @@ support (one signed-in account for the whole app, matching PLAN.md's scope).
 
 ---
 
-## Current status
-
-**Phases 0 through 5 are now built.** Manuscript editor, dictation, goals, version history, data
-protection and its UI, characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the
-Timeline, the Relationship Diagram, Phase 4's annotations/AI review round-trip/Read Aloud,
-Hunspell-backed spell check, the WordNet-backed thesaurus/dictionary, and now Google Drive sync
-(OAuth, manifest-based three-way diff, push/pull/delete propagation, and a dedicated conflict
-screen). **332 automated tests passing, `flutter analyze` clean, both `flutter build apk --debug`
-and `flutter build windows` verified successful this session.**
-Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals, version history, manuscript
-generalization), `8416beb` (data protection services), `62d1baf` (docs), `8d414ac` (data-protection
-UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card id-guess fix), `7466997`
-(Phase 3), `d8481f5` (Phase 3.5), `8adcd8a`/`cdaab87`/`a9cc096`/`502f68d`/`1e7abc7` (Phase 4),
-`a43ee44` (Phase 4.5 spell check), `577f336` (Phase 4.5 WordNet thesaurus), plus this session's Drive
-sync commit (see above).
-
-**All three Phase 3/3.5 screens (Plot Grid, Relationship Diagram, Timeline) have now had a real
-GUI/gesture pass.** Two genuine bugs were found and fixed on the first two (Plot Grid's zero-height
-rows, Relationship Diagram's gesture-arena conflict) before Timeline was built — Timeline's canvas
-reused the already-fixed drag technique from the start, so it didn't need its own bug-finding pass in
-the same way, though it's only been exercised by the user for the reorder/stagger request above, not
-exhaustively.
-
-**Every Phase 4 sub-feature has now had a real click-through by the user, not just automated
-tests.** Editor-facing pieces (highlight rendering, the annotations panel) — two bugs found/fixed.
-The full author/reviewer round-trip — exported a scene, reviewed it in the standalone tool, added a
-comment, exported comments, re-imported — worked cleanly. Read Aloud — reading from the caret, live
-highlighting, and settings all confirmed working. Session persistence across an app restart and the
-metadata header's exact visual polish are the only Phase 4 pieces still unconfirmed by eye.
-
-**Spell check (Hunspell, en-GB) is click-through verified; the WordNet thesaurus/dictionary and Drive
-sync are both built but not yet fully click-tested by the user.** Phase 4.5 is otherwise fully scoped
-per `PLAN.md` except the deferred multi-language/variant picker for spell check, hypernym/hyponym
-trees for the thesaurus, and additional downloadable dictionaries. Phase 5's OAuth client ID and
-secret are both configured now; a real end-to-end connect/sync pass against actual Drive is still
-outstanding.
-
-Still outstanding: scene-level `linkedReferences` (the fourth Reference Panel trigger from PLAN.md —
-mentions, pins, and auto-detect cover the other three), per-project vault passwords, export format
-priority, Play Store readiness (privacy policy, data safety form, plus now the Drive `drive.file`
-scope's data-safety disclosure), the Plot Grid's dangling-point cleanup, the Relationship Diagram's
-dangling-edge cleanup on character delete, and Phase 5's on-foreground automatic sync trigger. See
-`CONSIDERATIONS.md` for the full list of open design questions.
-
----
-
 ## Phase 5 follow-up: cancellable sign-in
 
 **Real bug found by the user on first click-through, fixed same session.** Clicking "Connect" showed
@@ -1198,5 +1152,115 @@ clobbering a *newer* connect() call's state, in case the user cancels then immed
 `ensureSignedIn` never resolves until manually triggered — verifies both that `cancelConnect` resolves
 a stuck `connect()` with no error message (a deliberate cancel isn't a failure), and that a genuine
 failure still surfaces its error text. **334 tests total**, `flutter analyze` clean, `flutter test`
-all green. `flutter build windows` not re-verified this specific fix yet — the user had the app open
-testing Drive sync when this was written; needs a rebuild once closed.
+all green, `flutter build windows` verified after the user closed the previous session's running
+instance. **User confirmed real end-to-end Drive sync works**: signed in via the browser flow,
+`Sync now` created a real `Narraity/` folder structure in their actual Google Drive, first attempt
+hit a real, expected 403 (Drive API not yet propagated after just being enabled in Google Cloud
+Console — same "wait a few minutes" the API's own error message says), succeeded on retry.
+
+---
+
+## Phase 5 follow-up: Vault and App Settings now sync too
+
+**User-identified gap, same session:** Drive sync only ever covered project files — the Vault
+(disaster-recovery backups) and every device-preference setting (theme, dictation language,
+etc.) stayed local-only, which quietly defeats the Vault's whole "survives losing this device"
+purpose. Two design questions asked via AskUserQuestion up front: (1) should the Vault sync
+automatically once connected, or stay opt-in — **automatically, no extra toggle**; (2) should
+"app options" sync be all-or-nothing or content-only — **all of it, one consolidated file**.
+
+**Vault sync — reused the existing sync engine outright, no new sync logic needed.**
+`DriveSyncService.sync(Directory, String folderName)` was already generic (built that way from the
+start, not retrofitted) — syncing the Vault is just another call to it, `service.sync(vaultRootDir,
+'_Vault')`, exactly like a project. `LibraryService.listProjects` already skips `_`-prefixed folders,
+so `_Vault` was never at risk of appearing as a fake "project."
+
+**App Settings sync — new `lib/services/app_settings_service.dart`.** Consolidates every
+device-preference `SharedPreferences` key into one `_Settings/settings.json` (new reserved folder,
+same `_`-prefix-skipped-by-LibraryService pattern as `_Vault/`): `exportToFile()` snapshots current
+values before a sync runs, `importFromFile()` re-applies them after (in case Drive pulled a newer
+file from another device). **Deliberately scoped to genuine app-wide options** — theme, dictation
+language/model-size *preference* (not the downloaded model itself, still per-device), spell check
+on/off, Read Aloud voice/rate/pitch, editor font, vault retention count/auto-refresh — and
+**deliberately excludes Reference Panel visibility/width/pins**, which are already-documented
+machine workspace state (see Phase 2.5's notes on why pins live in `SharedPreferences` keyed by
+project id, kept out of the project folder on purpose) rather than "app options."
+
+**Real gap found while scoping this: the spell-check on/off toggle was never actually persisted at
+all** — `spellCheckEnabledProvider` was a plain `StateProvider<bool>((ref) => true)` with no
+`SharedPreferences` read/write anywhere, so it silently reset to "on" every launch regardless of
+what a user chose (moot until now, since nothing in the UI even sets it yet either — but it needed
+real persistence to be worth including in the settings sync at all). Converted to the same
+restore/`Notifier` pattern every other persisted setting in this codebase already uses.
+
+**UI:** Settings → Google Drive Sync gained two always-present rows above the project list —
+"Vault backups" and "App settings" — sharing the exact same manual "Sync now"/last-synced/conflict
+flow as projects. Generalized `_ProjectSyncTile` → `_SyncTargetTile` (title/icon/folder-name/
+directory-resolver instead of a hard-coded `Project`) since three different kinds of target now
+need identical sync/status/conflict-navigation behavior — same "worth sharing on the third
+consumer" threshold as `sceneColumnsProvider`'s and `ImmediateDragRecognizer`'s earlier moves to
+shared homes. `DriveConflictScreen` generalized the same way (`title`/`folderName`/`directory`
+instead of a `Project`), since conflicts can now come from any of the three targets.
+
+**9 new tests**: 6 for `AppSettingsService` (export scoping, round-trip, no-op on missing file,
+corrupt-file resilience, and an explicit assertion that Reference Panel state is never exported),
+3 for the spell-check persistence fix (default, persists, a fresh instance restores it — directly
+reproducing the "resets every launch" bug as a regression test). **343 tests total**, `flutter
+analyze` clean, `flutter test` all green. `flutter build windows` pending — the user had the app
+open again when this was written; needs a rebuild + a real click-through (connect already verified
+working, but Vault/Settings sync entries themselves are new and unverified by eye).
+
+**Deferred, logged in CONSIDERATIONS.md:** conflict handling for the settings file itself works
+identically to any other synced file (three-way diff, dedicated conflict screen if two devices
+changed different settings between syncs) — not specially handled, and not yet exercised with two
+real devices to confirm the merge story is as painless in practice as it is on paper.
+
+---
+
+## Current status
+
+**Phases 0 through 5 are now built, including Drive sync's follow-up closing the version-control/
+disaster-recovery gap.** Manuscript editor, dictation, goals, version history, data protection and
+its UI, characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the Timeline, the
+Relationship Diagram, Phase 4's annotations/AI review round-trip/Read Aloud, Hunspell-backed spell
+check, the WordNet-backed thesaurus/dictionary, and Google Drive sync — now covering projects, the
+Vault, and a consolidated app-settings file, all through the same manifest-based three-way-diff
+engine and dedicated conflict screen. **343 automated tests passing, `flutter analyze` clean.**
+`flutter build apk --debug` and `flutter build windows` both verified during the session; the Vault/
+App Settings addition itself is pending its own rebuild + click-through (the connect/sign-in/basic
+project-sync path is real-Drive-verified; the two new sync-target rows are not yet).
+
+Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals, version history, manuscript
+generalization), `8416beb` (data protection services), `62d1baf` (docs), `8d414ac` (data-protection
+UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card id-guess fix), `7466997`
+(Phase 3), `d8481f5` (Phase 3.5), `8adcd8a`/`cdaab87`/`a9cc096`/`502f68d`/`1e7abc7` (Phase 4),
+`a43ee44` (Phase 4.5 spell check), `577f336` (Phase 4.5 WordNet thesaurus), `8acefc1` (Phase 5 Drive
+sync), `5f46024` (cancellable sign-in fix), plus this session's Vault/App-Settings-sync commit (see
+above).
+
+**All three Phase 3/3.5 screens (Plot Grid, Relationship Diagram, Timeline) have now had a real
+GUI/gesture pass.** Two genuine bugs were found and fixed on the first two (Plot Grid's zero-height
+rows, Relationship Diagram's gesture-arena conflict) before Timeline was built — Timeline's canvas
+reused the already-fixed drag technique from the start, so it didn't need its own bug-finding pass in
+the same way, though it's only been exercised by the user for the reorder/stagger request above, not
+exhaustively.
+
+**Every Phase 4 sub-feature has now had a real click-through by the user, not just automated
+tests.** Editor-facing pieces (highlight rendering, the annotations panel) — two bugs found/fixed.
+The full author/reviewer round-trip — exported a scene, reviewed it in the standalone tool, added a
+comment, exported comments, re-imported — worked cleanly. Read Aloud — reading from the caret, live
+highlighting, and settings all confirmed working. Session persistence across an app restart and the
+metadata header's exact visual polish are the only Phase 4 pieces still unconfirmed by eye.
+
+**Spell check (Hunspell, en-GB) and Google Drive's core connect/sync/conflict flow are both
+click-through verified against real Drive; the WordNet thesaurus/dictionary and the newer Vault/App
+Settings sync targets are built but not yet click-tested.** Phase 4.5 is otherwise fully scoped per
+`PLAN.md` except the deferred multi-language/variant picker for spell check, hypernym/hyponym trees
+for the thesaurus, and additional downloadable dictionaries.
+
+Still outstanding: scene-level `linkedReferences` (the fourth Reference Panel trigger from PLAN.md —
+mentions, pins, and auto-detect cover the other three), per-project vault passwords, export format
+priority, Play Store readiness (privacy policy, data safety form, plus now the Drive `drive.file`
+scope's data-safety disclosure), the Plot Grid's dangling-point cleanup, the Relationship Diagram's
+dangling-edge cleanup on character delete, and Phase 5's on-foreground automatic sync trigger. See
+`CONSIDERATIONS.md` for the full list of open design questions.

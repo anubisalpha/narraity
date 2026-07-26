@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -6,15 +8,26 @@ import '../config/drive_oauth_config.dart';
 import '../models/project.dart';
 import '../screens/drive_conflict_screen.dart';
 import '../services/sync_manifest_service.dart';
+import '../state/dictation_provider.dart';
 import '../state/drive_provider.dart';
+import '../state/editor_settings_provider.dart';
 import '../state/library_provider.dart';
+import '../state/spell_check_provider.dart';
+import '../state/theme_provider.dart';
+import '../state/tts_settings_provider.dart';
+import '../state/vault_provider.dart';
 
 final _lastSyncFormat = DateFormat('d MMM yyyy, HH:mm');
 
 /// Settings body for "Google Drive Sync" — connect/disconnect, then a
-/// per-project "Sync now" list. Kept deliberately simple for v1: no
-/// automatic background sync loop, just the manual action plus an
-/// on-foreground check (wired from the shell, not this widget).
+/// manual "Sync now" per project, plus two always-present targets that
+/// close the "sync only restores manuscripts" gap: Vault backups (disaster
+/// recovery — otherwise never leaves the device at all) and App Settings
+/// (theme, dictation/spell-check/Read-Aloud preferences, so a new device
+/// picks up how the app was set up, not just what was written). Kept
+/// deliberately simple for v1: no automatic background sync loop, just the
+/// manual action plus an on-foreground check (wired from the shell, not
+/// this widget).
 class DriveSyncSettingsSection extends ConsumerWidget {
   const DriveSyncSettingsSection({super.key});
 
@@ -45,6 +58,44 @@ class DriveSyncSettingsSection extends ConsumerWidget {
           ),
         ),
         if (status == DriveConnectionStatus.signedIn) ...[
+          const SizedBox(height: 24),
+          Card(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _SyncTargetTile(
+                  title: 'Vault backups',
+                  icon: Icons.shield_outlined,
+                  folderName: '_Vault',
+                  resolveDirectory: (ref) => ref.read(vaultRootProvider.future),
+                ),
+                _SyncTargetTile(
+                  title: 'App settings',
+                  icon: Icons.settings_outlined,
+                  folderName: '_Settings',
+                  resolveDirectory: (ref) async {
+                    final settings = ref.read(appSettingsServiceProvider);
+                    await settings.exportToFile();
+                    return settings.settingsRoot();
+                  },
+                  onAfterSync: () async {
+                    await ref.read(appSettingsServiceProvider).importFromFile();
+                    // Reload every provider AppSettingsService knows how to
+                    // export/import, so a pulled change from another device
+                    // shows up immediately instead of needing a restart.
+                    ref.invalidate(themeModeProvider);
+                    ref.invalidate(dictationLanguageProvider);
+                    ref.invalidate(dictationModelSizeProvider);
+                    ref.invalidate(spellCheckEnabledProvider);
+                    ref.invalidate(ttsSettingsProvider);
+                    ref.invalidate(editorSettingsProvider);
+                    ref.invalidate(vaultRetentionCountProvider);
+                    ref.invalidate(vaultAutoRefreshProvider);
+                  },
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
           Text('Projects', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
@@ -138,7 +189,14 @@ class _ProjectSyncList extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  for (final project in projects) _ProjectSyncTile(project: project),
+                  for (final project in projects)
+                    _SyncTargetTile(
+                      title: project.title,
+                      icon: Icons.book_outlined,
+                      folderName: project.folderName,
+                      resolveDirectory: (ref) =>
+                          projectDirectory(ref.read(libraryServiceProvider), project),
+                    ),
                 ],
               ),
             ),
@@ -146,15 +204,34 @@ class _ProjectSyncList extends ConsumerWidget {
   }
 }
 
-class _ProjectSyncTile extends ConsumerStatefulWidget {
-  const _ProjectSyncTile({required this.project});
-  final Project project;
+/// One row: a manual "Sync now" for a single Drive sync target — a project,
+/// the Vault backups folder, or the consolidated app-settings file. Not
+/// tied to [Project] specifically so all three can share the same
+/// sync/status/conflict-navigation logic.
+class _SyncTargetTile extends ConsumerStatefulWidget {
+  const _SyncTargetTile({
+    required this.title,
+    required this.icon,
+    required this.folderName,
+    required this.resolveDirectory,
+    this.onAfterSync,
+  });
+
+  final String title;
+  final IconData icon;
+  final String folderName;
+  final Future<Directory> Function(WidgetRef ref) resolveDirectory;
+
+  /// Called after a successful sync (regardless of whether conflicts were
+  /// found) — used by the App Settings tile to re-apply a possibly-updated
+  /// settings file back into the live providers.
+  final Future<void> Function()? onAfterSync;
 
   @override
-  ConsumerState<_ProjectSyncTile> createState() => _ProjectSyncTileState();
+  ConsumerState<_SyncTargetTile> createState() => _SyncTargetTileState();
 }
 
-class _ProjectSyncTileState extends ConsumerState<_ProjectSyncTile> {
+class _SyncTargetTileState extends ConsumerState<_SyncTargetTile> {
   bool _syncing = false;
   String? _error;
   DateTime? _lastSyncTime;
@@ -166,7 +243,7 @@ class _ProjectSyncTileState extends ConsumerState<_ProjectSyncTile> {
   }
 
   Future<void> _loadLastSyncTime() async {
-    final dir = await projectDirectory(ref.read(libraryServiceProvider), widget.project);
+    final dir = await widget.resolveDirectory(ref);
     final manifest = await SyncManifestService().read(dir);
     if (mounted) setState(() => _lastSyncTime = manifest.lastSyncTime);
   }
@@ -178,8 +255,8 @@ class _ProjectSyncTileState extends ConsumerState<_ProjectSyncTile> {
     });
     try {
       final service = await ref.read(driveSyncServiceProvider.future);
-      final dir = await projectDirectory(ref.read(libraryServiceProvider), widget.project);
-      final result = await service.sync(dir, widget.project.folderName);
+      final dir = await widget.resolveDirectory(ref);
+      final result = await service.sync(dir, widget.folderName);
       if (!mounted) return;
       setState(() => _lastSyncTime = DateTime.now());
 
@@ -187,8 +264,9 @@ class _ProjectSyncTileState extends ConsumerState<_ProjectSyncTile> {
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => DriveConflictScreen(
-              project: widget.project,
-              projectDir: dir,
+              title: widget.title,
+              folderName: widget.folderName,
+              directory: dir,
               syncService: service,
               conflicts: result.conflicts,
             ),
@@ -198,12 +276,14 @@ class _ProjectSyncTileState extends ConsumerState<_ProjectSyncTile> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Synced "${widget.project.title}": '
+              'Synced "${widget.title}": '
               '${result.uploaded.length} uploaded, ${result.downloaded.length} downloaded.',
             ),
           ),
         );
       }
+
+      await widget.onAfterSync?.call();
     } catch (error) {
       if (mounted) setState(() => _error = 'Sync failed: $error');
     } finally {
@@ -214,8 +294,8 @@ class _ProjectSyncTileState extends ConsumerState<_ProjectSyncTile> {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: const Icon(Icons.book_outlined),
-      title: Text(widget.project.title),
+      leading: Icon(widget.icon),
+      title: Text(widget.title),
       subtitle: Text(
         _error ??
             (_lastSyncTime == null

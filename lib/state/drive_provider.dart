@@ -7,10 +7,12 @@ import 'package:path/path.dart' as p;
 
 import '../config/drive_oauth_config.dart';
 import '../models/project.dart';
+import '../services/app_settings_service.dart';
 import '../services/drive_auth_service.dart';
 import '../services/drive_remote_store.dart';
 import '../services/drive_sync_service.dart';
 import '../services/library_service.dart';
+import 'library_provider.dart';
 
 final driveAuthServiceProvider = Provider<DriveAuthService>((ref) {
   final secret = DriveOAuthConfig.clientSecret.isEmpty ? null : DriveOAuthConfig.clientSecret;
@@ -117,3 +119,7 @@ Future<Directory> projectDirectory(LibraryService library, Project project) asyn
   final root = await library.libraryRoot();
   return Directory(p.join(root.path, project.folderName));
 }
+
+final appSettingsServiceProvider = Provider<AppSettingsService>(
+  (ref) => AppSettingsService(libraryService: ref.watch(libraryServiceProvider)),
+);

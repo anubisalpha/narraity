@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
-import '../models/project.dart';
 import '../services/drive_sync_planner.dart';
 import '../services/drive_sync_service.dart';
 
@@ -14,17 +13,23 @@ import '../services/drive_sync_service.dart';
 /// conflicts and scene-snapshot history are different kinds of divergence
 /// (cross-device vs. same-device-over-time) even though both end up
 /// comparing two versions of the same text.
+///
+/// Not project-specific — [folderName]/[directory] identify whatever sync
+/// target this conflict came from (a project, the Vault backups, or the
+/// consolidated app settings file), so one screen serves all of them.
 class DriveConflictScreen extends StatefulWidget {
   const DriveConflictScreen({
     super.key,
-    required this.project,
-    required this.projectDir,
+    required this.title,
+    required this.folderName,
+    required this.directory,
     required this.syncService,
     required this.conflicts,
   });
 
-  final Project project;
-  final Directory projectDir;
+  final String title;
+  final String folderName;
+  final Directory directory;
   final DriveSyncService syncService;
   final List<SyncConflict> conflicts;
 
@@ -48,7 +53,7 @@ class _DriveConflictScreenState extends State<DriveConflictScreen> {
     });
     try {
       if (saveConflictCopyFirst) {
-        await widget.syncService.saveConflictCopy(widget.projectDir, conflict.path);
+        await widget.syncService.saveConflictCopy(widget.directory, conflict.path);
       }
       await action();
       if (!mounted) return;
@@ -65,7 +70,7 @@ class _DriveConflictScreenState extends State<DriveConflictScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.project.title} — Sync Conflicts')),
+      appBar: AppBar(title: Text('${widget.title} — Sync Conflicts')),
       body: _remaining.isEmpty
           ? const Center(child: Text('No conflicts left to resolve.'))
           : ListView(
@@ -83,24 +88,24 @@ class _DriveConflictScreenState extends State<DriveConflictScreen> {
                     onKeepLocal: () => _resolve(
                       conflict,
                       () => widget.syncService.resolveKeepLocal(
-                        widget.projectDir,
-                        widget.project.folderName,
+                        widget.directory,
+                        widget.folderName,
                         conflict.path,
                       ),
                     ),
                     onKeepDrive: () => _resolve(
                       conflict,
                       () => widget.syncService.resolveKeepRemote(
-                        widget.projectDir,
-                        widget.project.folderName,
+                        widget.directory,
+                        widget.folderName,
                         conflict.path,
                       ),
                     ),
                     onKeepBoth: () => _resolve(
                       conflict,
                       () => widget.syncService.resolveKeepRemote(
-                        widget.projectDir,
-                        widget.project.folderName,
+                        widget.directory,
+                        widget.folderName,
                         conflict.path,
                       ),
                       saveConflictCopyFirst: true,
