@@ -21,9 +21,18 @@ questions, not known implementation gaps.
   bolt-on. A lighter middle step worth considering first: a "Reveal in Explorer" action next to the
   existing save dialogs.
 
-- **Automatic on-foreground Drive sync.** PLAN.md's Google Drive Sync section calls for "manual Sync
-  now + on-foreground background sync"; only the manual half is built. Would need a trigger wired to
-  app-resume/project-open, probably debounced so it doesn't fire on every tab switch.
+- **A visible "syncing now" indicator outside the Settings screen.** Automatic sync (immediate
+  per-file, daily, frequent) runs silently in the background; the Sync Log (Settings → Google Drive
+  Sync → Sync Log) is the only place to confirm it actually happened. A persistent status icon
+  somewhere in the app shell (synced/syncing/error) was discussed but not built.
+
+- **The "more frequent sync" interval is a fixed preset list** (off/5/15/30/60 min), not a free-form
+  number field — deliberately, to keep the Settings UI a simple dropdown rather than validating
+  arbitrary input.
+
+- **No explicit coalescing between a periodic tick and an immediate per-file sync landing on the
+  same project at the same moment.** Harmless today (worst case: two sequential syncs, the second a
+  no-op), but not actively deduplicated if it turns out to matter in practice.
 
 - **Side-by-side content preview on the Sync Conflicts screen.** Currently shows filename + Keep
   Local/Keep Drive/Keep Both actions only, no diff view of what actually changed. Version History's

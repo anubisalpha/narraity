@@ -31,6 +31,16 @@ class FakeDriveRemoteStore implements DriveRemoteStore {
   }
 
   @override
+  Future<DriveRemoteFile?> findFile({
+    required String projectFolderName,
+    required String relativePath,
+  }) async {
+    final file = _projects[projectFolderName]?[relativePath];
+    if (file == null) return null;
+    return DriveRemoteFile(id: file.id, md5: file.md5);
+  }
+
+  @override
   Future<DriveRemoteFile> upload({
     required String projectFolderName,
     required String relativePath,

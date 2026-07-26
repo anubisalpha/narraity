@@ -9,6 +9,7 @@ import '../models/profile_entry.dart';
 import '../models/project.dart';
 import '../services/app_logger.dart';
 import '../services/manuscript_service.dart';
+import '../state/drive_auto_sync_provider.dart';
 import '../state/library_provider.dart';
 import '../state/manuscript_provider.dart';
 import '../state/reference_panel_provider.dart';
@@ -107,6 +108,10 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
   Widget build(BuildContext context) {
     final project = widget.project;
     _autoBackupEnabled = ref.watch(vaultAutoRefreshProvider);
+    // Active only while immediate-sync is enabled and Drive is connected
+    // (see projectFileWatcherProvider) — watched here so it starts/stops
+    // with this screen rather than needing its own always-mounted widget.
+    ref.watch(projectFileWatcherProvider);
     final focusMode = ref.watch(focusModeProvider);
     final reference = ref.watch(openReferenceProvider);
     final referenceVisible = ref.watch(referencePanelVisibleProvider);

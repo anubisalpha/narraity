@@ -131,4 +131,75 @@ void main() {
     final bytes = await remote.download(remoteFiles['todos/todos.json']!.id);
     expect(String.fromCharCodes(bytes), 'local-edit');
   });
+
+  group('syncSingleFile', () {
+    test('uploads just the one changed file', () async {
+      await writeLocal('manuscript/scenes/scene-1.json', 'hello');
+
+      final result = await service.syncSingleFile(
+        projectDir,
+        'MyNovel',
+        'manuscript/scenes/scene-1.json',
+      );
+
+      expect(result.uploaded, ['manuscript/scenes/scene-1.json']);
+      final remoteFiles = await remote.listFiles('MyNovel');
+      expect(remoteFiles.keys, contains('manuscript/scenes/scene-1.json'));
+    });
+
+    test('does not touch or remove unrelated manifest entries', () async {
+      // A full sync establishes two tracked files first.
+      await writeLocal('todos/todos.json', 'v1');
+      await writeLocal('goals/goals.json', 'g1');
+      await service.sync(projectDir, 'MyNovel');
+
+      // Now only one of them changes, synced individually.
+      await writeLocal('todos/todos.json', 'v2');
+      final result = await service.syncSingleFile(projectDir, 'MyNovel', 'todos/todos.json');
+
+      expect(result.uploaded, ['todos/todos.json']);
+      // The untouched file must still be on Drive, not treated as deleted —
+      // this is exactly the bug a naive "pass the whole manifest" approach
+      // would cause (every other tracked path would look deleted on both
+      // sides, since only one path's local hash/remote listing was fetched).
+      final remoteFiles = await remote.listFiles('MyNovel');
+      expect(remoteFiles.keys, containsAll(['todos/todos.json', 'goals/goals.json']));
+    });
+
+    test('a second syncSingleFile call for an unchanged file is a no-op', () async {
+      await writeLocal('todos/todos.json', 'v1');
+      await service.syncSingleFile(projectDir, 'MyNovel', 'todos/todos.json');
+
+      final result = await service.syncSingleFile(projectDir, 'MyNovel', 'todos/todos.json');
+
+      expect(result.uploaded, isEmpty);
+      expect(result.downloaded, isEmpty);
+    });
+
+    test('downloads a Drive-only file when synced individually', () async {
+      remote.seed('MyNovel', 'todos/todos.json', 'from drive'.codeUnits);
+
+      final result = await service.syncSingleFile(projectDir, 'MyNovel', 'todos/todos.json');
+
+      expect(result.downloaded, ['todos/todos.json']);
+      final file = File(p.join(projectDir.path, 'todos', 'todos.json'));
+      expect(await file.readAsString(), 'from drive');
+    });
+
+    test('a genuine conflict on the single file is reported, others untouched', () async {
+      await writeLocal('todos/todos.json', 'v1');
+      await writeLocal('goals/goals.json', 'g1');
+      await service.sync(projectDir, 'MyNovel');
+
+      await writeLocal('todos/todos.json', 'local-edit');
+      remote.seed('MyNovel', 'todos/todos.json', 'remote-edit'.codeUnits);
+
+      final result = await service.syncSingleFile(projectDir, 'MyNovel', 'todos/todos.json');
+
+      expect(result.conflicts, hasLength(1));
+      expect(result.conflicts.first.path, 'todos/todos.json');
+      final remoteFiles = await remote.listFiles('MyNovel');
+      expect(remoteFiles.keys, contains('goals/goals.json')); // unrelated file survives
+    });
+  });
 }

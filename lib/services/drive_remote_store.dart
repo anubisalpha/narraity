@@ -19,6 +19,16 @@ const _folderMimeType = 'application/vnd.google-apps.folder';
 abstract class DriveRemoteStore {
   Future<Map<String, DriveRemoteFile>> listFiles(String projectFolderName);
 
+  /// Looks up just one file's current Drive state with a single targeted
+  /// query, rather than [listFiles]'s full recursive folder walk — what an
+  /// immediate, single-file sync (triggered right after one file is saved)
+  /// needs to stay cheap regardless of how large the rest of the project
+  /// is. Returns null if the file doesn't exist on Drive yet.
+  Future<DriveRemoteFile?> findFile({
+    required String projectFolderName,
+    required String relativePath,
+  });
+
   Future<DriveRemoteFile> upload({
     required String projectFolderName,
     required String relativePath,
@@ -76,6 +86,61 @@ class GoogleDriveRemoteStore implements DriveRemoteStore {
     final id = created.id!;
     _folderIdCache[cacheKey] = id;
     return id;
+  }
+
+  @override
+  Future<DriveRemoteFile?> findFile({
+    required String projectFolderName,
+    required String relativePath,
+  }) async {
+    final projectId = await _projectFolderId(projectFolderName);
+    final slash = relativePath.lastIndexOf('/');
+    final dir = slash == -1 ? '' : relativePath.substring(0, slash);
+    final fileName = slash == -1 ? relativePath : relativePath.substring(slash + 1);
+
+    // Resolve the parent folder without creating it — an immediate sync for
+    // a brand-new file's first save shouldn't spuriously create empty
+    // intermediate folders on Drive; [upload] creates them for real when it
+    // actually has content to put there.
+    final parentId = await _resolveDirIdReadOnly(projectId, dir);
+    if (parentId == null) return null;
+
+    final escapedName = fileName.replaceAll("'", "\\'");
+    final result = await _api.files.list(
+      q: "name = '$escapedName' and '$parentId' in parents and trashed = false",
+      spaces: 'drive',
+      $fields: 'files(id, md5Checksum)',
+    );
+    final files = result.files;
+    if (files == null || files.isEmpty) return null;
+    return DriveRemoteFile(id: files.first.id!, md5: files.first.md5Checksum ?? '');
+  }
+
+  /// Same folder-chain walk as [_resolveDirId], but returns null instead of
+  /// creating anything the first time a segment doesn't exist yet.
+  Future<String?> _resolveDirIdReadOnly(String projectId, String relativeDir) async {
+    if (relativeDir.isEmpty) return projectId;
+    var currentId = projectId;
+    for (final segment in relativeDir.split('/')) {
+      final cacheKey = '$currentId/$segment';
+      final cached = _folderIdCache[cacheKey];
+      if (cached != null) {
+        currentId = cached;
+        continue;
+      }
+      final escapedName = segment.replaceAll("'", "\\'");
+      final result = await _api.files.list(
+        q: "name = '$escapedName' and mimeType = '$_folderMimeType' "
+            "and '$currentId' in parents and trashed = false",
+        spaces: 'drive',
+        $fields: 'files(id)',
+      );
+      final found = result.files;
+      if (found == null || found.isEmpty) return null;
+      currentId = found.first.id!;
+      _folderIdCache[cacheKey] = currentId;
+    }
+    return currentId;
   }
 
   @override

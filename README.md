@@ -231,8 +231,8 @@ full breakdown and what changes per platform when that day comes.
   Vault files made before the change still open with the old password
 
 ### Google Drive Sync
-- Offline-first: every save is already local and immediate — sync is a manual, best-effort action,
-  never on the write path
+- Offline-first: every save is already local and immediate — sync is best-effort, never on the
+  write path itself
 - Sign in with your own Google account (`drive.file` scope only — the app can only see files and
   folders it creates itself, never your whole Drive)
 - One dedicated `Narraity/` folder on your Drive, mirroring your local project structure exactly
@@ -254,9 +254,17 @@ Two sync targets beyond your projects, always present once connected (no extra t
   never left the device at all, which quietly defeated its own purpose. Now it syncs the same way
   a project does.
 - **App settings** — theme, dictation language/accuracy preference, spell check on/off, Read Aloud
-  voice/rate/pitch, editor font, and Vault retention settings all travel to a new device in one
-  consolidated file. (Reference Panel layout state and pins deliberately don't — they're
-  per-machine workspace state, not app options.)
+  voice/rate/pitch, editor font, Vault retention settings, and the auto-sync toggles below all
+  travel to a new device in one consolidated file. (Reference Panel layout state and pins
+  deliberately don't — they're per-machine workspace state, not app options.)
+
+**Automatic sync**, all off by default — turn on whichever combination fits:
+- **Sync immediately after saving** — watches the currently open project and syncs just the one
+  file that changed, moments after it saves, without a full project re-check
+- **Daily sync** — a guaranteed full sync + reconciliation check at least once a day
+- **More frequent sync** — an additional full sync on a shorter interval you choose (5/15/30/60 min)
+- **Sync Log** (Settings → Google Drive Sync → Sync Log) — every sync attempt, manual or automatic,
+  recorded with what it did or what went wrong, so "is this actually syncing?" has a real answer
 
 ## Tech stack
 

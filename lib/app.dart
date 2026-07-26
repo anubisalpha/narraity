@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'screens/library_screen.dart';
 import 'screens/project_shell_screen.dart';
+import 'state/drive_auto_sync_provider.dart';
 import 'state/library_provider.dart';
 import 'state/theme_provider.dart';
 import 'theme/app_theme.dart';
@@ -14,6 +15,10 @@ class NarraityApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
     final currentProject = ref.watch(currentProjectProvider);
+    // Keeps the daily/frequent auto-sync timers alive for the whole app
+    // session, regardless of which screen is open — not just while
+    // Settings happens to be mounted.
+    ref.watch(driveAutoSyncSchedulerProvider);
 
     return MaterialApp(
       title: 'Narraity',

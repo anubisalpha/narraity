@@ -16,7 +16,8 @@ import 'library_service.dart';
 /// follow them to a new device: theme, dictation language/model-size
 /// preference (not the downloaded model itself — that's a multi-hundred-MB
 /// binary, re-downloaded per device same as before), spell check on/off,
-/// Read Aloud voice/rate/pitch, and vault retention/auto-refresh settings.
+/// Read Aloud voice/rate/pitch, vault retention/auto-refresh settings, and
+/// the Drive auto-sync toggles themselves (immediate/daily/frequent).
 /// Deliberately excludes Reference Panel visibility/width/pins — those are
 /// already-documented machine workspace state (see
 /// `reference_panel_provider.dart`), not "app options," and pins are
@@ -43,6 +44,9 @@ class AppSettingsService {
     'editor.lineHeight',
     'vault.retentionCount',
     'vault.autoRefresh',
+    'driveSync.immediate',
+    'driveSync.dailyEnabled',
+    'driveSync.frequentIntervalMinutes',
   ];
 
   /// Reserved `_Settings/` folder at the library root — same "sits next to

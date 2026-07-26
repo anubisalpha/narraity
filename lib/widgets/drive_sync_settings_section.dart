@@ -7,8 +7,10 @@ import 'package:intl/intl.dart';
 import '../config/drive_oauth_config.dart';
 import '../models/project.dart';
 import '../screens/drive_conflict_screen.dart';
+import '../screens/drive_sync_log_screen.dart';
 import '../services/sync_manifest_service.dart';
 import '../state/dictation_provider.dart';
+import '../state/drive_auto_sync_provider.dart';
 import '../state/drive_provider.dart';
 import '../state/editor_settings_provider.dart';
 import '../state/library_provider.dart';
@@ -59,6 +61,22 @@ class DriveSyncSettingsSection extends ConsumerWidget {
         ),
         if (status == DriveConnectionStatus.signedIn) ...[
           const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: Text('Automatic Sync', style: Theme.of(context).textTheme.titleSmall),
+              ),
+              TextButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const DriveSyncLogScreen()),
+                ),
+                icon: const Icon(Icons.history, size: 18),
+                label: const Text('Sync Log'),
+              ),
+            ],
+          ),
+          const _AutoSyncSettingsCard(),
+          const SizedBox(height: 24),
           Card(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -83,6 +101,10 @@ class DriveSyncSettingsSection extends ConsumerWidget {
                     // Reload every provider AppSettingsService knows how to
                     // export/import, so a pulled change from another device
                     // shows up immediately instead of needing a restart.
+                    // Kept in sync by hand with reapplyAppSettingsAfterSync
+                    // in drive_auto_sync_provider.dart — see that
+                    // function's doc comment for why it isn't shared
+                    // directly (Ref vs. WidgetRef).
                     ref.invalidate(themeModeProvider);
                     ref.invalidate(dictationLanguageProvider);
                     ref.invalidate(dictationModelSizeProvider);
@@ -91,6 +113,9 @@ class DriveSyncSettingsSection extends ConsumerWidget {
                     ref.invalidate(editorSettingsProvider);
                     ref.invalidate(vaultRetentionCountProvider);
                     ref.invalidate(vaultAutoRefreshProvider);
+                    ref.invalidate(driveImmediateSyncEnabledProvider);
+                    ref.invalidate(driveDailySyncEnabledProvider);
+                    ref.invalidate(driveFrequentSyncIntervalProvider);
                   },
                 ),
               ],
@@ -102,6 +127,69 @@ class DriveSyncSettingsSection extends ConsumerWidget {
           const _ProjectSyncList(),
         ],
       ],
+    );
+  }
+}
+
+/// Toggles for the three auto-sync mechanisms — all off by default
+/// (deliberate, per the user's own preference: this is new automatic
+/// network activity that didn't exist before, so it's opt-in). Daily and
+/// "more frequent" are independent, not mutually exclusive — enabling both
+/// just means whichever fires more often effectively drives it, which is
+/// harmless.
+class _AutoSyncSettingsCard extends ConsumerWidget {
+  const _AutoSyncSettingsCard();
+
+  static const _frequentOptions = [0, 5, 15, 30, 60];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final immediate = ref.watch(driveImmediateSyncEnabledProvider);
+    final daily = ref.watch(driveDailySyncEnabledProvider);
+    final frequentMinutes = ref.watch(driveFrequentSyncIntervalProvider);
+
+    return Card(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SwitchListTile(
+            title: const Text('Sync immediately after saving'),
+            subtitle: const Text(
+              'Watches the open project and syncs just the changed file, right after it saves.',
+            ),
+            value: immediate,
+            onChanged: (value) =>
+                ref.read(driveImmediateSyncEnabledProvider.notifier).set(value),
+          ),
+          const Divider(height: 1),
+          SwitchListTile(
+            title: const Text('Daily sync'),
+            subtitle: const Text('A full sync + reconciliation check at least once a day.'),
+            value: daily,
+            onChanged: (value) => ref.read(driveDailySyncEnabledProvider.notifier).set(value),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            title: const Text('More frequent sync'),
+            subtitle: const Text('An additional full sync on a shorter interval.'),
+            trailing: DropdownButton<int>(
+              value: frequentMinutes,
+              items: [
+                for (final minutes in _frequentOptions)
+                  DropdownMenuItem(
+                    value: minutes,
+                    child: Text(minutes == 0 ? 'Off' : 'Every $minutes min'),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  ref.read(driveFrequentSyncIntervalProvider.notifier).set(value);
+                }
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1217,26 +1217,101 @@ real devices to confirm the merge story is as painless in practice as it is on p
 
 ---
 
+## Phase 5 follow-up: automatic sync (immediate per-file, daily, and frequent)
+
+**User asked for three things after confirming manual sync worked end to end:** an immediate sync
+right after a file saves (just that one file, not a full project re-diff), a periodic full sync +
+reconciliation check, and a log so "is this actually syncing?" has a concrete answer. Two
+AskUserQuestion rounds up front: change detection via a **filesystem watcher** (not hooking every
+save path individually — one watch catches scenes, characters, todos, goals, plot grid, timeline,
+relationships, annotations, all of it, with no per-service wiring); immediate sync **off by
+default** (new automatic network activity); periodic sync as **two independent, user-configurable
+timers** — a "daily" checkbox plus a "more frequent" dropdown (off/5/15/30/60 min), not a single
+fixed interval.
+
+**Single-file targeted sync — new capability, not a hack around the full sync.**
+`DriveRemoteStore.findFile()` does one targeted Drive query for a single file (resolving only that
+file's own folder chain, not creating anything that doesn't already exist) instead of
+`listFiles()`'s full recursive walk — the whole point of "immediately after saving" is staying cheap
+regardless of project size. `DriveSyncService.syncSingleFile()` reuses the exact same
+`DriveSyncPlanner` the full sync uses, but scoped to a manifest containing *only* that one path
+before diffing — passing the whole manifest here would make every other tracked file look
+deleted-on-both-sides, since only one path's local/remote state was actually fetched. Refactored the
+shared "apply a plan to disk + Drive" logic out of `sync()` into `_applyPlan()` so both paths share
+it instead of duplicating upload/download/delete handling.
+
+**`lib/services/project_file_watcher.dart`** wraps `Directory.watch(recursive: true)`, debounced
+per relative path (2s default), with the same `.sync`/`.history_backup` exclusions as
+`SyncManifestService.hashLocalFiles`. Its injectable event type (`ProjectFileChangeEvent`) is a
+small custom class, not `dart:io`'s own `FileSystemEvent` — that class is `sealed` with no public
+constructor, so tests couldn't build synthetic events against the real type at all; wrapping it was
+the only way to get deterministic, timing-independent debounce tests.
+
+**`lib/state/drive_auto_sync_provider.dart`** ties it together: three persisted toggles
+(immediate/daily/frequent-minutes, all following the same restore/`Notifier` pattern as every other
+setting in this codebase), a `DriveAutoSyncScheduler` owning two independent `Timer.periodic`s
+(rescheduled via `ref.listen` whenever the settings or connection status change), and
+`projectFileWatcherProvider` — a `FutureProvider.autoDispose` that only constructs a watcher while a
+project is open, immediate sync is on, and Drive is connected, relying on Riverpod's normal
+watch-triggers-rebuild-disposes-old-instance semantics to start/stop cleanly as any of those three
+conditions change. The scheduler is kept alive for the whole app session via `ref.watch` in
+`NarraityApp`'s root build method (timers need to run regardless of which screen is open); the
+watcher is mounted from `ProjectShellScreen` instead, since it's only meaningful while a project
+is actually open.
+
+**`lib/services/drive_sync_log_service.dart` + `lib/models/sync_log_entry.dart`**: a local, capped
+(200 entries) activity log — every manual, immediate, or periodic sync attempt appends one entry
+(target, trigger kind, action counts, conflicts, or an error). Deliberately stored under the app
+support directory (same as `DriveTokenStore`), **not** under `Documents/Narraity/` — putting it
+there would mean the App Settings sync target picks up and starts syncing the log itself, which is
+per-device diagnostic information with no business being on Drive. New **Sync Log** screen
+(read-only list, newest first, clear action) reachable from Settings → Google Drive Sync.
+
+**The three auto-sync toggles are themselves included in the App Settings sync** — restoring "how
+you set the app up" on a new device now includes whether you'd turned on immediate/daily/frequent
+sync there too, consistent with the whole point of that feature.
+
+**UI:** Settings → Google Drive Sync gained an "Automatic Sync" card (three controls) and a "Sync
+Log" link, both above the existing project/Vault/Settings sync-target list.
+
+**19 new tests**: 5 for `syncSingleFile` (including the key regression — a single-file sync must
+never disturb unrelated manifest entries), 7 for `ProjectFileWatcher`'s debounce/filter logic, 6 for
+`DriveSyncLogService` (round-trip, capping, corrupt-file resilience), 6 for the three persisted
+toggles, plus 1 more for `AppSettingsService` covering the new sync-related keys. **368 tests
+total**, `flutter analyze` clean, all green, `flutter build windows` verified successful. **Not yet
+click-tested** — the watcher/scheduler/log are new this session; the underlying sync engine they
+call is already real-Drive-verified, but the automatic triggering itself hasn't been observed live.
+
+**Deferred, logged in CONSIDERATIONS.md:** no visible "syncing now" indicator outside the Settings
+screen itself (the Sync Log is the only visibility so far — a persistent status icon in the app
+shell was discussed as a possible follow-up but not built this session); the frequent-sync interval
+list is a fixed preset (5/15/30/60 min), not free-form; no coalescing if a periodic tick and an
+immediate per-file sync land on the same project at the same moment (harmless — worst case is two
+sequential syncs where the second is a no-op — but not explicitly deduplicated).
+
+---
+
 ## Current status
 
-**Phases 0 through 5 are now built, including Drive sync's follow-up closing the version-control/
-disaster-recovery gap.** Manuscript editor, dictation, goals, version history, data protection and
-its UI, characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the Timeline, the
-Relationship Diagram, Phase 4's annotations/AI review round-trip/Read Aloud, Hunspell-backed spell
-check, the WordNet-backed thesaurus/dictionary, and Google Drive sync — now covering projects, the
-Vault, and a consolidated app-settings file, all through the same manifest-based three-way-diff
-engine and dedicated conflict screen. **343 automated tests passing, `flutter analyze` clean.**
-`flutter build apk --debug` and `flutter build windows` both verified during the session; the Vault/
-App Settings addition itself is pending its own rebuild + click-through (the connect/sign-in/basic
-project-sync path is real-Drive-verified; the two new sync-target rows are not yet).
+**Phases 0 through 5 are now built, including Drive sync's two follow-ups: closing the
+version-control/disaster-recovery gap (Vault + App Settings sync) and adding automatic sync
+(immediate per-file, daily, and a configurable frequent interval, plus a local activity log).**
+Manuscript editor, dictation, goals, version history, data protection and its UI,
+characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the Timeline, the Relationship
+Diagram, Phase 4's annotations/AI review round-trip/Read Aloud, Hunspell-backed spell check, the
+WordNet-backed thesaurus/dictionary, and Google Drive sync — covering projects, the Vault, and a
+consolidated app-settings file, synced manually, immediately per-file, or on a timer, all through the
+same manifest-based three-way-diff engine and dedicated conflict screen. **368 automated tests
+passing, `flutter analyze` clean, `flutter build windows` and `flutter build apk --debug` both
+verified during the session.**
 
 Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals, version history, manuscript
 generalization), `8416beb` (data protection services), `62d1baf` (docs), `8d414ac` (data-protection
 UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card id-guess fix), `7466997`
 (Phase 3), `d8481f5` (Phase 3.5), `8adcd8a`/`cdaab87`/`a9cc096`/`502f68d`/`1e7abc7` (Phase 4),
 `a43ee44` (Phase 4.5 spell check), `577f336` (Phase 4.5 WordNet thesaurus), `8acefc1` (Phase 5 Drive
-sync), `5f46024` (cancellable sign-in fix), plus this session's Vault/App-Settings-sync commit (see
-above).
+sync), `5f46024` (cancellable sign-in fix), `f819596` (Vault/App-Settings sync), plus this session's
+automatic-sync commit (see above).
 
 **All three Phase 3/3.5 screens (Plot Grid, Relationship Diagram, Timeline) have now had a real
 GUI/gesture pass.** Two genuine bugs were found and fixed on the first two (Plot Grid's zero-height
@@ -1253,14 +1328,15 @@ highlighting, and settings all confirmed working. Session persistence across an 
 metadata header's exact visual polish are the only Phase 4 pieces still unconfirmed by eye.
 
 **Spell check (Hunspell, en-GB) and Google Drive's core connect/sync/conflict flow are both
-click-through verified against real Drive; the WordNet thesaurus/dictionary and the newer Vault/App
-Settings sync targets are built but not yet click-tested.** Phase 4.5 is otherwise fully scoped per
-`PLAN.md` except the deferred multi-language/variant picker for spell check, hypernym/hyponym trees
-for the thesaurus, and additional downloadable dictionaries.
+click-through verified against real Drive; the WordNet thesaurus/dictionary, the Vault/App Settings
+sync targets, and the newer automatic-sync machinery (watcher/scheduler/log) are built but not yet
+click-tested.** Phase 4.5 is otherwise fully scoped per `PLAN.md` except the deferred
+multi-language/variant picker for spell check, hypernym/hyponym trees for the thesaurus, and
+additional downloadable dictionaries.
 
 Still outstanding: scene-level `linkedReferences` (the fourth Reference Panel trigger from PLAN.md —
 mentions, pins, and auto-detect cover the other three), per-project vault passwords, export format
 priority, Play Store readiness (privacy policy, data safety form, plus now the Drive `drive.file`
-scope's data-safety disclosure), the Plot Grid's dangling-point cleanup, the Relationship Diagram's
-dangling-edge cleanup on character delete, and Phase 5's on-foreground automatic sync trigger. See
-`CONSIDERATIONS.md` for the full list of open design questions.
+scope's data-safety disclosure), the Plot Grid's dangling-point cleanup, and the Relationship
+Diagram's dangling-edge cleanup on character delete. See `CONSIDERATIONS.md` for the full list of
+open design questions.

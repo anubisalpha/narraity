@@ -62,6 +62,22 @@ void main() {
     expect(reloaded.getInt('vault.retentionCount'), 15);
   });
 
+  test('exports and restores the Drive auto-sync toggles themselves', () async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('driveSync.immediate', true);
+    await prefs.setBool('driveSync.dailyEnabled', true);
+    await prefs.setInt('driveSync.frequentIntervalMinutes', 30);
+    await service.exportToFile();
+
+    SharedPreferences.setMockInitialValues({});
+    await service.importFromFile();
+
+    final reloaded = await SharedPreferences.getInstance();
+    expect(reloaded.getBool('driveSync.immediate'), isTrue);
+    expect(reloaded.getBool('driveSync.dailyEnabled'), isTrue);
+    expect(reloaded.getInt('driveSync.frequentIntervalMinutes'), 30);
+  });
+
   test('importFromFile is a no-op when no settings file exists yet', () async {
     await service.importFromFile(); // should not throw
   });

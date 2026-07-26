@@ -59,7 +59,106 @@ class DriveSyncService {
       manifest: manifest,
     );
 
-    final updatedFiles = Map<String, SyncFileEntry>.from(manifest.files);
+    final updatedFiles = await _applyPlan(
+      projectDir: projectDir,
+      projectFolderName: projectFolderName,
+      plan: plan,
+      remoteFiles: remoteFiles,
+      baseFiles: manifest.files,
+    );
+
+    await _manifests.write(
+      projectDir,
+      manifest.copyWith(files: updatedFiles, lastSyncTime: DateTime.now()),
+    );
+
+    return SyncResult(
+      uploaded: plan.uploads,
+      downloaded: plan.downloads,
+      deletedLocal: plan.deleteLocal,
+      deletedRemote: plan.deleteRemote,
+      conflicts: plan.conflicts,
+    );
+  }
+
+  /// Syncs just one file — the whole point of an "immediately after saving"
+  /// trigger: a project with thousands of files shouldn't need a full
+  /// listing/hashing pass every time a single scene autosaves. Diffs
+  /// [relativePath] alone against a manifest scoped down to that one entry
+  /// (so the shared [DriveSyncPlanner] logic sees only this path, not every
+  /// other tracked file — feeding it the *whole* manifest here would make
+  /// every other file look deleted-on-both-sides), then merges whatever
+  /// changed back into the real manifest.
+  Future<SyncResult> syncSingleFile(
+    Directory projectDir,
+    String projectFolderName,
+    String relativePath,
+  ) async {
+    final manifest = await _manifests.read(projectDir);
+
+    final file = File(p.joinAll([projectDir.path, ...p.posix.split(relativePath)]));
+    final localHashes = <String, String>{};
+    if (await file.exists()) {
+      localHashes[relativePath] = md5.convert(await file.readAsBytes()).toString();
+    }
+
+    final remote = await _remote.findFile(
+      projectFolderName: projectFolderName,
+      relativePath: relativePath,
+    );
+    final remoteFiles = <String, DriveRemoteFile>{if (remote != null) relativePath: remote};
+
+    final existingEntry = manifest.files[relativePath];
+    final scopedFiles = <String, SyncFileEntry>{if (existingEntry != null) relativePath: existingEntry};
+    final scopedManifest = SyncManifest(files: scopedFiles);
+
+    final plan = DriveSyncPlanner.plan(
+      localHashes: localHashes,
+      remoteFiles: remoteFiles,
+      manifest: scopedManifest,
+    );
+
+    final updatedScoped = await _applyPlan(
+      projectDir: projectDir,
+      projectFolderName: projectFolderName,
+      plan: plan,
+      remoteFiles: remoteFiles,
+      baseFiles: scopedFiles,
+    );
+
+    final mergedFiles = Map<String, SyncFileEntry>.from(manifest.files);
+    final updatedEntry = updatedScoped[relativePath];
+    if (updatedEntry != null) {
+      mergedFiles[relativePath] = updatedEntry;
+    } else {
+      mergedFiles.remove(relativePath);
+    }
+
+    await _manifests.write(
+      projectDir,
+      manifest.copyWith(files: mergedFiles, lastSyncTime: DateTime.now()),
+    );
+
+    return SyncResult(
+      uploaded: plan.uploads,
+      downloaded: plan.downloads,
+      deletedLocal: plan.deleteLocal,
+      deletedRemote: plan.deleteRemote,
+      conflicts: plan.conflicts,
+    );
+  }
+
+  /// Applies a computed [plan] to disk and Drive, returning the updated
+  /// manifest-entry map (starting from [baseFiles]). Shared by [sync] (a
+  /// full-project plan) and [syncSingleFile] (a plan scoped to one path).
+  Future<Map<String, SyncFileEntry>> _applyPlan({
+    required Directory projectDir,
+    required String projectFolderName,
+    required SyncPlan plan,
+    required Map<String, DriveRemoteFile> remoteFiles,
+    required Map<String, SyncFileEntry> baseFiles,
+  }) async {
+    final updatedFiles = Map<String, SyncFileEntry>.from(baseFiles);
 
     for (final path in plan.uploads) {
       final file = File(p.joinAll([projectDir.path, ...p.posix.split(path)]));
@@ -92,7 +191,7 @@ class DriveSyncService {
     }
 
     for (final path in plan.deleteRemote) {
-      final entry = manifest.files[path];
+      final entry = baseFiles[path];
       if (entry != null) await _remote.delete(entry.driveFileId);
       updatedFiles.remove(path);
     }
@@ -108,25 +207,13 @@ class DriveSyncService {
     }
 
     // Conflicts are left entirely untouched on both sides — the dedicated
-    // conflict screen (ConflictResolutionService) is what writes a
-    // resolution, at which point that path becomes an ordinary
-    // upload/download on the *next* sync. Recording nothing in the manifest
-    // for these paths is deliberate: it keeps them showing up as
-    // conflicts every run until actually resolved, rather than this sync
-    // silently picking a side.
+    // conflict screen is what writes a resolution, at which point that path
+    // becomes an ordinary upload/download on the *next* sync. Recording
+    // nothing in the manifest for these paths is deliberate: it keeps them
+    // showing up as conflicts every run until actually resolved, rather
+    // than this sync silently picking a side.
 
-    await _manifests.write(
-      projectDir,
-      manifest.copyWith(files: updatedFiles, lastSyncTime: DateTime.now()),
-    );
-
-    return SyncResult(
-      uploaded: plan.uploads,
-      downloaded: plan.downloads,
-      deletedLocal: plan.deleteLocal,
-      deletedRemote: plan.deleteRemote,
-      conflicts: plan.conflicts,
-    );
+    return updatedFiles;
   }
 
   /// Saves the local copy of a conflicting file aside as
