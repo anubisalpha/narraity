@@ -47,6 +47,14 @@ oauth_config.json
 windows/*.pfx
 *.msix
 
+# Vendored native libraries (Hunspell, Vosk) ARE meant to be committed —
+# see BUILD_LOG.md's Phase 4.5/1.3 sections for why they're vendored rather
+# than fetched at build time. Un-ignore them here since a machine-wide
+# `*.dll` rule in this developer's global gitignore would otherwise silently
+# exclude every DLL in the repo, including these legitimately-vendored ones.
+!windows/hunspell/*.dll
+!windows/vosk/*.dll
+
 # Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile
