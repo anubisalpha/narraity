@@ -1,10 +1,25 @@
 # Narraity
 
+[![CI](https://github.com/anubisalpha/narraity/actions/workflows/ci.yml/badge.svg)](https://github.com/anubisalpha/narraity/actions/workflows/ci.yml)
+
 A local-first novel writing app built with Flutter, for writers who want to own their manuscript
 files, skip the subscription, and get more real writing tools than a blank page.
 
 Built as an alternative to Dabble: same core workflow, no cloud lock-in, no monthly fee, and a
 handful of features Dabble doesn't have (below).
+
+## Download
+
+Windows installer builds (`.msix`) are published on the [Releases page](../../releases). See
+["Installing on Windows"](#installing-on-windows) below for the one-time certificate-trust step a
+self-signed package needs.
+
+No Android build is published yet.
+
+## License
+
+All rights reserved. This repository is public so the code and its history are visible, but no
+license is granted to use, copy, modify, or redistribute it.
 
 ## Why this exists
 
@@ -288,6 +303,21 @@ an unmaintained single-contributor package with that baked in, the real `libvosk
 hand-written FFI binding (`lib/services/vosk_ffi.dart`) covering the handful of functions actually
 needed. Full writeup in that file's doc comment.
 
+## Installing on Windows
+
+The `.msix` on the [Releases page](../../releases) is signed with a **self-signed development
+certificate**, not one from a trusted certificate authority (getting one of those is a paid,
+verified purchase — not something scripted here). Windows will refuse to install it until you trust
+that certificate once:
+
+1. Download both `narraity.msix` and `narraity_public.cer` from the same release.
+2. Double-click `narraity_public.cer` → **Install Certificate** → **Local Machine** (needs admin) →
+   **Place all certificates in the following store** → **Trusted People** → Finish.
+3. Double-click `narraity.msix` to install the app.
+
+This is a one-time step per machine. If a CA-issued certificate replaces the self-signed one later,
+this step won't be needed.
+
 ## Getting started (development)
 
 ```bash
@@ -321,12 +351,25 @@ above). To set it up:
 Without this, Settings → Google Drive Sync shows a "not configured" message instead of failing
 confusingly deep inside an OAuth call.
 
+### Building the signed MSIX installer
+
+```powershell
+pwsh windows/build_msix.ps1
+```
+
+Bypasses the `msix` pub package's own bundled MakeAppx.exe/signtool.exe — on some machines
+(including this project's dev environment) those fail with a WinSxS "side-by-side configuration is
+incorrect" error, a version mismatch against a newer Windows SDK. The script uses the installed
+Windows SDK's own matched copies of those tools instead. Needs `windows/narraity_signing.pfx`
+present (a self-signed certificate, gitignored — generate your own with `New-SelfSignedCertificate`,
+subject `CN=Anubis Productions` to match the existing `identity_name`/`publisher` in `pubspec.yaml`,
+or update those to match a certificate of your own).
+
 Run the test suite:
 
 ```bash
 flutter test
 ```
 
-See `BUILD_LOG.md` for a phase-by-phase record of what's been built, and
-`../../projects/Narraity/PLAN.md` for the full project plan (all phases, including ones not built
-yet).
+See [`BUILD_LOG.md`](BUILD_LOG.md) for a phase-by-phase record of what's been built, and
+[`PLAN.md`](PLAN.md) for the full project plan (all phases, including ones not built yet).
