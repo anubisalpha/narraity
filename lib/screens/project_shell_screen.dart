@@ -26,6 +26,7 @@ import '../widgets/reference_panel.dart';
 import '../widgets/scene_editor.dart';
 import '../widgets/todo_panel.dart';
 import '../widgets/vault_unlock_dialog.dart';
+import 'export_screen.dart';
 import 'goals_screen.dart';
 import 'plot_grid_screen.dart';
 import 'relationship_screen.dart';
@@ -177,6 +178,15 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => ReviewExportScreen(project: project),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Export',
+                  icon: const Icon(Icons.ios_share),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ExportScreen(project: project),
                     ),
                   ),
                 ),

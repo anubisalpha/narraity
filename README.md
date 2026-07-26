@@ -281,6 +281,16 @@ Two sync targets beyond your projects, always present once connected (no extra t
 - **Sync Log** (Settings → Google Drive Sync → Sync Log) — every sync attempt, manual or automatic,
   recorded with what it did or what went wrong, so "is this actually syncing?" has a real answer
 
+### Export
+- **PDF** — full formatting, headings, page layout
+- **Word document (.docx)** — full formatting, editable in Word
+- **EPUB** — reflowable e-book with a table of contents, readable on Kindle/e-readers
+- **Plain text (.txt)** — an explicit stripped-down option; the app warns that formatting and images
+  are dropped before it exports one
+- Reachable from the project toolbar's Export icon — pick a format, choose where to save, done
+- KDP-specific print formatting (trim size, margins, bleed, a separate wraparound cover) isn't built
+  yet — this is general-purpose export, not the print-ready path
+
 ## Tech stack
 
 - **Flutter** + **Riverpod** for state
@@ -290,7 +300,9 @@ Two sync targets beyond your projects, always present once connected (no extra t
   and the password-protected Vault — no native platform dependency, works identically on every OS
 - **`record`** (cross-platform mic capture) + a hand-written FFI binding for Windows dictation
 - **`speech_to_text`** for Android dictation
-- **`file_picker`** for choosing character/worldbuilding images
+- **`file_picker`** for choosing character/worldbuilding images and export save locations
+- **`pdf`** for PDF export; DOCX and EPUB are hand-rolled directly via **`archive`** (no mature
+  pure-Dart writer exists for either format)
 - No servers, no accounts, no telemetry — everything above runs entirely on-device
 
 ## Installing on Windows

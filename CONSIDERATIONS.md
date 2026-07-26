@@ -67,3 +67,23 @@ questions, not known implementation gaps.
   restart today, so there's nothing yet for a Settings screen to actually list. Needs its own small
   persisted store (e.g. a `custom-words.txt` per language, replayed through `Hunspell_add` on load)
   before the management UI has anything real to manage.
+
+- **KDP-ready print/ebook export (Phase 6.3).** General export (PDF/DOCX/EPUB/plain text) is built;
+  the print-specific path — trim size presets, automatic margin/gutter calculation scaled to page
+  count, running headers, single- vs double-sided, and a separately-exported wraparound print cover
+  with auto-calculated spine width — is a distinct enough sub-feature to need its own dedicated UI
+  and design pass, not built alongside general export.
+
+- **Image embedding in exports.** None of the four export formats (PDF/DOCX/EPUB/plain text) embed
+  cover or in-book images yet, even though Character/World profiles already support images. PLAN.md's
+  PDF/DOCX spec calls for "full fidelity: images, formatting, fonts, page layout" — this is a real
+  gap against that, not a deliberate simplification.
+
+- **A real embedded Unicode font for PDF export.** The `pdf` package's default base font
+  (Helvetica/WinAnsi) has no full Unicode support — fine for English prose and standard typographic
+  punctuation, but non-Latin scripts would render incorrectly. Embedding a real font file (e.g. via
+  `google_fonts` or a bundled TTF) would close this.
+
+- **`export-profile.json` reusable per-project export presets.** PLAN.md sketches a data model for
+  saved export configurations (e.g. a named "kdp-print-6x9" preset); nothing reads or writes this
+  file yet — every export today is a one-off "pick a format, pick a location" run.

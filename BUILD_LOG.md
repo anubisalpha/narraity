@@ -1291,58 +1291,6 @@ sequential syncs where the second is a no-op — but not explicitly deduplicated
 
 ---
 
-## Current status
-
-**Phases 0 through 5 are now built, including Drive sync's two follow-ups: closing the
-version-control/disaster-recovery gap (Vault + App Settings sync) and adding automatic sync
-(immediate per-file, daily, and a configurable frequent interval, plus a local activity log).**
-Manuscript editor, dictation, goals, version history, data protection and its UI,
-characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the Timeline, the Relationship
-Diagram, Phase 4's annotations/AI review round-trip/Read Aloud, Hunspell-backed spell check, the
-WordNet-backed thesaurus/dictionary, and Google Drive sync — covering projects, the Vault, and a
-consolidated app-settings file, synced manually, immediately per-file, or on a timer, all through the
-same manifest-based three-way-diff engine and dedicated conflict screen. **368 automated tests
-passing, `flutter analyze` clean, `flutter build windows` and `flutter build apk --debug` both
-verified during the session.**
-
-Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals, version history, manuscript
-generalization), `8416beb` (data protection services), `62d1baf` (docs), `8d414ac` (data-protection
-UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card id-guess fix), `7466997`
-(Phase 3), `d8481f5` (Phase 3.5), `8adcd8a`/`cdaab87`/`a9cc096`/`502f68d`/`1e7abc7` (Phase 4),
-`a43ee44` (Phase 4.5 spell check), `577f336` (Phase 4.5 WordNet thesaurus), `8acefc1` (Phase 5 Drive
-sync), `5f46024` (cancellable sign-in fix), `f819596` (Vault/App-Settings sync), plus this session's
-automatic-sync commit (see above).
-
-**All three Phase 3/3.5 screens (Plot Grid, Relationship Diagram, Timeline) have now had a real
-GUI/gesture pass.** Two genuine bugs were found and fixed on the first two (Plot Grid's zero-height
-rows, Relationship Diagram's gesture-arena conflict) before Timeline was built — Timeline's canvas
-reused the already-fixed drag technique from the start, so it didn't need its own bug-finding pass in
-the same way, though it's only been exercised by the user for the reorder/stagger request above, not
-exhaustively.
-
-**Every Phase 4 sub-feature has now had a real click-through by the user, not just automated
-tests.** Editor-facing pieces (highlight rendering, the annotations panel) — two bugs found/fixed.
-The full author/reviewer round-trip — exported a scene, reviewed it in the standalone tool, added a
-comment, exported comments, re-imported — worked cleanly. Read Aloud — reading from the caret, live
-highlighting, and settings all confirmed working. Session persistence across an app restart and the
-metadata header's exact visual polish are the only Phase 4 pieces still unconfirmed by eye.
-
-**Spell check (Hunspell, en-GB) and Google Drive's core connect/sync/conflict flow are both
-click-through verified against real Drive; the WordNet thesaurus/dictionary, the Vault/App Settings
-sync targets, and the newer automatic-sync machinery (watcher/scheduler/log) are built but not yet
-click-tested.** Phase 4.5 is otherwise fully scoped per `PLAN.md` except the deferred
-multi-language/variant picker for spell check, hypernym/hyponym trees for the thesaurus, and
-additional downloadable dictionaries.
-
-Still outstanding: scene-level `linkedReferences` (the fourth Reference Panel trigger from PLAN.md —
-mentions, pins, and auto-detect cover the other three), per-project vault passwords, export format
-priority, Play Store readiness (privacy policy, data safety form, plus now the Drive `drive.file`
-scope's data-safety disclosure), the Plot Grid's dangling-point cleanup, and the Relationship
-Diagram's dangling-edge cleanup on character delete. See `CONSIDERATIONS.md` for the full list of
-open design questions.
-
----
-
 ## Publishing: GitHub repo, signed MSIX, CI, v1.0.0 release
 
 **Repo:** public, [github.com/anubisalpha/narraity](https://github.com/anubisalpha/narraity), all
@@ -1397,3 +1345,132 @@ outside the actual git repo — a dead link for anyone who'd cloned the public r
 **Published as [v1.0.0](https://github.com/anubisalpha/narraity/releases/tag/v1.0.0)** — signed
 `narraity.msix` + `narraity_public.cer` attached, release notes covering the install steps and a
 feature summary.
+
+---
+
+## Phase 6: General export (PDF, DOCX, EPUB, plain text)
+
+**Built and committed 2026-07-26.** PLAN.md's general-export scope (PDF, DOCX, plain text) plus
+EPUB (originally scoped under Phase 6.3's KDP ebook path) — all four picked to build in one pass,
+per user's own priority call. The KDP-specific print path (trim size presets, margin/gutter
+calculation, running headers, wraparound cover with spine calc) is deliberately **not** part of this
+pass — that needs its own dedicated UI and is a distinct enough sub-feature to scope separately
+later.
+
+**Shared plumbing, built first so every format reuses it rather than re-deriving its own copy:**
+- `lib/services/export/manuscript_outline_builder.dart` — flattens the manuscript tree (front
+  matter, arbitrarily nested nodes, back matter) into reading order with each section's nesting
+  depth, pure and synchronous (content is read separately, lazily, per format).
+- `lib/services/export/markdown_lite.dart` — parses the scene editor's markdown-subset formatting
+  (`**bold**`, `*italic*`, `~~strikethrough~~`, `## heading`, `> quote`, `***` scene break) into a
+  block/run structure (`MdBlock`/`MdRun`). Deliberately preserves a writer's own literal line
+  breaks within a paragraph rather than collapsing them into one run-on line or one block per line —
+  the scene editor is a plain multi-line text field, not a rich-paragraph editor, so a writer's own
+  formatting choice (dialogue lines, verse) is real signal, not incidental whitespace.
+
+**Plain text** (`txt_exporter.dart`) strips every marker down to bare prose — PLAN.md's explicit
+"stripped-down option," with the export UI showing an explicit warning dialog (images/formatting
+are dropped) before proceeding, exactly as specified.
+
+**DOCX and EPUB are both hand-rolled directly** (`docx_exporter.dart`, `epub_exporter.dart`) via the
+`archive` package already used elsewhere in this project — no mature pure-Dart writer exists for
+either format on pub.dev, the same situation Hunspell/Vosk were in. Both are just ZIP archives of
+XML/XHTML parts:
+- **DOCX** uses direct paragraph/run formatting (bold, size, indentation) rather than named styles,
+  so it needs no `word/styles.xml` at all — fewer moving parts to get wrong without a copy of Word
+  on hand to verify against directly. Verified with a real XML parser (`XmlDocument.parse`) against
+  a manuscript exercising every block type, confirming both well-formedness and that escaping
+  round-trips correctly (`Tom & Jerry < 5 > 0` survives `&amp;`/`&lt;`/`&gt;` and back).
+  A newly-added `xml` package dev dependency (already present transitively) makes this direct
+  well-formedness check possible.
+- **EPUB** builds an EPUB3 package: an uncompressed `mimetype` entry (must be the *first* zip
+  entry, stored not deflated, per the EPUB spec — the `archive` package's per-file
+  `CompressionType.none` made this straightforward), a nav document doubling as the in-app
+  Automatic TOC's export counterpart, and one XHTML file per manuscript section. Verified the same
+  way as DOCX (real XML parser over every part) plus a check that `mimetype` really is first and
+  really is uncompressed.
+
+**PDF** (`pdf_exporter.dart`) is the one format with a genuinely mature pure-Dart library to lean
+on — the `pdf` package. `MultiPage`'s `maxPages` raised from its default of 20 to accommodate a full
+novel's page count. Verified via magic-header/EOF-trailer checks (no PDF-parsing library was
+available to inspect content directly) plus a manuscript exercising every block type without
+throwing. One informational limitation surfaced during testing: the default Helvetica/WinAnsi base
+font has no full Unicode support (a `pdf` package warning, not an error) — fine for English
+prose/punctuation, but non-Latin scripts would need a real embedded font, not built this session.
+
+**UI:** `lib/screens/export_screen.dart`, reachable from a new "Export" toolbar icon in the project
+shell (same icon-button pattern as Goals/Plot Grid/Timeline/Relationships/Review). A `RadioGroup`-
+based format picker (PDF/DOCX/EPUB/plain text, each with a one-line description), a native
+"Save As" dialog via `file_picker`, and the plain-text confirmation warning. Real gotcha hit while
+building this: `RadioListTile`'s `groupValue`/`onChanged` are deprecated as of Flutter 3.32 in favor
+of a `RadioGroup` ancestor widget — an info-level deprecation that would have failed CI the same way
+the WordNet build tool's `avoid_print` infos did earlier this project (flutter analyze's exit code
+doesn't distinguish severity), so it was migrated properly rather than suppressed.
+
+**37 new tests** across the outline builder, markdown parser, and all four exporters — including
+structural verification (zip contents, XML well-formedness, PDF magic bytes) rather than just
+"didn't throw," since none of DOCX/PDF/EPUB can be opened by their real target applications on this
+machine to eye-check by hand. **406 tests total**, `flutter analyze` clean, all green, `flutter
+build windows` verified successful. **Not yet click-tested with real reader software** — exported
+files haven't been opened in actual Word/a PDF viewer/an e-reader yet to confirm they render as
+expected, only that they're structurally valid per the tests above.
+
+**Deferred, not built this session:** the KDP print/ebook path (Phase 6.3 — trim size presets,
+margin/gutter calculation, running headers, wraparound cover with spine calc), embedding cover/
+in-book images in any export format (none of the four touch images at all yet — a real gap, since
+Character/World profiles support images), embedding a real Unicode font for the PDF path, and an
+`export-profile.json` for reusable per-project export presets (PLAN.md's data model sketch for this
+exists but nothing reads/writes it yet).
+
+---
+
+## Current status
+
+**Phases 0 through 5 are fully built (including both Drive sync follow-ups — Vault/App Settings
+sync, and automatic immediate/daily/frequent sync with an activity log), the app is published**
+(github.com/anubisalpha/narraity, v1.0.0, signed MSIX), **and Phase 6's general export (PDF, DOCX,
+EPUB, plain text) is now built too.** Manuscript editor, dictation, goals, version history, data
+protection and its UI, characters/worldbuilding/notes, the Reference Panel, the Plot Grid, the
+Timeline, the Relationship Diagram, Phase 4's annotations/AI review round-trip/Read Aloud,
+Hunspell-backed spell check, the WordNet-backed thesaurus/dictionary, Google Drive sync (projects +
+Vault + Settings, manual/immediate/scheduled), and now four export formats. **406 automated tests
+passing, `flutter analyze` clean, `flutter build windows` and `flutter build apk --debug` both
+verified during the session.**
+
+Commits: `3097c4b` (Phases 0/0.5/1), `bd27566` (dictation, goals, version history, manuscript
+generalization), `8416beb` (data protection services), `62d1baf` (docs), `8d414ac` (data-protection
+UI), `0dbb050` (Phase 2), `da76ed4` (Phase 2.5), `3f1e79b` (reference-card id-guess fix), `7466997`
+(Phase 3), `d8481f5` (Phase 3.5), `8adcd8a`/`cdaab87`/`a9cc096`/`502f68d`/`1e7abc7` (Phase 4),
+`a43ee44` (Phase 4.5 spell check), `577f336` (Phase 4.5 WordNet thesaurus), `8acefc1` (Phase 5 Drive
+sync), `5f46024` (cancellable sign-in fix), `f819596` (Vault/App-Settings sync), `8357eba`
+(automatic sync), publishing commits through `7b7f22b`, plus this session's TXT/DOCX/PDF/EPUB export
+commits (see above).
+
+**All three Phase 3/3.5 screens (Plot Grid, Relationship Diagram, Timeline) have now had a real
+GUI/gesture pass.** Two genuine bugs were found and fixed on the first two (Plot Grid's zero-height
+rows, Relationship Diagram's gesture-arena conflict) before Timeline was built — Timeline's canvas
+reused the already-fixed drag technique from the start, so it didn't need its own bug-finding pass in
+the same way, though it's only been exercised by the user for the reorder/stagger request above, not
+exhaustively.
+
+**Every Phase 4 sub-feature has now had a real click-through by the user, not just automated
+tests.** Editor-facing pieces (highlight rendering, the annotations panel) — two bugs found/fixed.
+The full author/reviewer round-trip — exported a scene, reviewed it in the standalone tool, added a
+comment, exported comments, re-imported — worked cleanly. Read Aloud — reading from the caret, live
+highlighting, and settings all confirmed working. Session persistence across an app restart and the
+metadata header's exact visual polish are the only Phase 4 pieces still unconfirmed by eye.
+
+**Spell check (Hunspell, en-GB) and Google Drive's core connect/sync/conflict flow are both
+click-through verified against real Drive; the WordNet thesaurus/dictionary, the Vault/App Settings
+sync targets, the automatic-sync machinery, and the new export formats are all built but not yet
+click-tested** (export in particular hasn't been opened in real Word/PDF-viewer/e-reader software
+yet, only verified structurally). Phase 4.5 is otherwise fully scoped per `PLAN.md` except the
+deferred multi-language/variant picker for spell check, hypernym/hyponym trees for the thesaurus,
+and additional downloadable dictionaries.
+
+Still outstanding: scene-level `linkedReferences` (the fourth Reference Panel trigger from PLAN.md —
+mentions, pins, and auto-detect cover the other three), per-project vault passwords, the KDP
+print/ebook export path (Phase 6.3), image embedding in any export format, Play Store readiness
+(privacy policy, data safety form, plus now the Drive `drive.file` scope's data-safety disclosure),
+the Plot Grid's dangling-point cleanup, and the Relationship Diagram's dangling-edge cleanup on
+character delete. See `CONSIDERATIONS.md` for the full list of open design questions.
