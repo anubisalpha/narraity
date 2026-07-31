@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:narraity/services/library_service.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
   late Directory tempDir;
@@ -55,5 +56,76 @@ void main() {
 
     final reloaded = await service.listProjects();
     expect(reloaded.single.title, 'Final Title');
+  });
+
+  test('createProject accepts a seriesId, and it round-trips through project.json', () async {
+    final project = await service.createProject(title: 'Book One', seriesId: 'series-1');
+
+    expect(project.seriesId, 'series-1');
+    final reloaded = await service.listProjects();
+    expect(reloaded.single.seriesId, 'series-1');
+  });
+
+  test('Project.copyWith(clearSeriesId: true) removes it, and that persists', () async {
+    final project = await service.createProject(title: 'Book One', seriesId: 'series-1');
+    await service.saveProject(project.copyWith(clearSeriesId: true));
+
+    final reloaded = await service.listProjects();
+    expect(reloaded.single.seriesId, isNull);
+  });
+
+  test('setCoverImage copies the file into assets/covers/ and persists coverImagePath',
+      () async {
+    final project = await service.createProject(title: 'Cover Test');
+    final sourceImage = File('${tempDir.path}/source.jpg')..writeAsBytesSync([1, 2, 3, 4]);
+
+    final updated = await service.setCoverImage(project, sourceImage);
+
+    expect(updated.coverImagePath, p.join('assets', 'covers', 'cover.jpg'));
+    final absolute = await service.coverImageAbsolutePath(updated);
+    expect(await File(absolute!).exists(), isTrue);
+    expect(await File(absolute).readAsBytes(), [1, 2, 3, 4]);
+
+    final reloaded = await service.listProjects();
+    expect(reloaded.single.coverImagePath, p.join('assets', 'covers', 'cover.jpg'));
+  });
+
+  test('setCoverImage replacing an existing cover with a different extension removes the old file',
+      () async {
+    final project = await service.createProject(title: 'Cover Test');
+    final firstImage = File('${tempDir.path}/first.jpg')..writeAsBytesSync([1]);
+    final secondImage = File('${tempDir.path}/second.png')..writeAsBytesSync([2]);
+
+    final afterFirst = await service.setCoverImage(project, firstImage);
+    final afterSecond = await service.setCoverImage(afterFirst, secondImage);
+
+    expect(afterSecond.coverImagePath, p.join('assets', 'covers', 'cover.png'));
+    final coversDir = Directory('${tempDir.path}/${project.folderName}/assets/covers');
+    final remaining = await coversDir.list().map((e) => e.path.split(Platform.pathSeparator).last).toList();
+    expect(remaining, ['cover.png']);
+  });
+
+  test('removeCoverImage deletes the file and clears coverImagePath', () async {
+    final project = await service.createProject(title: 'Cover Test');
+    final sourceImage = File('${tempDir.path}/source.jpg')..writeAsBytesSync([1]);
+    final withCover = await service.setCoverImage(project, sourceImage);
+    final absolute = (await service.coverImageAbsolutePath(withCover))!;
+
+    final updated = await service.removeCoverImage(withCover);
+
+    expect(updated.coverImagePath, isNull);
+    expect(await File(absolute).exists(), isFalse);
+    final reloaded = await service.listProjects();
+    expect(reloaded.single.coverImagePath, isNull);
+  });
+
+  test('sortOrder round-trips through project.json, including 0 (a valid position, not "unset")',
+      () async {
+    final project = await service.createProject(title: 'Ordered');
+    expect(project.sortOrder, isNull);
+
+    await service.saveProject(project.copyWith(sortOrder: 0));
+    final reloaded = await service.listProjects();
+    expect(reloaded.single.sortOrder, 0);
   });
 }

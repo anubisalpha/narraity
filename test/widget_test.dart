@@ -41,6 +41,7 @@ void main() {
     // runs inside a FakeAsync zone, and real filesystem I/O never resolves
     // under fake time — runAsync steps outside it for this one await.
     await tester.runAsync(() => container.read(projectListProvider.future));
+    await tester.runAsync(() => container.read(seriesListProvider.future));
 
     await tester.pumpWidget(
       UncontrolledProviderScope(container: container, child: const NarraityApp()),
@@ -60,6 +61,7 @@ void main() {
     );
     addTearDown(container.dispose);
     await tester.runAsync(() => container.read(projectListProvider.future));
+    await tester.runAsync(() => container.read(seriesListProvider.future));
 
     await tester.pumpWidget(
       UncontrolledProviderScope(container: container, child: const NarraityApp()),
@@ -92,6 +94,7 @@ void main() {
     );
     addTearDown(container.dispose);
     await tester.runAsync(() => container.read(projectListProvider.future));
+    await tester.runAsync(() => container.read(seriesListProvider.future));
 
     await tester.pumpWidget(
       UncontrolledProviderScope(container: container, child: const NarraityApp()),
@@ -118,6 +121,7 @@ void main() {
     );
     addTearDown(container.dispose);
     await tester.runAsync(() => container.read(projectListProvider.future));
+    await tester.runAsync(() => container.read(seriesListProvider.future));
     await tester.runAsync(() => container.read(vaultStatusProvider.future));
 
     await tester.pumpWidget(
