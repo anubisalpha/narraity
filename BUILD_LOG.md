@@ -1470,10 +1470,12 @@ and additional downloadable dictionaries.
 
 Still outstanding: scene-level `linkedReferences` (the fourth Reference Panel trigger from PLAN.md —
 mentions, pins, and auto-detect cover the other three), per-project vault passwords, the KDP
-print/ebook export path (Phase 6.3), image embedding in any export format, Play Store readiness
-(privacy policy, data safety form, plus now the Drive `drive.file` scope's data-safety disclosure),
-the Plot Grid's dangling-point cleanup, and the Relationship Diagram's dangling-edge cleanup on
-character delete. See `CONSIDERATIONS.md` for the full list of open design questions.
+print/ebook export path (Phase 6.3), image embedding in any export format, and Play Store readiness
+(privacy policy, data safety form, plus now the Drive `drive.file` scope's data-safety disclosure).
+The Plot Grid's dangling-point cleanup and the Relationship Diagram's dangling-edge cleanup on
+character delete, both listed as outstanding above, were fixed in a later session — see this file's
+"Bug fixes" section further down. See `CONSIDERATIONS.md` for the full list of open design
+questions.
 
 ---
 
@@ -1639,3 +1641,36 @@ notoriously fiddly to simulate reliably in `flutter_test`, so this was verified 
 `flutter run -d windows`.
 
 **465 tests total**, `flutter analyze` clean.
+
+## Bug fixes: dangling data on delete, missing settings toggles, dictionary persistence
+
+Four items that had been sitting in `BUILD_LOG.md`/`CONSIDERATIONS.md` as known gaps:
+
+- **Plot Grid dangling points.** `ManuscriptService.deleteSceneFile` already cascaded to drop
+  annotations anchored to a deleted scene; it now also drops any `PlotPoint` whose `sceneId`
+  matches, via `PlotGridService`. Previously an orphaned point sat in `plotpoints.json` forever,
+  referencing a scene id nothing could resolve — invisible in the grid, never cleaned up.
+- **Relationship Diagram dangling edges.** `ProfileService.delete` (character kind only) now drops
+  every `Relationship` touching the deleted character and its `layout.json` position via
+  `RelationshipService.deleteRelationship`/`removeNodePosition` — the latter already existed but
+  was never actually called from anywhere.
+- **Spell check / thesaurus Settings toggles.** `_SettingsCategory.spellCheck` was wired as a
+  "coming soon" placeholder even though `spellCheckEnabledProvider` already persisted correctly
+  (fixed in an earlier session) — there was just no real UI control for it. Built the real section
+  with a working switch, plus a **new `thesaurusEnabledProvider`** (mirrors the spell-check one
+  exactly) gating the "Look Up" context-menu item, which had no on/off control at all before this.
+  Both sync via the existing `AppSettingsService`/Drive app-settings sync (`spellCheck.enabled` /
+  new `thesaurus.enabled` keys).
+- **"Add to Dictionary" persistence.** `Hunspell_add` only ever touched the in-memory run-time
+  dictionary (`hunspell_ffi.dart`'s own doc comment already flagged this) — nothing survived an app
+  restart. New `CustomDictionaryService` persists to `_Settings/custom-words-<languageTag>.txt`
+  (app-wide, not per-project, same reserved-folder convention as `_GlobalIdeas/`), replayed through
+  `Hunspell_add` when `SpellCheckService.load` runs. Also added a small management list to the new
+  Spell Check settings section (view/remove persisted words) using `Hunspell_remove` — already
+  FFI-bound in `hunspell_ffi.dart` but unused anywhere until now.
+
+19 new/updated tests, including one that reproduces the actual persistence bug directly: add a
+word, load a **second, independent** `SpellCheckService` instance, and confirm the word is still
+recognized — the failure mode a fresh-launch scenario would hit.
+
+**481 tests total**, `flutter analyze` clean.

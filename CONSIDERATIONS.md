@@ -43,11 +43,6 @@ questions, not known implementation gaps.
 - **Multi-account / multi-Drive support.** One signed-in Google account for the whole app at a time,
   matching PLAN.md's v1 scope. Switching accounts means disconnect then reconnect.
 
-- **A Settings toggle to actually turn spell check off.** `spellCheckEnabledProvider` is now
-  correctly persisted (fixed alongside the App Settings sync work — it used to silently reset to
-  "on" every launch), but nothing in the UI sets it yet; there's no toggle anywhere to turn it off
-  in the first place. Small, standalone follow-up.
-
 - **Hypernym/hyponym (broader/narrower term) browsing in the thesaurus.** PLAN.md's original wording
   covered this; user scoped v1 down to synonyms + definitions only when the WordNet feature was
   built. `synsets.hypernym` data exists in the OEWN source but isn't loaded into `wordnet.sqlite` —
@@ -59,14 +54,6 @@ questions, not known implementation gaps.
   already denies other apps access without root/backup extraction, so this is a defense-in-depth
   gap, not an open door — closing it needs a small custom platform channel into Android Keystore,
   not built this session.
-
-- **A Settings section to view/manage words added to the spell-check dictionary.** Requested right
-  after "Add to Dictionary" (spelling panel, Phase 4.5) shipped. Note this needs solving *underneath*
-  the UI first, not just a new screen: `Hunspell_add` only adds to the in-memory run-time dictionary
-  (`hunspell_ffi.dart`'s own doc comment already flags this) — nothing persists across an app
-  restart today, so there's nothing yet for a Settings screen to actually list. Needs its own small
-  persisted store (e.g. a `custom-words.txt` per language, replayed through `Hunspell_add` on load)
-  before the management UI has anything real to manage.
 
 - **KDP-ready print/ebook export (Phase 6.3).** General export (PDF/DOCX/EPUB/plain text) is built;
   the print-specific path — trim size presets, automatic margin/gutter calculation scaled to page
