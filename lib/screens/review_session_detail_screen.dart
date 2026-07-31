@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../models/review_session.dart';
+import '../services/filename_sanitizer.dart';
 import '../services/review_markdown_parser.dart';
 import '../state/review_session_provider.dart';
 
@@ -150,7 +151,7 @@ class _ReviewSessionDetailScreenState
 
     final savePath = await FilePicker.saveFile(
       dialogTitle: 'Save review comments to send back',
-      fileName: '${session.title}.comments.json',
+      fileName: '${sanitizeFileName(session.title)}.comments.json',
       lockParentWindow: true,
     );
     if (savePath == null) return;

@@ -80,6 +80,22 @@ void main() {
     expect(content, contains('***'));
   });
 
+  test('showTitleInExport: false omits that section\'s title line', () async {
+    final structure = ManuscriptStructure(nodes: [
+      ManuscriptNode(id: 'ch-1', title: 'Chapter One', typeLabel: 'Chapter'),
+      ManuscriptNode(
+          id: 'sc-1', title: 'Hidden Scene', typeLabel: 'Scene', showTitleInExport: false),
+    ]);
+    await manuscriptService.writeScene(SceneDoc(id: 'ch-1', title: 'Chapter One', content: 'First.'));
+    await manuscriptService.writeScene(SceneDoc(id: 'sc-1', title: 'Hidden Scene', content: 'Second.'));
+
+    final content = await exporter.buildContent(project, structure);
+
+    expect(content, contains('Chapter One'));
+    expect(content, isNot(contains('Hidden Scene')));
+    expect(content, contains('Second.'));
+  });
+
   test('exportToFile writes the content to disk', () async {
     final structure = ManuscriptStructure();
     final outputPath = p.join(projectDir.path, 'out', 'novel.txt');

@@ -13,6 +13,8 @@ class ExportSection {
     required this.title,
     required this.depth,
     required this.kind,
+    this.showTitle = true,
+    this.startsNewPage = true,
   });
 
   final String id;
@@ -24,4 +26,23 @@ class ExportSection {
   final int depth;
 
   final ExportSectionKind kind;
+
+  /// Whether to print [title] as a heading above this section's prose.
+  /// Mirrors `ManuscriptNode.showTitleInExport` — always true for front/back
+  /// matter, which has no such toggle. Formats that need a title regardless
+  /// (an EPUB section's `<head><title>`, e.g.) use [title] directly instead
+  /// of gating on this.
+  final bool showTitle;
+
+  /// Whether this section is a genuine "chapter break" — always true for
+  /// depth-0 sections (front/back matter, top-level nodes), and also true
+  /// for any node whose freeform `typeLabel` reads as chapter/act/book/part
+  /// regardless of depth (see `ManuscriptOutlineBuilder._chapterLikeLabels`).
+  /// A book structured as a single top-level "Book" node wrapping many
+  /// "Chapter" children (all at depth 1) still needs page/file breaks
+  /// between chapters, not just once at depth 0 — hence checking typeLabel
+  /// too, not depth alone. Plain leaf content (Scene, depth 2+) is false,
+  /// so consecutive scenes flow together instead of each forcing a new
+  /// page/EPUB file.
+  final bool startsNewPage;
 }

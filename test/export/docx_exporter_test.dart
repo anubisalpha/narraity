@@ -79,6 +79,52 @@ void main() {
     expect(xml, contains('gone'));
   });
 
+  test('a Book > Chapter > Scene structure breaks pages between chapters, not just once', () async {
+    // Regression test: a single top-level "Book" node wrapping many
+    // "Chapter" children (all at depth 1) used to get exactly one page
+    // break (after the title page) and none between chapters, because the
+    // old rule only checked depth == 0. Chapter-like typeLabels now force a
+    // break regardless of depth.
+    final structure = ManuscriptStructure(nodes: [
+      ManuscriptNode(id: 'book-1', title: 'Book 1', typeLabel: 'Book', children: [
+        ManuscriptNode(
+          id: 'ch-1',
+          title: 'Chapter 1',
+          typeLabel: 'Chapter',
+          children: [ManuscriptNode(id: 'sc-1', title: 'Scene 1', typeLabel: 'Scene')],
+        ),
+        ManuscriptNode(id: 'ch-2', title: 'Chapter 2', typeLabel: 'Chapter'),
+      ]),
+    ]);
+    await manuscriptService.writeScene(SceneDoc(id: 'ch-1', title: 'x', content: 'First.'));
+    await manuscriptService.writeScene(SceneDoc(id: 'sc-1', title: 'x', content: 'Scene prose.'));
+    await manuscriptService.writeScene(SceneDoc(id: 'ch-2', title: 'x', content: 'Second.'));
+
+    final xml = await documentXmlOf(await exporter.buildBytes(project, structure));
+
+    // Title page's own break + Chapter 1 + Chapter 2 = 3 total. Book itself
+    // is the very first section overall, so it doesn't add a redundant
+    // break right after the title page's; Scene 1 (depth 2, typeLabel
+    // "Scene") must NOT add a 4th either.
+    expect('w:type="page"'.allMatches(xml).length, 3);
+  });
+
+  test('showTitleInExport: false omits that section\'s heading', () async {
+    final structure = ManuscriptStructure(nodes: [
+      ManuscriptNode(id: 'ch-1', title: 'Chapter One', typeLabel: 'Chapter'),
+      ManuscriptNode(
+          id: 'sc-1', title: 'Hidden Scene', typeLabel: 'Scene', showTitleInExport: false),
+    ]);
+    await manuscriptService.writeScene(SceneDoc(id: 'ch-1', title: 'Chapter One', content: 'First.'));
+    await manuscriptService.writeScene(SceneDoc(id: 'sc-1', title: 'Hidden Scene', content: 'Second.'));
+
+    final xml = await documentXmlOf(await exporter.buildBytes(project, structure));
+
+    expect(xml, contains('Chapter One'));
+    expect(xml, isNot(contains('Hidden Scene')));
+    expect(xml, contains('Second.'));
+  });
+
   test('XML special characters in prose are escaped', () async {
     final structure = ManuscriptStructure(
       nodes: [ManuscriptNode(id: 'ch-1', title: 'Chapter 1', typeLabel: 'Chapter')],

@@ -31,9 +31,11 @@ class TxtExporter {
 
     for (final section in sections) {
       final doc = await manuscript.readScene(section.id, fallbackTitle: section.title);
-      buffer
-        ..writeln(section.title)
-        ..writeln();
+      if (section.showTitle) {
+        buffer
+          ..writeln(section.title)
+          ..writeln();
+      }
 
       for (final block in MarkdownLite.parse(doc.content)) {
         if (block.type == MdBlockType.sceneBreak) {

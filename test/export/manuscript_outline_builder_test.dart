@@ -62,4 +62,28 @@ void main() {
   test('an empty structure produces no sections', () {
     expect(ManuscriptOutlineBuilder.build(ManuscriptStructure()), isEmpty);
   });
+
+  test('showTitleInExport defaults true and carries through to ExportSection.showTitle', () {
+    final structure = ManuscriptStructure(nodes: [
+      ManuscriptNode(id: 'ch-1', title: 'Chapter 1', typeLabel: 'Chapter'),
+      ManuscriptNode(
+          id: 'ch-2', title: 'Chapter 2', typeLabel: 'Chapter', showTitleInExport: false),
+    ]);
+
+    final sections = ManuscriptOutlineBuilder.build(structure);
+
+    expect(sections[0].showTitle, isTrue);
+    expect(sections[1].showTitle, isFalse);
+  });
+
+  test('front and back matter always show their title regardless of node setting', () {
+    final structure = ManuscriptStructure(
+      frontMatter: [SpecialSection(id: 'prologue-1', type: SpecialSectionType.prologue)],
+      backMatter: [SpecialSection(id: 'epilogue-1', type: SpecialSectionType.epilogue)],
+    );
+
+    final sections = ManuscriptOutlineBuilder.build(structure);
+
+    expect(sections.every((s) => s.showTitle), isTrue);
+  });
 }

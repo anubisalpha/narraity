@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/project.dart';
+import '../services/filename_sanitizer.dart';
 import '../services/review_export_service.dart';
 import '../state/manuscript_provider.dart';
 import '../state/review_export_provider.dart';
@@ -45,7 +46,7 @@ class _ReviewExportScreenState extends ConsumerState<ReviewExportScreen> {
 
     final savePath = await FilePicker.saveFile(
       dialogTitle: 'Export for review',
-      fileName: '${widget.project.title}.review.md',
+      fileName: '${sanitizeFileName(widget.project.title)}.review.md',
       lockParentWindow: true,
     );
     if (savePath == null) return;

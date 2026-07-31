@@ -70,17 +70,25 @@ class ManuscriptNode {
   String typeLabel;
   final List<ManuscriptNode> children;
 
+  /// Whether exports print this node's title as a heading above its prose.
+  /// Defaults to true; turned off e.g. for imported sub-scenes the writer
+  /// doesn't want labelled in the finished manuscript (narraity issue #1's
+  /// follow-up request).
+  bool showTitleInExport;
+
   ManuscriptNode({
     required this.id,
     required this.title,
     required this.typeLabel,
     List<ManuscriptNode>? children,
+    this.showTitleInExport = true,
   }) : children = children ?? [];
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
         'typeLabel': typeLabel,
+        'showTitleInExport': showTitleInExport,
         'children': children.map((c) => c.toJson()).toList(),
       };
 
@@ -88,6 +96,7 @@ class ManuscriptNode {
         id: json['id'] as String,
         title: json['title'] as String,
         typeLabel: json['typeLabel'] as String,
+        showTitleInExport: json['showTitleInExport'] as bool? ?? true,
         children: (json['children'] as List<dynamic>? ?? [])
             .map((c) => ManuscriptNode.fromJson(c as Map<String, dynamic>))
             .toList(),

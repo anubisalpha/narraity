@@ -7,6 +7,7 @@ import '../services/export/docx_exporter.dart';
 import '../services/export/epub_exporter.dart';
 import '../services/export/pdf_exporter.dart';
 import '../services/export/txt_exporter.dart';
+import '../services/filename_sanitizer.dart';
 import '../services/manuscript_service.dart';
 import '../state/drive_provider.dart' show projectDirectory;
 import '../state/library_provider.dart';
@@ -88,9 +89,11 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     try {
       final path = await FilePicker.saveFile(
         dialogTitle: 'Export "${widget.project.title}"',
-        fileName: '${widget.project.title}.${_format.fileExtension}',
+        fileName:
+            '${sanitizeFileName(widget.project.title)}.${_format.fileExtension}',
         type: FileType.custom,
         allowedExtensions: [_format.fileExtension],
+        lockParentWindow: true,
       );
       if (path == null) return; // user cancelled
 

@@ -28,9 +28,17 @@ class DocxExporter {
     final sections = ManuscriptOutlineBuilder.build(structure);
 
     final body = StringBuffer()..write(_titlePageXml(project));
-    for (final section in sections) {
+    for (var i = 0; i < sections.length; i++) {
+      final section = sections[i];
+      // Skip the very first section: the title page already ends with its
+      // own page break, so another one here would insert a blank page.
+      if (section.startsNewPage && i > 0) {
+        body.write('<w:p><w:r><w:br w:type="page"/></w:r></w:p>');
+      }
       final doc = await manuscript.readScene(section.id, fallbackTitle: section.title);
-      body.write(_sectionHeadingXml(section.title, section.depth));
+      if (section.showTitle) {
+        body.write(_sectionHeadingXml(section.title, section.depth));
+      }
       for (final block in MarkdownLite.parse(doc.content)) {
         body.write(_blockXml(block));
       }

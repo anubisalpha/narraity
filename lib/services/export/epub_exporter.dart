@@ -13,6 +13,18 @@ import 'markdown_lite.dart';
 
 const _uuid = Uuid();
 
+/// One EPUB spine file's worth of sections — a chapter-boundary section plus
+/// every non-boundary section (e.g. Scenes) that follows it before the next
+/// boundary. [title]/[depth] (used for the nav/TOC entry and `<head><title>`)
+/// come from the boundary section that started the group.
+class _EpubSectionGroup {
+  _EpubSectionGroup({required this.title, required this.depth});
+
+  final String title;
+  final int depth;
+  final List<({String title, String content, bool showTitle})> parts = [];
+}
+
 /// EPUB export, hand-rolled directly (a `.epub` is a specifically-structured
 /// ZIP: an uncompressed `mimetype` entry first, an EPUB3 package document,
 /// and a nav document reused as the in-app Automatic TOC's export
@@ -47,18 +59,32 @@ class EpubExporter {
     final manifestItems = <(String id, String href)>[];
     final navEntries = <(String href, String title, int depth)>[];
 
-    var index = 0;
+    // Group sections into files at chapter boundaries (ExportSection.
+    // startsNewPage) rather than one file per section — otherwise every
+    // Scene under a Chapter got its own EPUB spine file, fragmenting a
+    // single chapter's continuous prose into a dozen separate reader
+    // "pages" even though no heading was ever shown for those scenes.
+    final groups = <_EpubSectionGroup>[];
     for (final section in sections) {
-      index++;
+      if (groups.isEmpty || section.startsNewPage) {
+        groups.add(_EpubSectionGroup(title: section.title, depth: section.depth));
+      }
       final doc = await manuscript.readScene(section.id, fallbackTitle: section.title);
+      groups.last.parts.add((title: section.title, content: doc.content, showTitle: section.showTitle));
+    }
+
+    var index = 0;
+    for (final group in groups) {
+      index++;
       final id = 'section-$index';
       final href = 'text/$id.xhtml';
-      addFile('OEBPS/$href', _sectionXhtml(section.title, doc.content));
+      addFile('OEBPS/$href', _groupXhtml(group));
       manifestItems.add((id, href));
-      navEntries.add((href, section.title, section.depth));
+      navEntries.add((href, group.title, group.depth));
     }
 
     addFile('OEBPS/nav.xhtml', _navXhtml(project.title, navEntries));
+    addFile('OEBPS/styles.css', _stylesCss);
     addFile('OEBPS/content.opf', _contentOpf(project, manifestItems));
 
     return ZipEncoder().encodeBytes(archive);
@@ -94,10 +120,17 @@ class EpubExporter {
     return text;
   }
 
-  String _blockHtml(MdBlock block) {
+  /// [firstParagraph] drops the first-line indent — traditional book
+  /// typesetting convention (matches the reference Kindle Create export):
+  /// the paragraph immediately opening a chapter isn't indented, every one
+  /// after it is.
+  String _blockHtml(MdBlock block, {bool firstParagraph = false}) {
     switch (block.type) {
       case MdBlockType.sceneBreak:
-        return '<hr/>';
+        // Previously a bare <hr/> with no visible marker at all — every
+        // other export format (TXT/DOCX/PDF) renders literal "* * *" text,
+        // so this was silently inconsistent.
+        return '<p class="scenebreak">* * *</p>';
       case MdBlockType.heading:
         final level = block.headingLevel.clamp(2, 6); // h1 reserved for the section title itself
         final runs = block.lines.first.map(_runHtml).join();
@@ -106,23 +139,54 @@ class EpubExporter {
         final paragraphs = block.lines.map((line) => '<p>${line.map(_runHtml).join()}</p>').join();
         return '<blockquote>$paragraphs</blockquote>';
       case MdBlockType.paragraph:
-        return block.lines.map((line) => '<p>${line.map(_runHtml).join()}</p>').join();
+        var isFirst = firstParagraph;
+        return block.lines.map((line) {
+          final cls = isFirst ? ' class="noindent"' : '';
+          isFirst = false;
+          return '<p$cls>${line.map(_runHtml).join()}</p>';
+        }).join();
     }
   }
 
-  String _sectionXhtml(String title, String content) {
-    final body = MarkdownLite.parse(content).map(_blockHtml).join();
+  String _groupXhtml(_EpubSectionGroup group) {
+    final buffer = StringBuffer();
+    var sawFirstParagraph = false;
+    for (final part in group.parts) {
+      // `<head><title>` (below) is reader/OS-chrome metadata — kept
+      // regardless, since a part's own `showTitle` only controls whether
+      // its heading is printed in the visible page body.
+      if (part.showTitle) buffer.write('<h1>${_escape(part.title)}</h1>');
+      for (final block in MarkdownLite.parse(part.content)) {
+        final isFirstParagraphOfChapter =
+            !sawFirstParagraph && block.type == MdBlockType.paragraph;
+        buffer.write(_blockHtml(block, firstParagraph: isFirstParagraphOfChapter));
+        if (isFirstParagraphOfChapter) sawFirstParagraph = true;
+      }
+    }
     return '<?xml version="1.0" encoding="UTF-8"?>'
         '<html xmlns="http://www.w3.org/1999/xhtml">'
-        '<head><title>${_escape(title)}</title></head>'
-        '<body><h1>${_escape(title)}</h1>$body</body></html>';
+        '<head><title>${_escape(group.title)}</title>'
+        '<link href="../styles.css" rel="stylesheet" type="text/css"/></head>'
+        '<body>${buffer.toString()}</body></html>';
   }
+
+  static const _stylesCss = '''
+body { font-family: serif; line-height: 1.4; margin: 5% 8%; }
+h1 { text-align: center; text-transform: uppercase; font-size: 1.4em; margin: 2em 0 1.5em; }
+h2, h3, h4, h5, h6 { margin: 1.5em 0 0.5em; }
+p { margin: 0; text-indent: 1.5em; }
+p.noindent, p.scenebreak { text-indent: 0; }
+p.scenebreak { text-align: center; margin: 1.2em 0; }
+blockquote { margin: 1em 2em; }
+blockquote p { text-indent: 0; }
+''';
 
   String _navXhtml(String bookTitle, List<(String href, String title, int depth)> entries) {
     final items = entries.map((e) => '<li><a href="${e.$1}">${_escape(e.$2)}</a></li>').join();
     return '<?xml version="1.0" encoding="UTF-8"?>'
         '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">'
-        '<head><title>Table of Contents</title></head>'
+        '<head><title>Table of Contents</title>'
+        '<link href="styles.css" rel="stylesheet" type="text/css"/></head>'
         '<body><nav epub:type="toc" id="toc">'
         '<h1>${_escape(bookTitle)}</h1><ol>$items</ol>'
         '</nav></body></html>';
@@ -147,6 +211,7 @@ class EpubExporter {
         '</metadata>'
         '<manifest>'
         '<item id="nav" href="nav.xhtml" properties="nav" media-type="application/xhtml+xml"/>'
+        '<item id="css" href="styles.css" media-type="text/css"/>'
         '$manifest'
         '</manifest>'
         '<spine>$spine</spine>'

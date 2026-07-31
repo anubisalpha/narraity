@@ -158,4 +158,31 @@ void main() {
 
     expect(await service.totalWordCount(structure), 5);
   });
+
+  test('showTitleInExport defaults true, persists via setShowTitleInExport, and '
+      'old structure.json without the field still loads as true', () async {
+    final structure = await service.loadStructure();
+    final scene = structure.nodes.first.children.first.children.first;
+    expect(scene.showTitleInExport, isTrue);
+
+    await service.setShowTitleInExport(structure, scene, false);
+    final reloaded = await service.loadStructure();
+    final reloadedScene = reloaded.nodes.first.children.first.children.first;
+    expect(reloadedScene.showTitleInExport, isFalse);
+
+    // Simulates a structure.json written before this field existed.
+    void stripField(Map<String, dynamic> node) {
+      node.remove('showTitleInExport');
+      for (final child in (node['children'] as List).cast<Map<String, dynamic>>()) {
+        stripField(child);
+      }
+    }
+
+    final legacyJson = reloaded.toJson();
+    for (final node in (legacyJson['nodes'] as List).cast<Map<String, dynamic>>()) {
+      stripField(node);
+    }
+    final legacy = ManuscriptStructure.fromJson(legacyJson);
+    expect(legacy.nodes.first.children.first.children.first.showTitleInExport, isTrue);
+  });
 }

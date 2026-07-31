@@ -203,6 +203,17 @@ class ManuscriptService {
     await deleteSceneFile(section.id);
   }
 
+  /// Toggles whether exports print [node]'s title as a heading above its
+  /// prose (on by default; see `ManuscriptNode.showTitleInExport`).
+  Future<void> setShowTitleInExport(
+    ManuscriptStructure structure,
+    ManuscriptNode node,
+    bool value,
+  ) async {
+    node.showTitleInExport = value;
+    await saveStructure(structure);
+  }
+
   /// Reorders a child within [parent]'s children (or the top level, if
   /// [parent] is null) — matches `ReorderableListView.onReorder`'s index
   /// convention (newIndex is post-removal).
