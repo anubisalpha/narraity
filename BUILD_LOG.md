@@ -1474,3 +1474,168 @@ print/ebook export path (Phase 6.3), image embedding in any export format, Play 
 (privacy policy, data safety form, plus now the Drive `drive.file` scope's data-safety disclosure),
 the Plot Grid's dangling-point cleanup, and the Relationship Diagram's dangling-edge cleanup on
 character delete. See `CONSIDERATIONS.md` for the full list of open design questions.
+
+---
+
+## Manuscript importer (DOCX, plain text/Markdown, Dabble JSON)
+
+Import into either a new project or (behind two separate confirmation dialogs — replacing is
+destructive, since it cascades through `ManuscriptService.deleteSceneFile` and drops the replaced
+scenes' own Version History) an existing project. Entry point: Library screen's "Import Manuscript"
+toolbar icon.
+
+- `lib/services/import/import_tree_builder.dart` — a shared depth-stack tree builder (headings nest
+  arbitrarily deep, not a fixed Chapter/Scene shape) used by both the DOCX and plain-text importers.
+- `lib/services/import/docx_importer.dart` — reads real OOXML via `package:xml` (moved from a
+  dev-only dependency to a real one this session). Detects headings via Word's own styleId
+  convention (`Heading1`..`Heading9`, `Title`/`Subtitle` — unlocalized ids even though the display
+  name is), plus a bold+font-size fallback for direct-formatted documents — needed so Narraity's own
+  DOCX export (direct formatting, not named styles) round-trips through reimport. A real
+  export-then-reimport test caught the title page being misdetected as a phantom chapter, fixed by
+  also requiring the fallback heuristic's paragraph not be centered.
+- `lib/services/import/dabble_json_importer.dart` — schema verified against 5 real Dabble exports.
+  A real per-project export is `{docId, state: {id, type:"novel", docs: {...}}}`; a different
+  full-account-backup format (`{dabble:{...}, patches:[...]}`) is explicitly rejected with a clear
+  error rather than mis-parsed. Scene prose is a Quill Delta — `bold`/`italic`/`strike` map to
+  Narraity's `**`/`*`/`~~`, `blockquote` maps to `> `, `list` (no Narraity equivalent) becomes a
+  plain `-`/`N.` prefix rather than being silently dropped. Quill's `{"br": true}` embed is always
+  immediately followed by the real `"\n"` in practice, so `br` is skipped and only `\n` flushes a
+  line — treating both as separate breaks would double every paragraph gap. Trashed/deleted content
+  is never referenced by a live book/chapter's own `children`, so a plain top-down walk from
+  `manuscripts` naturally excludes it.
+- `lib/services/import/manuscript_importer.dart` — the shared entry point (`parseFile`,
+  `suggestedTitle`, `materializeInto`, `clearExistingManuscript`) all three format-specific
+  importers above sit behind; `lib/widgets/import_destination_dialog.dart` is the "new project vs.
+  replace an existing one" picker UI.
+
+## In-app update checker + Windows auto-update
+
+Two independent pieces:
+- **In-app checker** (`lib/services/update_check_service.dart`) hits GitHub's `releases/latest` API
+  and compares `tag_name` against the running version — a manual "Check for Updates" button in
+  Settings → About, plus a silent session-cached startup check showing a dismissible
+  `MaterialBanner` (`lib/widgets/update_available_banner.dart`) on the Library screen. Never
+  installs anything itself, just links out.
+- **Real Windows auto-update via `.appinstaller`** (`windows/build_appinstaller.ps1`) — Windows'
+  native sideloaded-MSIX update mechanism. Opted into at *install* time by choosing README's
+  "Option B" instead of the plain `.msix` (a distribution/install-time choice, not an in-app
+  toggle). `ShowPrompt="true"` — every update needs the user's confirmation, never silent. Both the
+  `.appinstaller` and the `.msix` it points to must be published at GitHub's stable
+  `releases/latest/download/...` URLs, not version-pinned tag URLs, since Windows re-fetches the
+  `.appinstaller` from wherever it was originally installed from.
+- `windows/release.ps1 -Version X.Y.Z` — the maintainer release script: bumps both `pubspec.yaml`'s
+  `version:` and `msix_config.msix_version` (Windows compares the latter's 4-part number for the
+  `.appinstaller` path — independent fields, easy to forget one), runs analyze+test as a gate,
+  builds/signs the MSIX, generates the `.appinstaller`, commits, tags, pushes, and runs
+  `gh release create` with all three assets attached.
+- Gotchas hit: `pubspec.yaml` is CRLF, so the version-bump regex needed a `(?=\r?$)` lookahead
+  rather than consuming `\r?$` directly (which would flip that one line to LF on replace).
+  PowerShell-generated XML comments containing `--` (a prose dash) are invalid per the XML spec and
+  broke parsing — caught by actually parsing the generated `.appinstaller` as XML, not eyeballing
+  it. **Neither script has been run for a real release yet** — validated via dry-run regex tests and
+  a scratch-directory XML-generation test only.
+
+---
+
+## Bug fix: `FilePicker.saveFile()` hung forever on Windows (GitHub issue #1)
+
+Root cause: `file_picker`'s Windows `saveFile` runs the native `GetSaveFileNameW` call inside a
+**spawned isolate**, then the main isolate `await`s a result port. `_instantiateOpenFileNameW`
+validates the *default filename* and throws `IllegalCharacterInFileNameException` if it contains a
+Windows-reserved character (`< > : " / \ | ? *`) — but that throw happens inside the spawned
+isolate, where Dart's default behavior for an uncaught isolate error is to print to stderr and kill
+*only that isolate*, never propagating to the caller's `try/catch` or `AppLogger`. Nothing is ever
+sent through the port, so the main isolate's `await` hangs forever — no exception caught, no log
+entry, process stays responsive but parked. The trigger case: a project titled `"Book 1: Wisdom of
+the Elders"` (a `:`) being exported.
+
+Fixed with a shared `lib/services/filename_sanitizer.dart` (`sanitizeFileName`) — strips the
+Windows-reserved character set, trims, falls back to `Untitled` — used everywhere a title becomes a
+filesystem name: `export_screen.dart`, `review_export_screen.dart`,
+`review_session_detail_screen.dart`'s `FilePicker.saveFile` calls, and `library_service.dart`'s
+project-folder naming (which had its own inline copy of the same regex before this session; now a
+single canonical policy). Verified live via `flutter run -d windows` against the actual hang case;
+issue closed on GitHub with a summary of the root cause.
+
+## PDF/EPUB export overhaul
+
+Several real, independent defects found while live-testing exports against "Book 1: Wisdom of the
+Elders" (a real ~20-chapter manuscript) and a reference EPUB from Kindle Create:
+
+- **PDF: any paragraph taller than one page crashed the whole export.** Paragraphs were wrapped in
+  `pw.Padding` (a `SingleChildWidget`, not splittable across pages like `pw.RichText`/`pw.Text`
+  are), *and* `pw.RichText`'s own `canSpan` only returns true when `overflow: TextOverflow.span` is
+  set explicitly (the package's default is `visible`, which doesn't span) — both conditions had to
+  be fixed. A whole chapter written as one continuous block of prose (no blank lines) is exactly the
+  real-world shape that triggers this.
+- **PDF: smart quotes/dashes/ellipsis rendered as missing-glyph boxes.** The `pdf` package's default
+  base-14 Helvetica font has no glyphs outside WinAnsi Latin-1. Normalized the small set of
+  typographic characters a word processor (or this app's own text) produces to their closest ASCII
+  equivalent for the PDF path specifically (`_pdfSafeText` in `pdf_exporter.dart`) — a real Unicode
+  embedded font remains a `CONSIDERATIONS.md` item for full fidelity.
+- **PDF/DOCX: only depth-0 sections forced a page break.** A book structured as a single top-level
+  "Book" node wrapping many "Chapter" children (all depth 1) — which is exactly what a real writer
+  produces, and what the Dabble importer's schema naturally yields too — got exactly one page break
+  total (after the title page), none between chapters. Fixed by making "chapter boundary"
+  depth-independent: it now also fires on freeform `typeLabel`s reading as chapter/act/book/part
+  (`ManuscriptOutlineBuilder._chapterLikeLabels`), covering every shape `manuscript_seeds.dart`
+  offers. DOCX had *no* page-break logic between sections at all before this fix.
+  New `ExportSection.startsNewPage` field carries this rule to every format from one place.
+- **EPUB: every Scene got its own spine file**, not just every Chapter — a 20-chapter, ~5-scene
+  book produced 66 separate reader-visible "pages" even though scene headings are hidden by
+  default. Sections are now grouped into one file per chapter boundary
+  (`_EpubSectionGroup`/`_groupXhtml` in `epub_exporter.dart`); non-boundary sections merge into the
+  enclosing chapter's file.
+- **EPUB: no stylesheet at all**, relying entirely on reader defaults — found by diffing against a
+  real Kindle Create export. Added `OEBPS/styles.css` (linked from every file): centered/uppercase
+  chapter headings, first-line-indented body paragraphs with zero paragraph margin (continuous
+  book-style flow), and a no-indent rule for each chapter's first paragraph (traditional
+  typesetting, matching the reference export). Also fixed scene breaks, which rendered as a bare,
+  textless `<hr/>` — now visible `* * *` text, matching every other export format.
+- **New: per-section "print title in exports" toggle** (`ManuscriptNode.showTitleInExport`, default
+  `true`) — right-click any tree section for a checked menu item. Solves the case of an imported
+  book's top-level node duplicating the project's own title on the very next line after the title
+  page; threaded through `ExportSection.showTitle` to all four formats (EPUB keeps the hidden
+  title in `<head><title>`/the TOC for reader-chrome/navigation purposes, only the in-page `<h1>`
+  is suppressed).
+
+25 new/updated tests across `pdf_exporter_test.dart`, `docx_exporter_test.dart`,
+`epub_exporter_test.dart`, `manuscript_outline_builder_test.dart`, and
+`filename_sanitizer_test.dart` — including a page-object-counting proxy for PDF (content streams
+are compressed, so exact page count is verified via a raw `/Type /Page` regex scan rather than a
+real PDF parser dependency).
+
+## Series, front cover images, and drag-and-drop library reordering
+
+- **Series** (`lib/models/series.dart`, `lib/services/series_service.dart`) — a named grouping of
+  projects, stored as `_Series/series-<id>.json` at the library root (same reserved-folder
+  convention as `_GlobalIdeas/`/`_ReviewSessions/`; `LibraryService.listProjects()` already skips
+  `_`-prefixed folders, so no scanning change was needed). Membership lives on `Project.seriesId`,
+  not on the series itself — deleting a series never deletes its projects, just leaves `seriesId`
+  dangling, which the library grid treats as standalone again. Library screen shows a series as
+  three offset stacked cards (`_SeriesStackCard`); opening it pushes `SeriesDetailScreen` (rename,
+  delete, add a new project directly into it, remove a member back to standalone).
+- **Front cover images** (`Project.coverImagePath`, `LibraryService.setCoverImage`/
+  `removeCoverImage`) — one cover per project, copied into `assets/covers/cover.<ext>` (replacing
+  any previous file, including a stale one with a different extension). Set from a persistent row
+  above front matter in the manuscript tree (not folded into the "+Front/back matter" menu, since a
+  cover is a single image file per project, not a repeatable prose section backed by its own scene
+  file). Shows as a thumbnail on that project's library card, and on a series' stack card (using its
+  most-recently-modified member with a cover set).
+- **Drag-and-drop reordering** (`Project.sortOrder`/`Series.sortOrder`) — both the top-level library
+  grid and a series' own project grid. Manually-ordered items always sort first, by explicit
+  position; anything never dragged falls in after, by recency — so a freshly created project still
+  surfaces near the top without needing an order value of its own. `sortOrder` is a separate
+  numbering per grid (a series' internal order doesn't share a namespace with the top-level grid's).
+  Implemented by hand with `Draggable`/`DragTarget` rather than a `reorderable_grid_view`-style
+  package dependency, since Flutter has no built-in reorderable *grid* (only `ReorderableListView`,
+  single-column).
+
+19 new/updated tests across `library_service_test.dart` and `series_service_test.dart` covering
+`seriesId`/`coverImagePath`/`sortOrder` persistence and edge cases (0 is a valid `sortOrder`, not
+"unset"; replacing a cover with a different extension removes the stale file). The drag gesture
+itself isn't covered by an automated test — Flutter's `Draggable`/`DragTarget` interaction is
+notoriously fiddly to simulate reliably in `flutter_test`, so this was verified live instead via
+`flutter run -d windows`.
+
+**465 tests total**, `flutter analyze` clean.

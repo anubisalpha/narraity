@@ -80,10 +80,38 @@ questions, not known implementation gaps.
   gap against that, not a deliberate simplification.
 
 - **A real embedded Unicode font for PDF export.** The `pdf` package's default base font
-  (Helvetica/WinAnsi) has no full Unicode support — fine for English prose and standard typographic
-  punctuation, but non-Latin scripts would render incorrectly. Embedding a real font file (e.g. via
-  `google_fonts` or a bundled TTF) would close this.
+  (Helvetica/WinAnsi) has no full Unicode support. A stopgap is now in place — `pdf_exporter.dart`'s
+  `_pdfSafeText` normalizes smart quotes/dashes/ellipsis to their closest ASCII equivalent, so
+  standard English typography no longer renders as missing-glyph boxes — but non-Latin scripts, or
+  any character outside that small normalization list, still would. Embedding a real font file
+  (e.g. via `google_fonts` or a bundled TTF) is the thorough fix, and a bigger call (which font,
+  licensing, app size) than the normalization workaround.
 
 - **`export-profile.json` reusable per-project export presets.** PLAN.md sketches a data model for
   saved export configurations (e.g. a named "kdp-print-6x9" preset); nothing reads or writes this
   file yet — every export today is a one-off "pick a format, pick a location" run.
+
+- **Clicking a container node (Book/Chapter/Act) opens only its own — often empty — prose, not a
+  combined view of its children.** This is existing, deliberate behavior for every project (every
+  node can hold its own text independently of its children; the combined view exists separately as
+  each node's "⋮" menu → "View everything in this section"), not something the manuscript importer
+  introduced. It's landing harder for imported content though: Dabble's Book/Chapter levels never
+  carry their own prose at all (only Scenes do), so clicking one always opens a blank editor, which
+  reads as "nothing happened" until you know the combined view is a separate menu action. User
+  tried the workaround, confirmed it works, but is unsure whether the current split (bare click vs.
+  menu action) is the right default long-term, or whether it should be a configurable option.
+  Revisit if this keeps causing confusion rather than changing it speculatively now.
+
+- **The "chapter boundary" heuristic for PDF/DOCX page breaks and EPUB file grouping is a fixed
+  keyword list** (`chapter`/`act`/`book`/`part`, case-insensitive — see
+  `ManuscriptOutlineBuilder._chapterLikeLabels`), not a per-node or per-project setting. Covers
+  every shape `manuscript_seeds.dart` offers, but a writer using an unlisted freeform `typeLabel`
+  (e.g. "Volume") at a nested depth wouldn't get a page break there. No real case has surfaced this
+  yet — revisit if a genuinely different label naming scheme shows up in practice, rather than
+  building a configurable list speculatively now.
+
+- **A series' library-card cover is picked automatically** (its most-recently-modified member
+  project with a cover set — see `_SeriesStackCard._coverSourceProject` in `library_screen.dart`),
+  not a cover belonging to the series itself. Fine while a series is small, but means the card's
+  cover can change unexpectedly as books get edited. A dedicated series-level cover (independent of
+  any member project's) would be the more correct model if this proves confusing in practice.

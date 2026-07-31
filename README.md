@@ -39,6 +39,12 @@ full breakdown and what changes per platform when that day comes.
 
 ### Project & library management
 - Local, file-based project library (`Documents/Narraity/`) — create, open, browse projects
+- **Series**: group related projects (e.g. a trilogy) under a named series, shown as a stacked card
+  on the library screen; open it to see and manage every book inside
+- **Front cover images** — set one per project from the manuscript tree's front-matter area; shows
+  as a thumbnail on that project's (or its series') library card
+- **Drag-and-drop reordering** on the library screen and inside a series, independent of each
+  project's own recency-based default ordering
 - Dark / light / system theme
 - Settings screen with a side-nav structure ready to grow (Appearance, Editor, Dictation, Read
   Aloud, Backup & Vault, Google Drive Sync now; Spell Check's language picker and Export slotted
@@ -282,9 +288,13 @@ Two sync targets beyond your projects, always present once connected (no extra t
   recorded with what it did or what went wrong, so "is this actually syncing?" has a real answer
 
 ### Export
-- **PDF** — full formatting, headings, page layout
-- **Word document (.docx)** — full formatting, editable in Word
-- **EPUB** — reflowable e-book with a table of contents, readable on Kindle/e-readers
+- **PDF** — full formatting, headings, page layout; every top-level section (front/back matter,
+  and any Book/Act/Chapter/Part-labelled node regardless of nesting depth) starts on its own page
+- **Word document (.docx)** — full formatting, editable in Word, with the same page-break rule as PDF
+- **EPUB** — reflowable e-book with a table of contents, readable on Kindle/e-readers; ships its own
+  stylesheet (indented paragraphs, centered chapter headings) instead of relying on reader defaults
+- **Per-section title control** — right-click any section in the manuscript tree to toggle whether
+  its title prints in exports at all (e.g. hide an imported book's redundant "Book 1" heading)
 - **Plain text (.txt)** — an explicit stripped-down option; the app warns that formatting and images
   are dropped before it exports one
 - Reachable from the project toolbar's Export icon — pick a format, choose where to save, done
@@ -307,18 +317,39 @@ Two sync targets beyond your projects, always present once connected (no extra t
 
 ## Installing on Windows
 
-The `.msix` on the [Releases page](../../releases) is signed with a **self-signed development
-certificate**, not one from a trusted certificate authority (getting one of those is a paid,
-verified purchase — not something scripted here). Windows will refuse to install it until you trust
-that certificate once:
+Every release publishes the same package two ways — pick whichever fits:
 
-1. Download both `narraity.msix` and `narraity_public.cer` from the same release.
+- **Manual install** — download the `.msix` yourself, install it, and use **Check for Updates**
+  (Settings → About) whenever you want to see if a newer version exists. You're in control of
+  exactly when anything changes.
+- **Install with auto-updates** — install once via the `.appinstaller` link below; from then on,
+  Windows itself checks for a newer version on every launch and asks you to accept it (never
+  silent). Nothing extra to remember.
+
+Both paths need the same one-time certificate trust, since the package is signed with a
+**self-signed development certificate**, not one from a trusted certificate authority (getting one
+of those is a paid, verified purchase — not something scripted here).
+
+### Option A: Manual install
+
+1. Download both `narraity.msix` and `narraity_public.cer` from the [Releases page](../../releases).
 2. Double-click `narraity_public.cer` → **Install Certificate** → **Local Machine** (needs admin) →
    **Place all certificates in the following store** → **Trusted People** → Finish.
 3. Double-click `narraity.msix` to install the app.
 
-This is a one-time step per machine. If a CA-issued certificate replaces the self-signed one later,
-this step won't be needed.
+### Option B: Install with auto-updates
+
+1. Download `narraity_public.cer` from the [Releases page](../../releases) and trust it as in step 2
+   above (one-time, same as the manual path).
+2. Download and double-click
+   [`narraity.appinstaller`](https://github.com/anubisalpha/narraity/releases/latest/download/narraity.appinstaller) —
+   **use that exact link**, not a version-pinned release URL, so future update checks keep
+   resolving to whatever's newest rather than freezing at today's version.
+3. Windows installs the app and remembers where it came from. On each future launch, if a newer
+   version has been published, Windows prompts you to accept the update before it applies it.
+
+Either way, this is a one-time step per machine. If a CA-issued certificate replaces the
+self-signed one later, the trust step won't be needed at all.
 
 ## Building from source / contributing
 
