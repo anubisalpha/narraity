@@ -16,6 +16,7 @@ import '../state/editor_settings_provider.dart';
 import '../state/library_provider.dart';
 import '../state/spell_check_provider.dart';
 import '../state/theme_provider.dart';
+import '../state/thesaurus_provider.dart';
 import '../state/tts_settings_provider.dart';
 import '../state/vault_provider.dart';
 
@@ -109,6 +110,7 @@ class DriveSyncSettingsSection extends ConsumerWidget {
                     ref.invalidate(dictationLanguageProvider);
                     ref.invalidate(dictationModelSizeProvider);
                     ref.invalidate(spellCheckEnabledProvider);
+                    ref.invalidate(thesaurusEnabledProvider);
                     ref.invalidate(ttsSettingsProvider);
                     ref.invalidate(editorSettingsProvider);
                     ref.invalidate(vaultRetentionCountProvider);

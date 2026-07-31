@@ -5,6 +5,7 @@ import 'package:narraity/models/annotation.dart';
 import 'package:narraity/models/manuscript.dart';
 import 'package:narraity/services/annotation_service.dart';
 import 'package:narraity/services/manuscript_service.dart';
+import 'package:narraity/services/plot_grid_service.dart';
 
 void main() {
   late Directory tempDir;
@@ -142,6 +143,27 @@ void main() {
     await service.deleteNode(structure, deletedScene);
 
     final remaining = await annotations.listAll();
+    expect(remaining, hasLength(1));
+    expect(remaining.single.sceneId, keptScene.id);
+  });
+
+  test('deleteNode cascades to drop Plot Grid points on the deleted scene', () async {
+    final structure = await service.loadStructure();
+    final chapter = structure.nodes.first.children.first;
+    final deletedScene = chapter.children.first;
+    await service.addNode(structure, typeLabel: 'Scene', parent: chapter);
+    final keptScene = chapter.children[1];
+
+    final plotGrid = PlotGridService(tempDir);
+    final plotline = await plotGrid.addPlotline('Main Plot', 0xFF0000);
+    await plotGrid.setPlotPoint(
+        plotlineId: plotline.id, sceneId: deletedScene.id, title: 'should be dropped');
+    await plotGrid.setPlotPoint(
+        plotlineId: plotline.id, sceneId: keptScene.id, title: 'should survive');
+
+    await service.deleteNode(structure, deletedScene);
+
+    final remaining = await plotGrid.listPlotPoints();
     expect(remaining, hasLength(1));
     expect(remaining.single.sceneId, keptScene.id);
   });

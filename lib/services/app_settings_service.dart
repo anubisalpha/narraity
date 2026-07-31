@@ -15,8 +15,9 @@ import 'library_service.dart';
 /// Deliberately scoped to genuine app-wide *options* the user would want to
 /// follow them to a new device: theme, dictation language/model-size
 /// preference (not the downloaded model itself — that's a multi-hundred-MB
-/// binary, re-downloaded per device same as before), spell check on/off,
-/// Read Aloud voice/rate/pitch, vault retention/auto-refresh settings, and
+/// binary, re-downloaded per device same as before), spell check and
+/// thesaurus on/off, Read Aloud voice/rate/pitch, vault retention/auto-refresh
+/// settings, and
 /// the Drive auto-sync toggles themselves (immediate/daily/frequent).
 /// Deliberately excludes Reference Panel visibility/width/pins — those are
 /// already-documented machine workspace state (see
@@ -35,6 +36,7 @@ class AppSettingsService {
     'dictation.language',
     'dictation.modelSize',
     'spellCheck.enabled',
+    'thesaurus.enabled',
     'tts.rate',
     'tts.pitch',
     'tts.voiceName',

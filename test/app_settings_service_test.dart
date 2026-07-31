@@ -47,6 +47,7 @@ void main() {
     await prefs.setString('themeMode', 'dark');
     await prefs.setDouble('tts.rate', 0.75);
     await prefs.setBool('spellCheck.enabled', false);
+    await prefs.setBool('thesaurus.enabled', false);
     await prefs.setInt('vault.retentionCount', 15);
     await service.exportToFile();
 
@@ -59,6 +60,7 @@ void main() {
     expect(reloaded.getString('themeMode'), 'dark');
     expect(reloaded.getDouble('tts.rate'), 0.75);
     expect(reloaded.getBool('spellCheck.enabled'), false);
+    expect(reloaded.getBool('thesaurus.enabled'), false);
     expect(reloaded.getInt('vault.retentionCount'), 15);
   });
 

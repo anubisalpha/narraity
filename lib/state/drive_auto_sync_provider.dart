@@ -14,6 +14,7 @@ import 'editor_settings_provider.dart';
 import 'library_provider.dart';
 import 'spell_check_provider.dart';
 import 'theme_provider.dart';
+import 'thesaurus_provider.dart';
 import 'tts_settings_provider.dart';
 import 'vault_provider.dart';
 
@@ -108,6 +109,7 @@ Future<void> reapplyAppSettingsAfterSync(Ref ref) async {
   ref.invalidate(dictationLanguageProvider);
   ref.invalidate(dictationModelSizeProvider);
   ref.invalidate(spellCheckEnabledProvider);
+  ref.invalidate(thesaurusEnabledProvider);
   ref.invalidate(ttsSettingsProvider);
   ref.invalidate(editorSettingsProvider);
   ref.invalidate(vaultRetentionCountProvider);

@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import '../models/profile_entry.dart';
+import 'relationship_service.dart';
 
 const _uuid = Uuid();
 
@@ -71,11 +72,23 @@ class ProfileService {
 
   /// Deletes the entry and its attached image — an orphaned image would
   /// otherwise sit in `assets/` forever, and get carried into every vault
-  /// backup.
+  /// backup. For a character, also drops every Relationship Diagram edge
+  /// touching it and its saved node position — otherwise the diagram is
+  /// left with an edge pointing at a character id nothing can resolve, and
+  /// `layout.json` accumulates a dead entry forever.
   Future<void> delete(ProfileEntry entry) async {
     final file = _fileFor(entry.id);
     if (await file.exists()) await file.delete();
     await _deleteImageFile(entry);
+
+    if (kind == ProfileKind.character) {
+      final relationships = RelationshipService(projectDir);
+      final dangling = await relationships.relationshipsFor(entry.id);
+      for (final relationship in dangling) {
+        await relationships.deleteRelationship(relationship.id);
+      }
+      await relationships.removeNodePosition(entry.id);
+    }
   }
 
   /// Distinct categories currently in use, sorted — drives the grouped world

@@ -3,7 +3,9 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:narraity/models/profile_entry.dart';
+import 'package:narraity/models/relationship.dart';
 import 'package:narraity/services/profile_service.dart';
+import 'package:narraity/services/relationship_service.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
@@ -159,6 +161,32 @@ void main() {
     final loaded = (await characters.list()).single;
     expect(loaded.created, created.created);
     expect(loaded.modified.isAfter(created.modified), isTrue);
+  });
+
+  test('deleting a character cascades to drop its Relationship Diagram edges and layout '
+      'position, but leaves other characters\' relationships and positions alone', () async {
+    final elena = await characters.create(name: 'Elena');
+    final jack = await characters.create(name: 'Jack');
+    final mara = await characters.create(name: 'Mara');
+
+    final relationships = RelationshipService(projectDir);
+    final elenaJack = await relationships.addRelationship(
+        characterAId: elena.id, characterBId: jack.id, type: RelationshipType.ally);
+    final jackMara = await relationships.addRelationship(
+        characterAId: jack.id, characterBId: mara.id, type: RelationshipType.rival);
+    await relationships.setNodePosition(elena.id, 10, 20);
+    await relationships.setNodePosition(jack.id, 30, 40);
+
+    await characters.delete(elena);
+
+    final remaining = await relationships.listRelationships();
+    expect(remaining.map((r) => r.id), [jackMara.id],
+        reason: 'the elena<->jack edge must be dropped, jack<->mara must survive');
+    expect(remaining.any((r) => r.id == elenaJack.id), isFalse);
+
+    final layout = await relationships.loadLayout();
+    expect(layout.containsKey(elena.id), isFalse);
+    expect(layout.containsKey(jack.id), isTrue, reason: 'jack was never deleted');
   });
 
   test('a hand-written minimal file still loads', () async {

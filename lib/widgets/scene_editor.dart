@@ -222,7 +222,7 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
 
   Future<void> _addToDictionary(String word) async {
     final service = await ref.read(spellCheckServiceProvider.future);
-    service.addToSessionDictionary(word);
+    await service.addToSessionDictionary(word);
     if (_disposed) return;
     _scheduleSpellCheck(immediate: true);
   }
@@ -1226,7 +1226,9 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
                   contextMenuBuilder: (context, editableTextState) {
                     final selection = editableTextState.textEditingValue.selection;
                     final buttonItems = editableTextState.contextMenuButtonItems.toList();
-                    if (selection.isValid && !selection.isCollapsed) {
+                    if (selection.isValid &&
+                        !selection.isCollapsed &&
+                        ref.read(thesaurusEnabledProvider)) {
                       final selected = selection
                           .textInside(editableTextState.textEditingValue.text)
                           .trim();

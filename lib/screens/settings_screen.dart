@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/dictation_model.dart';
 import '../state/dictation_provider.dart';
+import '../state/spell_check_provider.dart';
 import '../state/theme_provider.dart';
+import '../state/thesaurus_provider.dart';
 import '../widgets/drive_sync_settings_section.dart';
 import '../widgets/editor_settings_form.dart';
 import '../widgets/read_aloud_settings_form.dart';
@@ -50,13 +52,12 @@ extension on _SettingsCategory {
   /// Categories for phases not built yet — shown in the nav so the
   /// structure is ready, with a "coming soon" placeholder as their content.
   bool get isComingSoon => switch (this) {
-        _SettingsCategory.spellCheck || _SettingsCategory.export => true,
+        _SettingsCategory.export => true,
         _ => false,
       };
 
   /// Which phase will implement this — shown in the placeholder.
   String get comingInPhase => switch (this) {
-        _SettingsCategory.spellCheck => 'Phase 4.5',
         _SettingsCategory.export => 'Phase 6',
         _ => '',
       };
@@ -122,6 +123,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _SettingsCategory.dictation => const _DictationSection(),
       _SettingsCategory.readAloud => const _ReadAloudSection(),
       _SettingsCategory.backup => const _BackupSection(),
+      _SettingsCategory.spellCheck => const _SpellCheckSection(),
       _SettingsCategory.drive => const _DriveSyncSection(),
       _SettingsCategory.about => const AboutSectionContent(),
       _ => const SizedBox.shrink(),
@@ -269,6 +271,112 @@ class _ReadAloudSection extends StatelessWidget {
           child: Padding(
             padding: EdgeInsets.all(16),
             child: ReadAloudSettingsForm(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SpellCheckSection extends ConsumerStatefulWidget {
+  const _SpellCheckSection();
+
+  @override
+  ConsumerState<_SpellCheckSection> createState() => _SpellCheckSectionState();
+}
+
+class _SpellCheckSectionState extends ConsumerState<_SpellCheckSection> {
+  Future<List<String>>? _customWords;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomWords();
+  }
+
+  void _loadCustomWords() {
+    _customWords = ref.read(spellCheckServiceProvider.future).then((s) => s.customWords());
+  }
+
+  Future<void> _removeWord(String word) async {
+    final service = await ref.read(spellCheckServiceProvider.future);
+    await service.removeFromDictionary(word);
+    setState(_loadCustomWords);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final spellCheckEnabled = ref.watch(spellCheckEnabledProvider);
+    final thesaurusEnabled = ref.watch(thesaurusEnabledProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeader(
+          title: 'Spell Check & Language',
+          subtitle: 'Offline, en-GB only for now — a language/variant picker and additional '
+              'downloadable dictionaries are a future follow-up.',
+        ),
+        Card(
+          child: Column(
+            children: [
+              SwitchListTile(
+                title: const Text('Spell check'),
+                subtitle: const Text('Red squiggle underline + right-click suggestions while writing.'),
+                value: spellCheckEnabled,
+                onChanged: (value) => ref.read(spellCheckEnabledProvider.notifier).set(value),
+              ),
+              const Divider(height: 1),
+              SwitchListTile(
+                title: const Text('Thesaurus'),
+                subtitle: const Text('"Look Up" in the right-click menu for a selected word.'),
+                value: thesaurusEnabled,
+                onChanged: (value) => ref.read(thesaurusEnabledProvider.notifier).set(value),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        Text('Custom Dictionary', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        const Text(
+          'Words added via "Add to Dictionary" in the spelling panel while writing.',
+          style: TextStyle(fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        Card(
+          child: FutureBuilder<List<String>>(
+            future: _customWords,
+            builder: (context, snapshot) {
+              final words = snapshot.data;
+              if (words == null) {
+                return const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (words.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('No custom words added yet.'),
+                );
+              }
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final word in words)
+                    ListTile(
+                      dense: true,
+                      title: Text(word),
+                      trailing: IconButton(
+                        tooltip: 'Remove',
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () => _removeWord(word),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ),
       ],

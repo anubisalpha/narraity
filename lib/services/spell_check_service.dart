@@ -1,5 +1,6 @@
 import 'dart:ffi';
 
+import 'custom_dictionary_service.dart';
 import 'hunspell_ffi.dart';
 import 'spellcheck_dictionary_service.dart';
 import 'word_tokenizer.dart';
@@ -9,29 +10,55 @@ import 'word_tokenizer.dart';
 /// not built this session). Owns the native handle; call [dispose] when
 /// done with it.
 class SpellCheckService {
-  SpellCheckService._(this._ffi, this._handle);
+  SpellCheckService._(this._ffi, this._handle, this._customDictionary, this._languageTag);
 
   final HunspellFfi _ffi;
   final Pointer<Void> _handle;
+  final CustomDictionaryService _customDictionary;
+  final String _languageTag;
 
   static Future<SpellCheckService> load(
     String languageTag, {
     SpellCheckDictionaryService? dictionaryService,
+    CustomDictionaryService? customDictionaryService,
   }) async {
     final ffi = HunspellFfi.instance();
     final dictionaries = dictionaryService ?? SpellCheckDictionaryService();
     final (affPath, dicPath) = await dictionaries.ensureExtracted(languageTag);
     final handle = ffi.create(affPath, dicPath);
-    return SpellCheckService._(ffi, handle);
+
+    final customDictionary = customDictionaryService ?? CustomDictionaryService();
+    // Replay every word a previous session added via "Add to Dictionary" —
+    // Hunspell_add only ever touched the in-memory run-time dictionary, so
+    // without this every custom word would need re-adding on every launch.
+    for (final word in await customDictionary.loadWords(languageTag)) {
+      ffi.addWord(handle, word);
+    }
+
+    return SpellCheckService._(ffi, handle, customDictionary, languageTag);
   }
 
   bool isCorrect(String word) => _ffi.spell(_handle, word);
 
   List<String> suggestionsFor(String word) => _ffi.suggest(_handle, word);
 
-  /// Adds [word] to this session's run-time dictionary — not persisted
-  /// across app restarts by Hunspell itself.
-  void addToSessionDictionary(String word) => _ffi.addWord(_handle, word);
+  /// Adds [word] to this session's run-time dictionary *and* persists it to
+  /// `CustomDictionaryService`, so it's still recognized after an app
+  /// restart, not just for the rest of this session.
+  Future<void> addToSessionDictionary(String word) async {
+    _ffi.addWord(_handle, word);
+    await _customDictionary.addWord(_languageTag, word);
+  }
+
+  /// Every custom word currently persisted for this dictionary's language —
+  /// what a "manage custom words" Settings list has to show.
+  Future<List<String>> customWords() => _customDictionary.loadWords(_languageTag);
+
+  /// Un-teaches [word] from both this session and the persisted list.
+  Future<void> removeFromDictionary(String word) async {
+    _ffi.removeWord(_handle, word);
+    await _customDictionary.removeWord(_languageTag, word);
+  }
 
   /// Scans [content] and returns the `[start, end)` character range of
   /// every misspelled word, in document order.

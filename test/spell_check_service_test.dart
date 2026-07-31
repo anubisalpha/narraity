@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:narraity/services/custom_dictionary_service.dart';
+import 'package:narraity/services/library_service.dart';
 import 'package:narraity/services/spell_check_service.dart';
 import 'package:narraity/services/spellcheck_dictionary_service.dart';
 
@@ -11,19 +13,26 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Directory tempDir;
+  late Directory libraryDir;
   late SpellCheckService service;
+
+  CustomDictionaryService customDictionary() =>
+      CustomDictionaryService(libraryService: LibraryService(rootOverride: libraryDir));
 
   setUp(() async {
     tempDir = Directory.systemTemp.createTempSync('narraity_spellcheck_test_');
+    libraryDir = Directory.systemTemp.createTempSync('narraity_spellcheck_lib_test_');
     service = await SpellCheckService.load(
       'en_GB',
       dictionaryService: SpellCheckDictionaryService(rootOverride: tempDir),
+      customDictionaryService: customDictionary(),
     );
   });
 
   tearDown(() {
     service.dispose();
     tempDir.deleteSync(recursive: true);
+    libraryDir.deleteSync(recursive: true);
   });
 
   test('recognizes correctly spelled British English words', () {
@@ -42,13 +51,54 @@ void main() {
     expect(suggestions, contains('receive'));
   });
 
-  test('adding a word to the session dictionary makes it recognized', () {
+  test('adding a word to the session dictionary makes it recognized', () async {
     const madeUpName = 'Zqorbathil';
     expect(service.isCorrect(madeUpName), isFalse);
 
-    service.addToSessionDictionary(madeUpName);
+    await service.addToSessionDictionary(madeUpName);
 
     expect(service.isCorrect(madeUpName), isTrue);
+  });
+
+  test('a word added via addToSessionDictionary is still recognized after a fresh load — '
+      'the actual bug being fixed (Hunspell_add alone only affects the in-memory session)',
+      () async {
+    const madeUpName = 'Zqorbathil';
+    await service.addToSessionDictionary(madeUpName);
+
+    final freshService = await SpellCheckService.load(
+      'en_GB',
+      dictionaryService: SpellCheckDictionaryService(rootOverride: tempDir),
+      customDictionaryService: customDictionary(),
+    );
+
+    expect(freshService.isCorrect(madeUpName), isTrue);
+    freshService.dispose();
+  });
+
+  test('customWords() lists what was added, in order', () async {
+    await service.addToSessionDictionary('Zqorbathil');
+    await service.addToSessionDictionary('Shamitz');
+
+    expect(await service.customWords(), ['Zqorbathil', 'Shamitz']);
+  });
+
+  test('removeFromDictionary un-recognizes the word now, and it stays gone after a '
+      'fresh load', () async {
+    const madeUpName = 'Zqorbathil';
+    await service.addToSessionDictionary(madeUpName);
+    expect(service.isCorrect(madeUpName), isTrue);
+
+    await service.removeFromDictionary(madeUpName);
+    expect(service.isCorrect(madeUpName), isFalse);
+
+    final freshService = await SpellCheckService.load(
+      'en_GB',
+      dictionaryService: SpellCheckDictionaryService(rootOverride: tempDir),
+      customDictionaryService: customDictionary(),
+    );
+    expect(freshService.isCorrect(madeUpName), isFalse);
+    freshService.dispose();
   });
 
   test('findMisspelled returns character ranges only for the bad words', () {
@@ -66,6 +116,7 @@ void main() {
     final secondService = await SpellCheckService.load(
       'en_GB',
       dictionaryService: SpellCheckDictionaryService(rootOverride: tempDir),
+      customDictionaryService: customDictionary(),
     );
     expect(secondService.isCorrect('colour'), isTrue);
     secondService.dispose();
