@@ -50,6 +50,31 @@ present (a self-signed certificate, gitignored — generate your own with `New-S
 subject `CN=Anubis Productions` to match the existing `identity_name`/`publisher` in `pubspec.yaml`,
 or update those to match a certificate of your own).
 
+**Also needs `nuget.exe` on `PATH`** — one plugin's (`flutter_tts`) Windows CMake build invokes it,
+but only in **release** mode, not debug — so `flutter run -d windows` never surfaces this even
+though `flutter build windows --release` (and therefore this script) needs it. Not installed by
+default and needs no admin rights to fix: download from
+[dist.nuget.org](https://dist.nuget.org/win-x86-commandline/latest/nuget.exe) into any folder on
+`PATH` (`windows/tools/` is gitignored and works fine for this).
+
+**Gotchas hit the first time this script actually ran for a real release** (previously only
+dry-run-tested — see BUILD_LOG.md):
+- A stale `build/` directory from an earlier debug build can leave CMake's cached
+  `CMAKE_INSTALL_PREFIX` pointing at the system default (`C:\Program Files\narraity`, which needs
+  admin rights) instead of the project's own `windows/CMakeLists.txt` override. Delete `build/`
+  entirely (or at minimum `build/windows/x64/CMakeCache.txt`) before a release build if you hit
+  `file cannot create directory: C:/Program Files/...`.
+- `flutter build windows --release` expects `build/native_assets/windows/` to exist (even though
+  this project uses no Dart native-assets packages) — a `flutter build windows` that fails partway
+  through can leave it never created, and the subsequent CMake install step fails with `file
+  INSTALL cannot find ".../native_assets/windows": No error.` Create the empty directory by hand
+  (`mkdir build\native_assets\windows`) and re-run if this happens.
+- If `flutter test`/`flutter analyze` (the script's own sanity gate) fails with a file-in-use error
+  on `build\unit_test_assets` or on `pubspec.yaml` itself, something (antivirus real-time scanning
+  is the likely culprit, not a real leftover process — `tasklist` showed nothing holding it) has a
+  transient lock. Re-running after a short pause, or bumping the version manually and running
+  `flutter analyze`/`flutter test` directly instead of through the script, works around it.
+
 ## Releasing a new version
 
 ```powershell

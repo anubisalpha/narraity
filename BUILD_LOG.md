@@ -1674,3 +1674,24 @@ word, load a **second, independent** `SpellCheckService` instance, and confirm t
 recognized — the failure mode a fresh-launch scenario would hit.
 
 **481 tests total**, `flutter analyze` clean.
+
+## v1.0.1 — first real release cut via release.ps1
+
+Previously `release.ps1`/`build_msix.ps1`/`build_appinstaller.ps1` had only been dry-run tested
+(regex/XML-generation tests, never actually executed for a real release — see the Manuscript
+importer / update-checker session's notes). This session ran the real thing for the first time and
+hit three genuine environment gaps, now fixed and documented in `DEVELOPMENT.md`'s MSIX section:
+missing `nuget.exe` (a release-mode-only dependency of `flutter_tts`'s Windows CMake build — debug
+builds never touch it, which is why nothing surfaced it all session), a stale `CMAKE_INSTALL_PREFIX`
+left over from an earlier debug build's cache pointing at `C:\Program Files\narraity` (needs admin),
+and `flutter build windows --release` expecting `build/native_assets/windows/` to already exist.
+`release.ps1` itself needed no code changes — every gap was environment/tooling, not the script's
+own logic — but `flutter analyze`/`flutter test` (the script's built-in sanity gate) hit a
+transient file-lock on `pubspec.yaml`/`build\unit_test_assets` when run through it specifically;
+worked around by running the version bump and analyze/test manually outside the script, then
+resuming from the MSIX build step.
+
+**v1.0.1 published**: github.com/anubisalpha/narraity/releases/tag/v1.0.1 — `narraity.msix`,
+`narraity_public.cer`, `narraity.appinstaller` all attached. This is also the first release the
+in-app "Check for Updates" checker and the `.appinstaller` auto-update path have anything real to
+find, since both only ever see releases published this way.
