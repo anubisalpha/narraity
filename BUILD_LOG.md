@@ -2319,3 +2319,17 @@ Verified visually (real UI, not just the test suite): opened the series, confirm
 render on a member card's menu, matching the standalone card exactly.
 
 **581 tests total**, `flutter analyze` clean.
+
+## New app icon
+
+Replaced the placeholder app icon with the user-provided fountain-pen-and-book mark (red rounded
+square). Source photo (`branding/app_icon_source.jfif`) had a light background around the badge —
+isolated the badge's true silhouette via a red-color mask with morphological closing (bridges over
+the white pen/book glyph cut into the red body) rather than guessing a corner radius by hand, which
+left a visible halo on the first attempt. `branding/app_icon_master.png` (737×737, transparent
+corners) is the checked-in source of truth for regenerating icons later. Regenerated
+`windows/runner/resources/app_icon.ico` (multi-resolution: 16–256px) and all five Android
+`mipmap-*/ic_launcher.png` densities (48–192px) from it via Pillow. Verified visually in the
+running app — title bar and taskbar icon both render correctly at small sizes, no artifacts.
+
+No code changed, `flutter analyze`/tests unaffected.
