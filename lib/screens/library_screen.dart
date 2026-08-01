@@ -657,10 +657,10 @@ class _ProjectCard extends ConsumerWidget {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !context.mounted) return;
 
     final libraryService = ref.read(libraryServiceProvider);
-    await libraryService.archiveProject(project);
+    await _runWithLoadingDialog(context, 'Archiving…', libraryService.archiveProject(project));
     ref.invalidate(projectListProvider);
   }
 
@@ -687,11 +687,37 @@ class _ProjectCard extends ConsumerWidget {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !context.mounted) return;
 
     final libraryService = ref.read(libraryServiceProvider);
-    await libraryService.deleteProject(project);
+    await _runWithLoadingDialog(context, 'Deleting…', libraryService.deleteProject(project));
     ref.invalidate(projectListProvider);
+  }
+
+  /// Shows a non-dismissible "working" dialog while [future] runs, then
+  /// closes it — archiving/deleting zips the whole project folder and can
+  /// occasionally take a while to finish deleting the source folder on
+  /// Windows (see `LibraryService._deleteWithRetry`'s doc comment for why),
+  /// so a silent multi-second wait would otherwise look like the app hung.
+  Future<void> _runWithLoadingDialog(BuildContext context, String message, Future<void> future) async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Row(
+          children: [
+            const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(width: 16),
+            Text(message),
+          ],
+        ),
+      ),
+    );
+    try {
+      await future;
+    } finally {
+      if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+    }
   }
 }
 

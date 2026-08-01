@@ -1,10 +1,13 @@
 import 'dart:convert';
+import 'dart:ffi';
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
+import 'package:ffi/ffi.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:win32/win32.dart';
 
 import '../models/archived_project.dart';
 import '../models/project.dart';
@@ -225,15 +228,109 @@ class LibraryService {
   /// app never does that automatically). The zip's own filesystem
   /// modified-time doubles as the "archived at" timestamp shown in the UI,
   /// so nothing extra needs encoding into the filename.
+  ///
+  /// **Move first, then compress** (changed 2026-08-01, see BUILD_LOG.md):
+  /// a *rename* out of the live library root happens before anything else,
+  /// rather than compressing the live folder in place and deleting it
+  /// afterward. This matters because a plain rename tolerates a concurrent
+  /// reader (e.g. a background sync/backup/indexing client scanning the
+  /// folder) far better than a delete does — deleting requires every handle
+  /// on every file to be closed first, while renaming just repoints one
+  /// directory entry. It also means the project disappears from
+  /// [listProjects] immediately, rather than only after the (potentially
+  /// slow) zip finishes — the same "why did the folder linger" gap this
+  /// replaced. The staged copy's own eventual deletion (after zipping) is
+  /// still best-effort/retried, but a failure there no longer breaks the
+  /// user-visible promise: the project is already out of the live library
+  /// and its zip already exists by that point.
   Future<void> _archiveTo(Project project, String reservedDirName) async {
     final root = await libraryRoot();
     final projectDir = Directory(p.join(root.path, project.folderName));
     final destDir = await _reservedDir(reservedDirName);
+
+    final stagingName = _uniqueFolderName(destDir, '${project.folderName}.staged');
+    final stagingDir = Directory(p.join(destDir.path, stagingName));
+    await projectDir.rename(stagingDir.path);
+
     final zipName = _uniqueZipName(destDir, project.title);
     final zipPath = p.join(destDir.path, zipName);
+    await ZipFileEncoder().zipDirectory(stagingDir, filename: zipPath);
 
-    await ZipFileEncoder().zipDirectory(projectDir, filename: zipPath);
-    await projectDir.delete(recursive: true);
+    await _deleteWithRetry(stagingDir);
+  }
+
+  /// Removes [dir], retrying on `PathAccessException`/"Access is denied".
+  ///
+  /// By the time this runs, [dir] is only the already-zipped *staging*
+  /// copy (see `_archiveTo`'s "move first, then compress" doc) — the live
+  /// project is already out of the library and its zip already exists, so
+  /// a failure here is a leftover-cleanup problem, not a broken archive/
+  /// delete promise.
+  ///
+  /// Investigated (not guessed) why a plain `delete()` could fail here at
+  /// all straight after zipping: ruled out Narraity's own Drive-sync file
+  /// watcher (confirmed "Not connected" in Settings during testing) and the
+  /// Vault backup-on-close hook (no-op with no vault password set).
+  /// Google Drive File Stream (`GoogleDriveFS.exe`, a separate installed
+  /// application, not part of Narraity) was running throughout testing and
+  /// is the most likely remaining explanation — a background sync client
+  /// scanning a just-written folder is a well-known source of exactly this
+  /// kind of transient Windows lock. The "move first" step above already
+  /// mitigates most of the risk (a rename tolerates a concurrent reader far
+  /// better than a delete, which needs every handle closed), and this
+  /// method's job is only the second-order cleanup of the now-isolated
+  /// staging copy — no longer the user-visible bottleneck it was before.
+  ///
+  /// On Windows, "delete" here actually means the Recycle Bin
+  /// (`_recycleBin`), not a permanent delete — one more recovery path
+  /// beyond the zip itself if anything about this ever misbehaves.
+  Future<void> _deleteWithRetry(
+    Directory dir, {
+    int attempts = 30,
+    Duration delay = const Duration(seconds: 1),
+  }) async {
+    for (var i = 0; i < attempts; i++) {
+      try {
+        if (Platform.isWindows) {
+          _recycleBin(dir);
+        } else {
+          await dir.delete(recursive: true);
+        }
+        return;
+      } on FileSystemException {
+        if (i == attempts - 1) rethrow;
+        await Future<void>.delayed(delay);
+      }
+    }
+  }
+
+  /// Sends [dir] to the Windows Recycle Bin via the shell's
+  /// `SHFileOperationW` API (`FO_DELETE` + `FOF_ALLOWUNDO`) instead of
+  /// permanently deleting it. `pFrom` must be a *double* null-terminated
+  /// string per that API's own contract — appending one `'\x00'` before
+  /// `toNativeUtf16()` (which appends its own terminator) produces exactly
+  /// that.
+  void _recycleBin(Directory dir) {
+    final pathPtr = '${dir.path}\x00'.toNativeUtf16();
+    final fileOp = calloc<SHFILEOPSTRUCT>();
+    try {
+      fileOp.ref
+        ..hwnd = 0
+        ..wFunc = FO_DELETE
+        ..pFrom = pathPtr
+        ..pTo = nullptr
+        ..fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOF_NOERRORUI;
+      final result = SHFileOperation(fileOp);
+      if (result != 0) {
+        throw FileSystemException(
+          'SHFileOperation (recycle) failed with code $result',
+          dir.path,
+        );
+      }
+    } finally {
+      calloc.free(pathPtr);
+      calloc.free(fileOp);
+    }
   }
 
   Future<void> archiveProject(Project project) => _archiveTo(project, '_Archived');

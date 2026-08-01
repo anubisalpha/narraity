@@ -99,6 +99,13 @@ class _AboutSectionContentState extends ConsumerState<AboutSectionContent> {
           info == null ? 'Loading version...' : 'Version ${info.version} (build ${info.buildNumber})',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
+        const SizedBox(height: 8),
+        Text(
+          'Narraity is built and maintained by a single independent developer, in spare time, '
+          'as a labour of love. If you run into a problem or have an idea, please be kind — '
+          'constructive feedback (via Settings → Feedback) always helps far more than a harsh word.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
         const SizedBox(height: 12),
         Row(
           children: [

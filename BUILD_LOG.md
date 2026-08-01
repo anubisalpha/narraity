@@ -2243,3 +2243,57 @@ restoring into a now-taken folder name gets disambiguated, same as `createProjec
 **581 tests total**, `flutter analyze` clean. Not yet manually smoke-tested in the running app —
 verified via the test suite and `flutter analyze` only, since this is a Windows desktop app with no
 browser-based preview available in this session.
+
+## Fixed: archive/delete left the live project folder behind despite the zip succeeding
+
+Smoke-testing the feature above (real UI clicks via computer-use, not just the test suite) surfaced
+a real bug: after Archive/Delete, the `.zip` appeared correctly under `_Archived`/`_Deleted`, but
+the original project folder stayed in the live library — `app.log` showed
+`PathAccessException: ... Access is denied` on the post-zip `projectDir.delete(recursive: true)`
+call.
+
+Investigation (each step verified directly, not assumed):
+- Ruled out Narraity's own Drive-sync file watcher (`ProjectFileWatcher`, active only when
+  immediate sync is on *and* connected) — Settings showed "Not connected" throughout testing.
+- Ruled out the Vault backup-on-close hook (`ProjectShellScreen.dispose()`'s fire-and-forget
+  `refreshProject`) — it's a no-op with no vault password set, which was the case throughout.
+- Ruled out OneDrive — not running, and `Documents` isn't under its sync root.
+- Confirmed the lock was genuinely process-local to `narraity.exe` (a fresh `Remove-Item` from a
+  *separate* PowerShell process succeeded instantly while narraity.exe still held it), but a widened
+  retry window (up to 2 minutes) still weren't reliably enough on a real project folder — this
+  wasn't a short, predictable race.
+- The user identified the likely real cause: **Google Drive File Stream** (`GoogleDriveFS.exe`), a
+  separate installed application (Narraity's own Drive Sync is a distinct feature), was running
+  throughout testing and is a well-known source of exactly this kind of transient Windows file
+  lock on a folder it's scanning.
+
+Rather than keep tuning a retry-duration guess against an external, uncontrollable lock, changed
+`LibraryService._archiveTo`'s approach entirely, per the user's own suggested design:
+1. **Move (rename) the live project folder first**, into a staging name under `_Archived`/
+   `_Deleted`, *before* zipping anything. A rename tolerates a concurrent reader far better than a
+   delete does (delete needs every handle closed; rename only repoints a directory entry) — and it
+   means the project disappears from the live library instantly, decoupled from the slower zip step
+   that follows. This alone fixed the reported symptom in live re-testing (with Google Drive File
+   Stream stopped by the user to isolate the test): zero visible delay, no leftover folder.
+2. **Zip the now-isolated staged copy**, same as before.
+3. **Remove the staged copy** — still retried on failure (up to 30 attempts/1s apart, well under
+   the old 2-minute budget, since the user-visible promise is already satisfied by steps 1-2 and
+   this is now just best-effort cleanup), but also changed to send it to the **Windows Recycle
+   Bin** (`SHFileOperationW` + `FO_DELETE`/`FOF_ALLOWUNDO`, via the already-present `win32`/`ffi`
+   packages — no new dependency) rather than a permanent delete, per the user's request for an
+   extra recovery layer beyond the zip itself.
+
+Also added a warning card to Settings → Google Drive Sync (Windows only) explaining that a
+separately-installed Google Drive desktop app watching the same folder can cause this kind of
+delay, and that excluding the Narraity folder from its sync scope avoids it — per the user's
+request, framed as informational, not alarming.
+
+Verified via the same real-UI smoke-testing that caught the original bug: created a project,
+navigated back to the library, and archived/deleted it immediately (the exact sequence that
+previously failed) — confirmed instant removal from the library, a valid zip in `_Archived`/
+`_Deleted`, and (via `Shell.Application`'s Recycle Bin namespace) the staged copy genuinely present
+in the Recycle Bin, not permanently deleted.
+
+**581 tests total** (test suite itself now also exercises the real Windows Recycle Bin on every
+run, since `_recycleBin` isn't mocked out for tests — a minor known side effect, harmless but
+worth knowing if the Recycle Bin looks unexpectedly busy), `flutter analyze` clean.

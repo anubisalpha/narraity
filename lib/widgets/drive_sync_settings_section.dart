@@ -54,6 +54,32 @@ class DriveSyncSettingsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (Platform.isWindows) ...[
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, size: 20),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'This is Narraity\'s own sync, unrelated to the Google Drive desktop app '
+                      '(Drive File Stream/Backup and Sync) if you have it installed separately. '
+                      'If that app is also watching your Narraity project folder, it can '
+                      'occasionally hold a file briefly locked right after a save — most '
+                      'noticeable as a short delay when archiving or deleting a project. It\'s '
+                      'harmless and Narraity retries automatically, but excluding the Narraity '
+                      'folder from the Google Drive app\'s sync scope avoids it entirely.',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
