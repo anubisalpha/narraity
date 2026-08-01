@@ -156,28 +156,6 @@ questions, not known implementation gaps.
   get recorded if one shows up. Nothing tracked today carries a future effective date, so there's
   nothing to build yet.
 
-- **Release notes in the app.** No in-app "what's new" surface exists — the update checker
-  (`update_check_service.dart`) links out to GitHub's release page rather than showing changelog
-  content itself. Worth revisiting once there's a real backlog of releases to show; v1.0.1 is
-  still the only one.
-
-- **A News page, fed from a page in the repo, updatable when internet access is available.**
-  Similar mechanism to the update checker's GitHub API polling — could fetch a `NEWS.md` (or
-  similar) from the repo's raw content URL, cache locally, and show in-app, refreshing whenever
-  online. Not scoped: how often to check, whether it needs its own opt-out (some users may not
-  want any outbound network calls beyond the existing opt-in Drive sync and the update checker),
-  and how it'd differ from just directing users to the GitHub releases page the update checker
-  already links to.
-
-- **A Feedback page, with voice-to-text input.** The voice dictation infrastructure from Phase 1.3
-  (Vosk on Windows, native `SpeechRecognizer` on Android) already exists and could be reused for a
-  feedback text field. The open question is delivery, not capture: there's no SMTP/email-sending
-  feature (see the existing "Emailing/sharing exported review files" item above — same gap
-  applies), and having a shipped end-user app silently file GitHub issues on the user's behalf
-  (the way `kdp-watch` does for the dev-only page-monitoring case) isn't appropriate without the
-  user's own GitHub auth. Needs a decision on the actual transport (mailto: link, a lightweight
-  hosted endpoint, or requiring the user to have their own GitHub account) before this is buildable.
-
 - **KDP hardcover interior margin/bleed rules have no independently-confirmed source.** Not a
   "haven't looked yet" gap — re-checked 2026-08-01 across three separate KDP help pages (trim/
   bleed/margins, "Format Your Hardcover", and the paperback/hardcover manuscript templates page),

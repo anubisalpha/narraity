@@ -7,6 +7,27 @@ app release required. This is the source for the in-app News Feed (`NewsService`
 Newest entry first. Each entry is a `## YYYY-MM-DD: Title` heading — `NewsService` parses on that
 pattern, so keep the format consistent.
 
+## 2026-08-01: Archive & Delete, editable card style, and a new look — v1.2.0
+
+**Archive & Delete for projects.** Previously there was no way to remove a project from your
+library short of deleting its folder outside the app. Now every project card has **Archive** and
+**Delete** — both compress the whole project into a dated `.zip` and move it out of your library,
+restorable any time from the new **Archived & Deleted Projects** screen. Delete works exactly like
+Archive (just a separate folder) — Narraity never permanently removes anything on its own; if you
+want something truly gone, remove the `.zip` yourself from the file system. Available on projects
+in your main library *and* on projects inside a series.
+
+**Card style is now editable after creation.** Novel/Comic/Script was previously locked in at
+creation — now it's a "Card style…" option on every project's menu, any time.
+
+**New app icon and header.** Narraity has a new icon (fountain pen + open book), and the library
+screen header now shows it beside a styled "Narraity" wordmark, matching the look of the other
+`-aity` apps.
+
+**Under the hood:** fixed a bleed-sizing bug and a KDP tag-compliance issue in the print/EPUB
+export from the last release; a Google Drive Sync warning was added to Settings for anyone running
+the separate Google Drive desktop app alongside Narraity.
+
 ## 2026-08-01: Installer changed — no more certificate to trust
 
 Narraity now installs via a plain `narraity-setup.exe` instead of a signed MSIX. If installing a

@@ -796,34 +796,52 @@ when that platform is scoped.
 
 ## Status
 
-**v1.0.1 released 2026-07-31** — github.com/anubisalpha/narraity, first real cut via
-`release.ps1` (MSIX + `.appinstaller` auto-update). **545 tests passing, `flutter analyze` clean.**
+**v1.1.1 released 2026-08-01** — github.com/anubisalpha/narraity. Windows packaging switched from
+a signed MSIX to a plain unsigned Inno Setup installer this release (see BUILD_LOG.md and this
+doc's "Windows packaging" decision) — no certificate to trust, one SmartScreen click-through on
+first run. **581 tests passing, `flutter analyze` clean.**
 
 App name decided (Narraity, 2026-07-24). Cross-platform roadmap confirmed 2026-07-24: v1 stays
 Windows + Android, macOS/iOS/Linux are future targets with architecture kept portable (see
 Cross-Platform Roadmap). Build started 2026-07-24.
 
-**Phases 0 through 6 and Phase 8 are built and verified** (Phase 8's GitHub sign-in/posting flow
-tested via mocked HTTP only, not yet a live smoke test — see BUILD_LOG.md), running on Windows
-desktop (see the Phases table above for per-phase scope). Highlights beyond the original phase
-scope:
+**Phases 0 through 6, 6.3 (KDP export), and 8 are built and verified** (Phase 8's GitHub sign-in/
+posting flow tested via mocked HTTP only, not yet a live smoke test — see BUILD_LOG.md), running
+on Windows desktop (see the Phases table above for per-phase scope). Phase 6.3 is the only phase
+in the core plan that's now fully built, closing out what was previously the last unbuilt phase.
+Highlights beyond the original phase scope, since v1.0.1:
 
+- **KDP Paperback/Hardcover print export** — trim size (all 16 paperback sizes, 5 hardcover),
+  bleed, page-count-scaled margins, roman/Arabic numbering, running headers, auto-generated
+  copyright page, and page-count validation against KDP's real range (varies by trim size *and*
+  ink/paper type for paperback). Two real bugs fixed along the way: a bleed-width doubling error,
+  and `<sup>` footnote markers not being on KDP's Kindle Format 8 supported-tag list.
+- **In-App Release Notes, News Feed, and Feedback** (Phase 8) — GitHub-releases-backed release
+  notes, a `NEWS.md`-fed news feed, and a Feedback screen posting to GitHub Discussions via
+  device-flow OAuth.
+- **Project archive/delete and post-creation card style editing** — projects can now be archived
+  or soft-deleted (compressed into a dated `.zip`, restorable any time, never permanently removed
+  by the app) from both the library screen and from inside a series; card style (Novel/Comic/
+  Script) is editable after creation, not just at creation time.
+- **Windows packaging switched from signed MSIX to an unsigned Inno Setup installer** — the
+  self-signed certificate was genuinely error-prone for users to trust correctly (see BUILD_LOG.md
+  for the investigation); a CA-issued cert would fix that but costs real money for a free project.
+- **New app icon and header wordmark** — replaced the placeholder icon with a fountain-pen-and-book
+  mark; the library screen header now shows the icon beside a styled "Narr**a**ity" wordmark
+  matching the rest of the `-aity` app family's convention.
 - A global error logger (`lib/services/app_logger.dart`) catching Flutter framework errors, async
   errors, and uncaught exceptions to `Documents/Narraity/.logs/app.log`.
-- Manuscript importer (DOCX, plain text/Markdown, Dabble JSON) and an in-app update checker plus
-  real Windows auto-update via `.appinstaller`.
+- Manuscript importer (DOCX, plain text/Markdown, Dabble JSON) and an in-app update checker.
 - Series, front cover images, and drag-and-drop library reordering.
-- Four bug fixes closed out of the backlog: dangling Plot Grid/Relationship data on delete,
-  missing spell-check/thesaurus Settings toggles, and "Add to Dictionary" not persisting across
-  restarts.
 - PDF/EPUB/DOCX export overhaul (page-break handling, EPUB stylesheet/section grouping, PDF
   typography normalization, per-section "print title in exports" toggle) — see BUILD_LOG.md for
   full detail on each fix.
 
 Full narrative detail, root causes, and gotchas for every session are in BUILD_LOG.md; open
-design questions and known gaps (KDP export, image embedding in exports, Unicode PDF fonts, etc.)
-are tracked in CONSIDERATIONS.md.
+design questions and known gaps (image embedding in exports, Unicode PDF fonts, KDP hardcover
+margin confirmation, mirrored margins/half-title placement, etc.) are tracked in CONSIDERATIONS.md.
 
-**Next: Phase 6.3 (KDP-ready print/ebook export)** is the only unbuilt phase in the core plan —
-or continue polishing/bug-fixing the shipped v1, per user direction. Phase 7 (co-authoring)
-remains parked pending its own CRDT/OT design pass.
+**Next**: no unbuilt phase remains in the core plan. Continue polishing/bug-fixing the shipped v1,
+per user direction — Play Store readiness and a live Phase 8 GitHub smoke test are the two
+concrete open items (see "Open questions" above). Phase 7 (co-authoring) remains parked pending
+its own CRDT/OT design pass.
