@@ -7,6 +7,14 @@ app release required. This is the source for the in-app News Feed (`NewsService`
 Newest entry first. Each entry is a `## YYYY-MM-DD: Title` heading — `NewsService` parses on that
 pattern, so keep the format consistent.
 
+## 2026-08-01: Installer changed — no more certificate to trust
+
+Narraity now installs via a plain `narraity-setup.exe` instead of a signed MSIX. If installing a
+previous version ever gave you a certificate-trust error, that's gone now — the only thing you'll
+see on first run is a one-time Windows "protected your PC" prompt (click "More info" → "Run
+anyway"), the same as any unsigned Windows app. Existing installs aren't affected; this only
+changes how future versions are installed.
+
 ## 2026-08-01: KDP print export (Paperback & Hardcover) — v1.1.0
 
 Two new export formats: **KDP Paperback** and **KDP Hardcover**, producing print-ready interior
