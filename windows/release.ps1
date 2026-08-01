@@ -1,22 +1,20 @@
-# Cuts a new Narraity release: bumps the pubspec version/build number *and*
-# msix_config's msix_version, runs the test suite as a sanity check, builds +
-# signs the MSIX (via build_msix.ps1), generates the .appinstaller manifest
-# (via build_appinstaller.ps1), commits + tags, pushes, and publishes a
-# GitHub release with the MSIX, its public cert, and the .appinstaller all
-# attached. Two things depend on this happening consistently:
-#   - The in-app "Check for Updates" feature reads GitHub's "latest release"
-#     tag, so a release that skips `gh release create` is invisible to it.
-#   - Anyone who installed via the .appinstaller (auto-update path) only
-#     ever sees a new version if msix_version actually increased -- Windows
-#     compares that 4-part version, not the pubspec/tag semver.
+# Cuts a new Narraity release: bumps the pubspec version/build number, runs
+# the test suite as a sanity check, builds an unsigned Inno Setup installer
+# (via build_installer.ps1), commits + tags, pushes, and publishes a GitHub
+# release with narraity-setup.exe attached.
+#
+# No code-signing certificate involved (see build_installer.ps1's header
+# comment and PLAN.md's "Windows packaging" decision for why the earlier
+# signed-MSIX approach was dropped) -- the in-app "Check for Updates" feature
+# still reads GitHub's "latest release" tag, so a release that skips
+# `gh release create` is invisible to it, same as before.
 #
 # Usage: powershell -File windows\release.ps1 -Version 1.2.0
 #        powershell -File windows\release.ps1 -Version 1.2.0 -NotesFile CHANGELOG_fragment.md
 #
 # Prerequisites:
 #   - Clean working tree (commit or stash first)
-#   - Everything build_msix.ps1 needs (Windows SDK, windows/narraity_signing.pfx,
-#     oauth_config.json)
+#   - oauth_config.json present at the repo root
 #   - GitHub CLI (`gh`) installed and authenticated for anubisalpha/narraity
 
 param(
@@ -51,14 +49,8 @@ try {
     $newVersionLine = "version: $Version+$newBuild"
     $updatedPubspec = $pubspec -replace '(?m)^version:\s*\d+\.\d+\.\d+\+\d+(?=\r?$)', $newVersionLine
 
-    if ($updatedPubspec -notmatch '(?m)^  msix_version:\s*\d+\.\d+\.\d+\.\d+(?=\r?$)') {
-        throw "Could not find a '  msix_version: X.Y.Z.W' line under msix_config in pubspec.yaml"
-    }
-    $newMsixVersionLine = "  msix_version: $Version.0"
-    $updatedPubspec = $updatedPubspec -replace '(?m)^  msix_version:\s*\d+\.\d+\.\d+\.\d+(?=\r?$)', $newMsixVersionLine
-
     Set-Content -Path $pubspecPath -NoNewline -Value $updatedPubspec
-    Write-Host "Bumped pubspec.yaml to $newVersionLine / $($newMsixVersionLine.Trim())"
+    Write-Host "Bumped pubspec.yaml to $newVersionLine"
 
     Write-Host "Running flutter analyze + test as a release sanity check..."
     flutter analyze
@@ -70,18 +62,11 @@ try {
     git commit -m "Release v$Version"
     git tag "v$Version"
 
-    Write-Host "Building signed MSIX..."
-    & (Join-Path $PSScriptRoot "build_msix.ps1")
+    Write-Host "Building installer..."
+    & (Join-Path $PSScriptRoot "build_installer.ps1") -Version $Version
 
-    $msixPath = Join-Path $repoRoot "build\windows\x64\runner\Release\narraity.msix"
-    if (-not (Test-Path $msixPath)) { throw "Expected MSIX not found at $msixPath" }
-
-    Write-Host "Generating .appinstaller manifest..."
-    & (Join-Path $PSScriptRoot "build_appinstaller.ps1") -Version $Version
-    $appInstallerPath = Join-Path $repoRoot "build\windows\x64\runner\Release\narraity.appinstaller"
-
-    $cerPath = Join-Path $repoRoot "windows\narraity_public.cer"
-    if (-not (Test-Path $cerPath)) { throw "Expected public certificate not found at $cerPath" }
+    $setupPath = Join-Path $repoRoot "build\windows\x64\runner\Release\narraity-setup.exe"
+    if (-not (Test-Path $setupPath)) { throw "Expected installer not found at $setupPath" }
 
     Write-Host "Pushing commit and tag..."
     git push origin main
@@ -90,13 +75,13 @@ try {
     Write-Host "Creating GitHub release v$Version..."
     $ghArgs = @(
         "release", "create", "v$Version",
-        $msixPath, $cerPath, $appInstallerPath,
+        $setupPath,
         "--title", "v$Version"
     )
     if ($NotesFile) { $ghArgs += @("--notes-file", $NotesFile) } else { $ghArgs += "--generate-notes" }
     gh @ghArgs
 
-    Write-Host "Done. Release v$Version published with narraity.msix, narraity_public.cer, and narraity.appinstaller attached."
+    Write-Host "Done. Release v$Version published with narraity-setup.exe attached."
 } finally {
     Pop-Location
 }

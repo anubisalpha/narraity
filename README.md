@@ -10,9 +10,8 @@ handful of features Dabble doesn't have (below).
 
 ## Download
 
-Windows installer builds (`.msix`) are published on the [Releases page](../../releases). See
-["Installing on Windows"](#installing-on-windows) below for the one-time certificate-trust step a
-self-signed package needs.
+Windows installer builds (`narraity-setup.exe`) are published on the [Releases page](../../releases).
+See ["Installing on Windows"](#installing-on-windows) below.
 
 No Android build is published yet.
 
@@ -322,39 +321,15 @@ Two sync targets beyond your projects, always present once connected (no extra t
 
 ## Installing on Windows
 
-Every release publishes the same package two ways — pick whichever fits:
+1. Download `narraity-setup.exe` from the [Releases page](../../releases).
+2. Run it. Windows will show a **"Windows protected your PC"** SmartScreen prompt — this is
+   normal and expected for any unsigned installer (Narraity isn't signed with a paid certificate
+   authority, since that's a real ongoing cost for a free hobby project). Click **More info** →
+   **Run anyway** to continue.
+3. Follow the installer.
 
-- **Manual install** — download the `.msix` yourself, install it, and use **Check for Updates**
-  (Settings → About) whenever you want to see if a newer version exists. You're in control of
-  exactly when anything changes.
-- **Install with auto-updates** — install once via the `.appinstaller` link below; from then on,
-  Windows itself checks for a newer version on every launch and asks you to accept it (never
-  silent). Nothing extra to remember.
-
-Both paths need the same one-time certificate trust, since the package is signed with a
-**self-signed development certificate**, not one from a trusted certificate authority (getting one
-of those is a paid, verified purchase — not something scripted here).
-
-### Option A: Manual install
-
-1. Download both `narraity.msix` and `narraity_public.cer` from the [Releases page](../../releases).
-2. Double-click `narraity_public.cer` → **Install Certificate** → **Local Machine** (needs admin) →
-   **Place all certificates in the following store** → **Trusted People** → Finish.
-3. Double-click `narraity.msix` to install the app.
-
-### Option B: Install with auto-updates
-
-1. Download `narraity_public.cer` from the [Releases page](../../releases) and trust it as in step 2
-   above (one-time, same as the manual path).
-2. Download and double-click
-   [`narraity.appinstaller`](https://github.com/anubisalpha/narraity/releases/latest/download/narraity.appinstaller) —
-   **use that exact link**, not a version-pinned release URL, so future update checks keep
-   resolving to whatever's newest rather than freezing at today's version.
-3. Windows installs the app and remembers where it came from. On each future launch, if a newer
-   version has been published, Windows prompts you to accept the update before it applies it.
-
-Either way, this is a one-time step per machine. If a CA-issued certificate replaces the
-self-signed one later, the trust step won't be needed at all.
+Use **Check for Updates** (Settings → About) any time to see if a newer version has been
+published — there's no silent auto-update, so nothing changes without you choosing to install it.
 
 ## Building from source / contributing
 

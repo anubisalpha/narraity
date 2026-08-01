@@ -24,9 +24,9 @@ class UpdateInfo {
 
 /// Checks GitHub's "latest release" API for the published repo and compares
 /// its tag against the running app's version. There's no silent
-/// auto-installer here — Narraity ships as a signed MSIX the user installs
-/// by hand, so this only ever points them at the release page to download it
-/// themselves.
+/// auto-installer here — Narraity ships as an unsigned Inno Setup .exe the
+/// user installs by hand, so this only ever points them at the release page
+/// to download it themselves.
 class UpdateCheckService {
   UpdateCheckService({http.Client? client}) : _client = client ?? http.Client();
 

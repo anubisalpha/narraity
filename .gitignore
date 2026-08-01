@@ -43,9 +43,11 @@ app.*.map.json
 # see lib/config/drive_oauth_config.dart and README.md's Drive Sync section.
 oauth_config.json
 
-# Code-signing certificate (private key — never committed).
+# Code-signing certificate (private key — never committed). No longer used
+# for the installer itself (see PLAN.md's "Windows packaging" decision —
+# switched to an unsigned Inno Setup installer), left ignored in case it's
+# ever needed again.
 windows/*.pfx
-*.msix
 
 # Vendored native libraries (Hunspell, Vosk) ARE meant to be committed —
 # see BUILD_LOG.md's Phase 4.5/1.3 sections for why they're vendored rather

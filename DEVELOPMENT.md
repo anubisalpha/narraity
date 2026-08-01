@@ -36,19 +36,20 @@ Drive Sync feature section). To set it up:
 Without this, Settings → Google Drive Sync shows a "not configured" message instead of failing
 confusingly deep inside an OAuth call.
 
-## Building the signed MSIX installer
+## Building the Windows installer
 
 ```powershell
-powershell -File windows\build_msix.ps1
+powershell -File windows\build_installer.ps1
 ```
 
-Bypasses the `msix` pub package's own bundled MakeAppx.exe/signtool.exe — on some machines
-(including this project's dev environment) those fail with a WinSxS "side-by-side configuration is
-incorrect" error, a version mismatch against a newer Windows SDK. The script uses the installed
-Windows SDK's own matched copies of those tools instead. Needs `windows/narraity_signing.pfx`
-present (a self-signed certificate, gitignored — generate your own with `New-SelfSignedCertificate`,
-subject `CN=Anubis Productions` to match the existing `identity_name`/`publisher` in `pubspec.yaml`,
-or update those to match a certificate of your own).
+Runs `flutter build windows --release`, then compiles `windows\narraity_installer.iss` with Inno
+Setup's `ISCC.exe` to produce `narraity-setup.exe`. Needs Inno Setup installed
+(`choco install innosetup` or download from [jrsoftware.org](https://jrsoftware.org/isinfo.php)).
+No certificate, no signing — the installer is deliberately unsigned (see PLAN.md's "Windows
+packaging" decision for why: a self-signed certificate turned out to be genuinely error-prone for
+users to trust manually, and a CA-issued one costs real money for a free hobby project). Users see
+a one-time "Windows protected your PC" SmartScreen prompt on first run, unavoidable for any
+unsigned Windows binary.
 
 **Also needs `nuget.exe` on `PATH`** — one plugin's (`flutter_tts`) Windows CMake build invokes it,
 but only in **release** mode, not debug — so `flutter run -d windows` never surfaces this even
@@ -57,8 +58,8 @@ default and needs no admin rights to fix: download from
 [dist.nuget.org](https://dist.nuget.org/win-x86-commandline/latest/nuget.exe) into any folder on
 `PATH` (`windows/tools/` is gitignored and works fine for this).
 
-**Gotchas hit the first time this script actually ran for a real release** (previously only
-dry-run-tested — see BUILD_LOG.md):
+**Gotchas hit building the earlier signed-MSIX pipeline that likely still apply** (see BUILD_LOG.md
+for the full original writeups):
 - A stale `build/` directory from an earlier debug build can leave CMake's cached
   `CMAKE_INSTALL_PREFIX` pointing at the system default (`C:\Program Files\narraity`, which needs
   admin rights) instead of the project's own `windows/CMakeLists.txt` override. Delete `build/`
@@ -69,11 +70,11 @@ dry-run-tested — see BUILD_LOG.md):
   through can leave it never created, and the subsequent CMake install step fails with `file
   INSTALL cannot find ".../native_assets/windows": No error.` Create the empty directory by hand
   (`mkdir build\native_assets\windows`) and re-run if this happens.
-- If `flutter test`/`flutter analyze` (the script's own sanity gate) fails with a file-in-use error
-  on `build\unit_test_assets` or on `pubspec.yaml` itself, something (antivirus real-time scanning
-  is the likely culprit, not a real leftover process — `tasklist` showed nothing holding it) has a
-  transient lock. Re-running after a short pause, or bumping the version manually and running
-  `flutter analyze`/`flutter test` directly instead of through the script, works around it.
+- If `flutter test`/`flutter analyze` (the release script's own sanity gate) fails with a
+  file-in-use error on `build\unit_test_assets` or a leftover `build\windows\x64\runner\Release\`
+  directory from a prior partial build, something (antivirus real-time scanning, or a lingering
+  handle from an earlier interrupted build) has a transient lock. Deleting the stale directory and
+  re-running works around it.
 
 ## Releasing a new version
 
@@ -81,33 +82,21 @@ dry-run-tested — see BUILD_LOG.md):
 powershell -File windows\release.ps1 -Version 1.2.0
 ```
 
-Bumps `pubspec.yaml`'s version *and* `msix_config.msix_version` (both need to increase — see
-"Two update paths" below), runs `flutter analyze` + `flutter test` as a sanity gate, builds the
-signed MSIX via `build_msix.ps1`, generates `narraity.appinstaller` via `build_appinstaller.ps1`,
-commits the bump, tags `v1.2.0`, pushes both, and publishes a GitHub release with the MSIX, its
-public cert, and the `.appinstaller` all attached via `gh release create`. Needs a clean working
-tree and an authenticated `gh` CLI. Pass `-NotesFile path\to\notes.md` to supply release notes
-yourself; otherwise `gh` auto-generates them from merged PRs/commits since the last tag.
+Bumps `pubspec.yaml`'s version, runs `flutter analyze` + `flutter test` as a sanity gate, builds
+the installer via `build_installer.ps1`, commits the bump, tags `v1.2.0`, pushes both, and
+publishes a GitHub release with `narraity-setup.exe` attached via `gh release create`. Needs a
+clean working tree and an authenticated `gh` CLI. Pass `-NotesFile path\to\notes.md` to supply
+release notes yourself; otherwise `gh` auto-generates them from merged PRs/commits since the last
+tag.
 
-### Two update paths
+### Update checking
 
-Narraity ships as a signed MSIX with no built-in installer of its own, so "auto-update" here means
-two independent things layered on top of that:
-
-- **In-app checker** (`lib/services/update_check_service.dart`) — a manual "Check for Updates"
-  button in Settings → About, plus a silent session-cached startup check that shows a dismissible
-  banner on the Library screen. Reads GitHub's `releases/latest` API and compares its `tag_name`
-  against the running app's version. Never installs anything itself, just links to the release
-  page. A release that skips `gh release create` is invisible to it.
-- **Windows' own App Installer** (`narraity.appinstaller`, generated by
-  `build_appinstaller.ps1`) — for users who installed via that file instead of the raw `.msix`
-  (see README's "Installing on Windows" → Option B). Windows checks it on every launch and prompts
-  to install if `msix_version` increased. This is why `release.ps1` bumps `msix_version`
-  independently of `pubspec.yaml`'s own `version:` field — Windows compares that 4-part MSIX
-  package version, not the semver tag, and it must strictly increase or the update is invisible.
-  Both the `.appinstaller` and the `.msix` it points to must stay published at GitHub's *stable*
-  `releases/latest/download/...` URLs (not a version-pinned tag URL), since Windows re-fetches the
-  `.appinstaller` from whatever URL the user originally installed it from.
+Narraity ships as a plain installer with no silent auto-update mechanism. The only update path is
+the **in-app checker** (`lib/services/update_check_service.dart`) — a manual "Check for Updates"
+button in Settings → About, plus a silent session-cached startup check that shows a dismissible
+banner on the Library screen. It reads GitHub's `releases/latest` API and compares its `tag_name`
+against the running app's version, then links to the release page for the user to download and run
+themselves. A release that skips `gh release create` is invisible to it.
 
 ## Running tests
 

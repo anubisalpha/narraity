@@ -749,7 +749,17 @@ when that platform is scoped.
 
 ## Decisions made
 
-- Windows packaging: **MSIX**
+- Windows packaging: ~~MSIX~~ **Inno Setup .exe installer** (changed 2026-08-01) — the self-signed
+  MSIX required users to manually import a certificate into their machine's Trusted People store
+  to avoid error 0x800B0109, which turned out to be genuinely error-prone even following the
+  README's own steps (Windows' Certificate Import Wizard silently defaults to the wrong store
+  unless "Place all certificates in the following store" is picked explicitly). A CA-issued
+  certificate would fix this properly but costs real money for a free hobby project. An unsigned
+  Inno Setup installer has no certificate to trust at all — the only remaining friction is a single
+  "Windows protected your PC" SmartScreen click-through on first run, unavoidable for any unsigned
+  Windows binary but far simpler than certificate-store surgery. Trade-off accepted knowingly: this
+  drops the `.appinstaller` silent OS-level auto-update path; the in-app "Check for Updates" button
+  is unaffected (it only ever linked to the GitHub release page, never auto-installed)
 - Android distribution: **Play Store** (eventual goal, not necessarily v1 launch)
 - v1 platform scope: **Windows + Android only**; macOS, iOS, Linux are future targets (see
   Cross-Platform Roadmap) — architecture kept portable but not built/shipped for v1

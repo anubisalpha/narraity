@@ -64,7 +64,6 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  msix: ^3.16.7
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -118,18 +117,3 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
-
-msix_config:
-  display_name: Narraity
-  publisher_display_name: Anubis Productions
-  identity_name: com.anubisproductions.narraity
-  msix_version: 1.1.0.0
-  capabilities: internetClient
-  certificate_path: windows/narraity_signing.pfx
-  certificate_password: NarraityDevCert2026!
-  # Self-signed certificate (see README's "Installing on Windows" section
-  # for the one-time trust step this requires) — the .pfx itself is
-  # gitignored, never committed. Swap in a real certificate_path/password
-  # here if a CA-issued certificate is obtained later. The Publisher value
-  # in the manifest is derived automatically from whichever certificate is
-  # configured here, so it isn't set explicitly.

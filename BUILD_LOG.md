@@ -2141,3 +2141,62 @@ until one is selected, each binding shows its own trim size list (only paperback
 "most common for novels" note), and switching back to a non-print format hides the picker again.
 
 **572 tests total**, `flutter analyze` clean.
+
+## v1.1.0 shipped, then Windows packaging switched from signed MSIX to an unsigned Inno Setup installer
+
+Fixed two real bugs found by cross-checking the KDP export code against KDP's own docs (pasted in
+by the user): the bleed formula was doubling KDP's 0.125" allowance on width instead of applying it
+once (KDP bleeds top+bottom but only the outer width edge — the spine side never bleeds), and the
+EPUB footnote reference marker used `<sup>`, which isn't on KDP's own Kindle Format 8 supported-tag
+list (switched to a plain `<a class="footnote-ref">` styled via CSS `vertical-align: super`
+instead). Also expanded `KdpTrimSize` from 10 to all 16 of KDP's published paperback trim sizes,
+and replaced the hardcoded flat 24–828 page-count range with `KdpInkPaperType` (5 values) +
+`KdpTrimSize.pageCountRange(inkPaperType)`, since KDP's real range varies by both trim size and
+ink/paper type — `ExportScreen` gained an ink/paper dropdown for paperback export to collect the
+new required input. Full detail and the source matrix in `KDP_CRIBSHEET.md`.
+
+Published as v1.1.0 via `release.ps1` — hit a real snag along the way: `origin/main` had a commit
+("Create FUNDING.yml") not in local history, so a rebase was needed before pushing, which changed
+the release commit's hash and meant the already-pushed `v1.1.0` tag had to be deleted and
+recreated pointing at the right commit. The release script's own MSIX build also failed twice on
+Windows file-lock issues from stale `build/` directories left by prior partial runs — worked around
+by clearing them and rebuilding manually rather than trusting the script's first-pass output.
+
+**Then the real problem showed up**: installing the published v1.1.0 `.appinstaller` failed with
+`0x800B0109` ("root certificate ... must be trusted"). Investigation (all via PowerShell
+`Get-AuthenticodeSignature`/`X509Chain`/`Cert:\` provider queries, not guesswork) ruled out an
+expired or mismatched certificate — the MSIX's embedded signature thumbprint matched
+`narraity_public.cer` exactly, and the cert itself was valid through 2027. The actual cause: the
+Windows Certificate Import Wizard's **"Automatically select the certificate store"** option (the
+default unless you explicitly pick "Place all certificates in the following store") puts a
+self-signed code-signing cert into **Intermediate Certification Authorities**, not **Trusted
+People** — the only store MSIX's sideload trust check actually reads. The README's own
+step-by-step instructions were correct, but the wizard's default path silently steers around them,
+and this held even after the user carefully redid the "Local Machine" step — the auto-placement
+trap fires regardless of the Local Machine vs Current User choice, it's the *next* screen that
+matters.
+
+**Decision**: rather than documenting the trap more forcefully or scripting a `certutil` workaround
+users would still have to run, dropped code signing entirely. A CA-issued certificate would fix
+this properly (Windows already trusts the CA, no import step needed at all) but costs real ongoing
+money for what's currently a free hobby project with no paying users — confirmed with the user
+there are no usage stats to justify that cost yet (the app has zero telemetry by design, so "real
+users" was never more than an assumption, corrected mid-conversation). Replaced the signed MSIX +
+`.appinstaller` auto-update pipeline with a plain **unsigned Inno Setup installer**
+(`windows/narraity_installer.iss`, compiled by `windows/build_installer.ps1`): Start Menu shortcut,
+optional desktop icon, proper uninstaller, no certificate to trust at all. The only remaining
+friction is a single "Windows protected your PC" SmartScreen click-through on first run — expected
+for any unsigned Windows binary, and far simpler than certificate-store surgery.
+
+Trade-off accepted knowingly: this drops the `.appinstaller` silent OS-level auto-update path. The
+in-app "Check for Updates" button (`update_check_service.dart`) is unaffected — it only ever linked
+users to the GitHub release page to download and run themselves, never auto-installed anything, so
+losing the OS-level layer changes nothing about how it behaves.
+
+Removed `windows/build_msix.ps1`, `windows/build_appinstaller.ps1`, `windows/narraity_public.cer`,
+the `msix` pub dev-dependency, and `pubspec.yaml`'s `msix_config` block. `release.ps1` now calls
+`build_installer.ps1` and attaches `narraity-setup.exe` instead. v1.1.0 was deleted and re-cut
+(both the GitHub release and its tag) with the new installer, rather than shipping v1.1.1, since no
+app features changed — only packaging.
+
+**575 tests total**, `flutter analyze` clean.
