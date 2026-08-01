@@ -11,16 +11,20 @@ import '../models/project.dart';
 import '../models/series.dart';
 import '../services/import/manuscript_importer.dart';
 import '../services/manuscript_service.dart';
+import '../state/library_background_provider.dart';
 import '../state/library_provider.dart';
 import '../state/manuscript_provider.dart';
 import '../widgets/import_destination_dialog.dart';
 import '../widgets/move_to_series_dialog.dart';
 import '../widgets/new_project_dialog.dart';
 import '../widgets/new_series_dialog.dart';
+import '../widgets/project_kind_style.dart';
 import '../widgets/quick_capture_dialog.dart';
 import '../widgets/update_available_banner.dart';
+import '../widgets/whats_new_dialog.dart';
 import 'app_goals_screen.dart';
 import 'ideas_screen.dart';
+import 'news_screen.dart';
 import 'review_sessions_screen.dart';
 import 'series_detail_screen.dart';
 import 'settings_screen.dart';
@@ -32,6 +36,7 @@ class LibraryScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final projectsAsync = ref.watch(projectListProvider);
     final seriesAsync = ref.watch(seriesListProvider);
+    final background = ref.watch(libraryBackgroundProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -45,16 +50,16 @@ class LibraryScreen extends ConsumerWidget {
           IconButton(
             tooltip: 'Global Ideas',
             icon: const Icon(Icons.tips_and_updates_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const IdeasScreen()),
-            ),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const IdeasScreen())),
           ),
           IconButton(
             tooltip: 'App-Wide Goals',
             icon: const Icon(Icons.flag_circle_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AppGoalsScreen()),
-            ),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const AppGoalsScreen())),
           ),
           IconButton(
             tooltip: 'Review a Manuscript',
@@ -69,32 +74,52 @@ class LibraryScreen extends ConsumerWidget {
             onPressed: () => _importManuscript(context, ref),
           ),
           IconButton(
+            tooltip: 'News',
+            icon: const Icon(Icons.campaign_outlined),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const NewsScreen())),
+          ),
+          IconButton(
             tooltip: 'Settings',
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
           ),
           const SizedBox(width: 8),
         ],
       ),
-      body: Column(
-        children: [
-          const UpdateAvailableBanner(),
-          Expanded(
-            child: projectsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, stack) => Center(child: Text('Failed to load library: $err')),
-              data: (projects) => seriesAsync.when(
+      // The custom background (if any) wraps just the body content, not the
+      // AppBar — an extra option alongside the theme selector (see
+      // Settings > Appearance), not a replacement for it, so the app bar
+      // keeps its normal themed look regardless of this choice.
+      body: Container(
+        decoration: background.decorationFor(context),
+        child: Column(
+          children: [
+            const WhatsNewDialogTrigger(),
+            const UpdateAvailableBanner(),
+            Expanded(
+              child: projectsAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (err, stack) => Center(child: Text('Failed to load library: $err')),
-                data: (series) => (projects.isEmpty && series.isEmpty)
-                    ? _EmptyLibrary(onCreate: () => _createProject(context, ref))
-                    : _LibraryGrid(projects: projects, series: series),
+                error: (err, stack) =>
+                    Center(child: Text('Failed to load library: $err')),
+                data: (projects) => seriesAsync.when(
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (err, stack) =>
+                      Center(child: Text('Failed to load library: $err')),
+                  data: (series) => (projects.isEmpty && series.isEmpty)
+                      ? _EmptyLibrary(
+                          onCreate: () => _createProject(context, ref),
+                        )
+                      : _LibraryGrid(projects: projects, series: series),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
@@ -132,15 +157,20 @@ class LibraryScreen extends ConsumerWidget {
     if (result == null) return;
 
     final service = ref.read(libraryServiceProvider);
-    final project = await service.createProject(title: result.title, author: result.author);
+    final project = await service.createProject(
+      title: result.title,
+      author: result.author,
+      kind: result.kind,
+    );
 
     // Seed the manuscript with the chosen starting structure right away —
     // loadStructure() only auto-seeds (with the Act>Chapter>Scene default)
     // if nothing exists yet, so doing it here explicitly is what makes the
     // structure picker actually take effect.
     final root = await service.libraryRoot();
-    final manuscriptService =
-        ManuscriptService(Directory(p.join(root.path, project.folderName)));
+    final manuscriptService = ManuscriptService(
+      Directory(p.join(root.path, project.folderName)),
+    );
     await manuscriptService.loadStructure(seed: result.seed);
 
     ref.invalidate(projectListProvider);
@@ -194,9 +224,14 @@ class LibraryScreen extends ConsumerWidget {
 
     switch (destination) {
       case ImportAsNewProject(:final title, :final author):
-        final project = await libraryService.createProject(title: title, author: author);
+        final project = await libraryService.createProject(
+          title: title,
+          author: author,
+        );
         final root = await libraryService.libraryRoot();
-        final service = ManuscriptService(Directory(p.join(root.path, project.folderName)));
+        final service = ManuscriptService(
+          Directory(p.join(root.path, project.folderName)),
+        );
         await importer.materializeInto(service, imported);
 
         ref.invalidate(projectListProvider);
@@ -209,10 +244,14 @@ class LibraryScreen extends ConsumerWidget {
         if (!confirmed) return;
 
         final root = await libraryService.libraryRoot();
-        final service = ManuscriptService(Directory(p.join(root.path, project.folderName)));
+        final service = ManuscriptService(
+          Directory(p.join(root.path, project.folderName)),
+        );
         await importer.clearExistingManuscript(service);
         await importer.materializeInto(service, imported);
-        await libraryService.saveProject(project.copyWith(modified: DateTime.now()));
+        await libraryService.saveProject(
+          project.copyWith(modified: DateTime.now()),
+        );
 
         ref.invalidate(projectListProvider);
     }
@@ -284,9 +323,16 @@ class _EmptyLibrary extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.auto_stories, size: 72, color: Theme.of(context).colorScheme.primary),
+          Icon(
+            Icons.auto_stories,
+            size: 72,
+            color: Theme.of(context).colorScheme.primary,
+          ),
           const SizedBox(height: 16),
-          Text('No projects yet', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'No projects yet',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 8),
           const Text('Start your first novel to see it here.'),
           const SizedBox(height: 24),
@@ -324,9 +370,9 @@ class _SeriesItem extends _LibraryItem {
   final Series series;
   final List<Project> projects;
   @override
-  DateTime get sortKey =>
-      projects.isEmpty ? series.modified : projects.map((p) => p.modified).reduce(
-          (a, b) => a.isAfter(b) ? a : b);
+  DateTime get sortKey => projects.isEmpty
+      ? series.modified
+      : projects.map((p) => p.modified).reduce((a, b) => a.isAfter(b) ? a : b);
   @override
   int? get sortOrder => series.sortOrder;
 }
@@ -340,24 +386,26 @@ class _LibraryGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final seriesIds = series.map((s) => s.id).toSet();
-    final items = <_LibraryItem>[
-      for (final project in projects)
-        if (project.seriesId == null || !seriesIds.contains(project.seriesId))
-          _StandaloneProjectItem(project),
-      for (final s in series)
-        _SeriesItem(s, projects.where((p) => p.seriesId == s.id).toList()),
-    ]..sort((a, b) {
-        // Drag-and-drop-ordered items sort first (by their explicit
-        // position); anything never manually reordered falls in after them,
-        // newest-activity-first — so a freshly created project/series still
-        // surfaces near the top without needing a sortOrder of its own.
-        final aOrder = a.sortOrder;
-        final bOrder = b.sortOrder;
-        if (aOrder != null && bOrder != null) return aOrder.compareTo(bOrder);
-        if (aOrder != null) return -1;
-        if (bOrder != null) return 1;
-        return b.sortKey.compareTo(a.sortKey);
-      });
+    final items =
+        <_LibraryItem>[
+          for (final project in projects)
+            if (project.seriesId == null ||
+                !seriesIds.contains(project.seriesId))
+              _StandaloneProjectItem(project),
+          for (final s in series)
+            _SeriesItem(s, projects.where((p) => p.seriesId == s.id).toList()),
+        ]..sort((a, b) {
+          // Drag-and-drop-ordered items sort first (by their explicit
+          // position); anything never manually reordered falls in after them,
+          // newest-activity-first — so a freshly created project/series still
+          // surfaces near the top without needing a sortOrder of its own.
+          final aOrder = a.sortOrder;
+          final bOrder = b.sortOrder;
+          if (aOrder != null && bOrder != null) return aOrder.compareTo(bOrder);
+          if (aOrder != null) return -1;
+          if (bOrder != null) return 1;
+          return b.sortKey.compareTo(a.sortKey);
+        });
 
     return GridView.builder(
       padding: const EdgeInsets.all(16),
@@ -371,20 +419,29 @@ class _LibraryGrid extends ConsumerWidget {
       itemBuilder: (context, index) {
         final item = items[index];
         final card = switch (item) {
-          _StandaloneProjectItem(:final project) =>
-            _ProjectCard(project: project, series: series),
-          _SeriesItem(:final series, :final projects) =>
-            _SeriesStackCard(series: series, projects: projects),
+          _StandaloneProjectItem(:final project) => _ProjectCard(
+            project: project,
+            series: series,
+          ),
+          _SeriesItem(:final series, :final projects) => _SeriesStackCard(
+            series: series,
+            projects: projects,
+          ),
         };
 
         return DragTarget<int>(
           onWillAcceptWithDetails: (details) => details.data != index,
-          onAcceptWithDetails: (details) => _reorder(ref, items, details.data, index),
+          onAcceptWithDetails: (details) =>
+              _reorder(ref, items, details.data, index),
           builder: (context, candidateData, rejectedData) => Draggable<int>(
             data: index,
             feedback: Opacity(
               opacity: 0.8,
-              child: SizedBox(width: 220, height: 172, child: Material(child: card)),
+              child: SizedBox(
+                width: 220,
+                height: 172,
+                child: Material(child: card),
+              ),
             ),
             childWhenDragging: Opacity(opacity: 0.3, child: card),
             child: candidateData.isNotEmpty
@@ -437,62 +494,73 @@ class _ProjectCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Card(
-      child: InkWell(
-        onTap: () {
-          ref.read(openContentIdProvider.notifier).state = null;
-          ref.read(currentProjectProvider.notifier).state = project;
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (project.coverImagePath != null) ...[
-                _CoverThumbnail(project: project),
-                const SizedBox(width: 12),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        if (project.coverImagePath == null)
-                          Icon(Icons.menu_book, color: Theme.of(context).colorScheme.primary),
-                        const Spacer(),
-                        PopupMenuButton<String>(
-                          tooltip: 'Add to Series',
-                          icon: const Icon(Icons.more_vert, size: 18),
-                          onSelected: (_) => _addToSeries(context, ref),
-                          itemBuilder: (context) => const [
-                            PopupMenuItem(value: 'series', child: Text('Add to Series…')),
-                          ],
-                        ),
-                      ],
-                    ),
-                    Text(
-                      project.title,
-                      style: Theme.of(context).textTheme.titleMedium,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (project.author != null)
+    return ProjectKindFrame(
+      kind: project.kind,
+      child: Card(
+        child: InkWell(
+          onTap: () {
+            ref.read(openContentIdProvider.notifier).state = null;
+            ref.read(currentProjectProvider.notifier).state = project;
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (project.coverImagePath != null) ...[
+                  _CoverThumbnail(project: project),
+                  const SizedBox(width: 12),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          if (project.coverImagePath == null)
+                            Icon(
+                              ProjectKindStyle.of(project.kind).icon,
+                              color: ProjectKindStyle.of(
+                                project.kind,
+                              ).accent(Theme.of(context).colorScheme),
+                            ),
+                          const Spacer(),
+                          PopupMenuButton<String>(
+                            tooltip: 'Add to Series',
+                            icon: const Icon(Icons.more_vert, size: 18),
+                            onSelected: (_) => _addToSeries(context, ref),
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(
+                                value: 'series',
+                                child: Text('Add to Series…'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                       Text(
-                        project.author!,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        project.title,
+                        style: Theme.of(context).textTheme.titleMedium,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    const Spacer(),
-                    Text(
-                      'Modified ${DateFormat.yMMMd().format(project.modified)}',
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                  ],
+                      if (project.author != null)
+                        Text(
+                          project.author!,
+                          style: Theme.of(context).textTheme.bodySmall,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      const Spacer(),
+                      Text(
+                        'Modified ${DateFormat.yMMMd().format(project.modified)}',
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -500,16 +568,25 @@ class _ProjectCard extends ConsumerWidget {
   }
 
   Future<void> _addToSeries(BuildContext context, WidgetRef ref) async {
-    final result = await showMoveToSeriesDialog(context, existingSeries: series);
+    final result = await showMoveToSeriesDialog(
+      context,
+      existingSeries: series,
+    );
     if (result == null) return;
 
     final libraryService = ref.read(libraryServiceProvider);
     if (result.existingSeries != null) {
-      await libraryService.saveProject(project.copyWith(seriesId: result.existingSeries!.id));
+      await libraryService.saveProject(
+        project.copyWith(seriesId: result.existingSeries!.id),
+      );
     } else {
       final seriesService = ref.read(seriesServiceProvider);
-      final newSeries = await seriesService.createSeries(title: result.newSeriesTitle!);
-      await libraryService.saveProject(project.copyWith(seriesId: newSeries.id));
+      final newSeries = await seriesService.createSeries(
+        title: result.newSeriesTitle!,
+      );
+      await libraryService.saveProject(
+        project.copyWith(seriesId: newSeries.id),
+      );
       ref.invalidate(seriesListProvider);
     }
     ref.invalidate(projectListProvider);
@@ -567,7 +644,9 @@ class _SeriesStackCard extends StatelessWidget {
           Card(
             child: InkWell(
               onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => SeriesDetailScreen(series: series)),
+                MaterialPageRoute(
+                  builder: (_) => SeriesDetailScreen(series: series),
+                ),
               ),
               borderRadius: BorderRadius.circular(12),
               child: Padding(
@@ -584,7 +663,10 @@ class _SeriesStackCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (coverProject == null)
-                            Icon(Icons.collections_bookmark, color: scheme.primary),
+                            Icon(
+                              Icons.collections_bookmark,
+                              color: scheme.primary,
+                            ),
                           const SizedBox(height: 8),
                           Text(
                             series.title,

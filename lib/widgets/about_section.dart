@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../screens/release_notes_screen.dart';
 import '../services/update_check_service.dart';
 import '../state/update_check_provider.dart';
 
@@ -112,6 +113,14 @@ class _AboutSectionContentState extends ConsumerState<AboutSectionContent> {
                   : const Icon(Icons.system_update_outlined),
               label: const Text('Check for Updates'),
             ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ReleaseNotesScreen()),
+              ),
+              icon: const Icon(Icons.history_outlined),
+              label: const Text('Release Notes'),
+            ),
           ],
         ),
         if (_checkError != null) ...[
@@ -127,8 +136,12 @@ class _AboutSectionContentState extends ConsumerState<AboutSectionContent> {
               children: [
                 Expanded(child: Text('Version ${update.version} is available.')),
                 TextButton(
-                  onPressed: () => launchUrl(Uri.parse(update.htmlUrl)),
-                  child: const Text('View Release'),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ReleaseNotesScreen(highlightVersion: update.version),
+                    ),
+                  ),
+                  child: const Text('View Release Notes'),
                 ),
               ],
             )

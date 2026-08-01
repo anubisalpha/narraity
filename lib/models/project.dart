@@ -1,3 +1,10 @@
+/// Purely visual — which library-card frame/icon style a project uses.
+/// Doesn't affect the manuscript, editor, or export pipeline at all (a
+/// "Script" project is still prose-formatted the same as a "Novel" one);
+/// see PLAN.md's Feature section for why real screenplay formatting is
+/// explicitly a separate, much bigger feature this isn't attempting.
+enum ProjectKind { novel, comic, script }
+
 /// A single novel-writing project (or one book inside a series, in later phases).
 ///
 /// Mirrors `project.json` on disk — see PLAN.md's "Data model" section.
@@ -21,6 +28,11 @@ class Project {
   /// absolute path. Null means no cover has been set.
   final String? coverImagePath;
 
+  /// Which card frame/icon style this project's library card uses — purely
+  /// cosmetic (see [ProjectKind]'s doc comment). Defaults to [ProjectKind.novel]
+  /// for any project created or saved before this field existed.
+  final ProjectKind kind;
+
   /// Manual library-grid position, set by drag-and-drop reordering. Null
   /// means "never manually reordered" — the library sorts those by recency
   /// instead, after every explicitly-ordered item. See `_LibraryGrid`'s sort
@@ -37,6 +49,7 @@ class Project {
     required this.modified,
     this.seriesId,
     this.coverImagePath,
+    this.kind = ProjectKind.novel,
     this.sortOrder,
   });
 
@@ -53,6 +66,7 @@ class Project {
     bool clearSeriesId = false,
     String? coverImagePath,
     bool clearCoverImagePath = false,
+    ProjectKind? kind,
     int? sortOrder,
   }) {
     return Project(
@@ -64,25 +78,31 @@ class Project {
       created: created,
       modified: modified ?? this.modified,
       seriesId: clearSeriesId ? null : (seriesId ?? this.seriesId),
-      coverImagePath:
-          clearCoverImagePath ? null : (coverImagePath ?? this.coverImagePath),
+      coverImagePath: clearCoverImagePath
+          ? null
+          : (coverImagePath ?? this.coverImagePath),
+      kind: kind ?? this.kind,
       sortOrder: sortOrder ?? this.sortOrder,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        if (subtitle != null) 'subtitle': subtitle,
-        if (author != null) 'author': author,
-        'created': created.toIso8601String(),
-        'modified': modified.toIso8601String(),
-        if (seriesId != null) 'seriesId': seriesId,
-        if (coverImagePath != null) 'coverImagePath': coverImagePath,
-        if (sortOrder != null) 'sortOrder': sortOrder,
-      };
+    'id': id,
+    'title': title,
+    if (subtitle != null) 'subtitle': subtitle,
+    if (author != null) 'author': author,
+    'created': created.toIso8601String(),
+    'modified': modified.toIso8601String(),
+    if (seriesId != null) 'seriesId': seriesId,
+    if (coverImagePath != null) 'coverImagePath': coverImagePath,
+    'kind': kind.name,
+    if (sortOrder != null) 'sortOrder': sortOrder,
+  };
 
-  factory Project.fromJson(Map<String, dynamic> json, {required String folderName}) {
+  factory Project.fromJson(
+    Map<String, dynamic> json, {
+    required String folderName,
+  }) {
     return Project(
       id: json['id'] as String,
       folderName: folderName,
@@ -93,6 +113,10 @@ class Project {
       modified: DateTime.parse(json['modified'] as String),
       seriesId: json['seriesId'] as String?,
       coverImagePath: json['coverImagePath'] as String?,
+      kind: ProjectKind.values.firstWhere(
+        (k) => k.name == json['kind'],
+        orElse: () => ProjectKind.novel,
+      ),
       sortOrder: json['sortOrder'] as int?,
     );
   }

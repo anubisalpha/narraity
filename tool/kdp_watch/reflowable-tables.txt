@@ -1,0 +1,436 @@
+﻿Table Guidelines - Reflowable
+English
+English
+Deutsch
+Français
+Español
+Italiano
+Português
+Nederlands
+|
+Help
+|
+Sign in
+|
+Give Feedback
+How would you rate your experience using this page?
+Very Dissatisfied
+Dissatisfied
+Neutral
+Satisfied
+Very Satisfied
+Visit our
+help center
+for resources to common issues
+Click here
+to take our survey and give us detailed feedback.
+Thank you for your feedback.
+Click here
+to take our survey and give us detailed feedback.
+Bookshelf
+|
+Reports
+|
+Community
+|
+Marketing
+Help Topics
+Help
+KDP Help Center Home
+Account & Taxes
+Set up your KDP account
+Create a KDP Account
+Add or update a bank account
+I set up my bank account, but I haven't received any payments.
+Troubleshooting common bank account errors
+Payment Service Provider Program FAQ
+Payment Service Provider Program Updates
+Payment Service Provider Program Risk Management Controls
+Manage Your KDP Account
+What happens when I close my KDP account?
+Account security and avoiding scams
+Sign in Issues
+Two-Step Verification
+Verify your identity
+Accepted IDs for Identity Verification
+What if my account name or country changes or is different from my ID?
+Taking photos of your ID
+Troubleshoot Identity Verification Errors
+CreateSpace Account
+Tax Information
+Year End Tax Forms
+What is my tax information status?
+Complete Tax Profile
+Tax Withholding
+Kindle Store: BR - BR Tax Withholding
+Goods and Services Tax (GST) for eBooks in Australia and India
+Taiwan VAT
+Applying for a US ITIN
+Applying for a U.S. EIN for Corporations and Non-Individual Entities
+How Taxes Affect List Prices
+Setting Prices for Amazon Japan
+How EU and the UK Taxes Affect Print Books List Price
+How EU Taxes Affect eBooks List Price
+EU VAT Invoices
+Book Formatting
+Format Your Paperback
+Set Trim Size, Bleed, and Margins
+Format Front Matter, Body Matter, and Back Matter
+Save Your Manuscript File
+Paperback and Hardcover Manuscript Templates
+Cover Creator
+Create a Paperback Cover
+Format Images in Your Book
+Paperback Fonts
+Fix Paperback and Hardcover Formatting Issues
+Paperback Submission Guidelines
+Format Your Hardcover
+Create a Hardcover Cover
+Format Your eBook
+What criteria does my eBook's cover image need to meet?
+Why is my cover image not updating on Amazon?
+What file formats are supported for eBook manuscripts?
+Digital Rights Management
+Create a Table of Contents
+Tools and Resources
+KDP Tools and Resources
+Publishing Service Providers & Resources
+Kindle Create Help Overview
+Getting Started with Kindle Create
+Kindle Create Tutorial
+Prepare Reflowable and Print Books with Kindle Create
+Prepare Comic and Kids' eBooks with Kindle Create
+Prepare Print Replica Books with Kindle Create
+Previewing and Publishing Your Kindle Create Book
+Kindle Previewer
+Quality Notifications Dashboard
+Guide to Kindle Content Quality
+Enhanced Typesetting
+X-Ray for Authors
+X-Ray for Authors: Tips and Tricks
+KDP Publishing
+Start publishing with KDP
+KDP Bookshelf
+Book Supported Languages
+Arabic
+Chinese (Traditional) (Beta)
+Publishing in Hebrew, Persian, and Yiddish
+Indian-Language Publishing
+Create a Book
+Book Detail Resources
+Books Titles & Editions
+Fixing typos on a book title or author name
+Authors & Contributors
+Write a Book Description
+Fixing errors or formatting with book descriptions
+Make Your Book More Discoverable with Keywords
+Kindle eBook Pre-Order
+Setting up pre-orders
+Pre-order statuses
+Reschedule a pre-order release
+Delay or cancel a pre-order release
+Pre-order pricing and sales reports
+Primary Audience and Reading Age
+Publishing Public Domain Content
+Language & Reading direction
+Release Date Options
+Schedule a Release
+Upload Book Resources
+Accessibility for eBooks
+Accessibility Features on Detail Page
+What is an ISBN and Imprint?
+Get an ISBN
+Change or view your ISBN
+Troubleshoot ISBN errors
+Barcodes
+Print Options
+Color Ink Options
+Groundwood Paper
+Upload and Preview Book Content
+Convert a Paperback Word File to PDF
+Pricing Resources
+Price Your Book
+Price Troubleshooting
+Paperback Printing Cost
+Hardcover Printing Cost
+RedirectA
+Printing Cost & Royalty Calculator
+Timelines
+Book Status
+Low-Content Books
+Hardcover
+Hardcover Print Elements
+Beta: Audiobooks with virtual voice
+Getting started with audiobooks with virtual voice
+Audiobooks with virtual voice eligibility and troubleshooting
+Virtual voice audio samples
+Pricing, royalties, and reports for audiobooks
+Edit audio in the Virtual Voice Studio
+Terms and Conditions for the Beta Version of Audiobooks with Virtual Voice
+Beta: Kindle Translate
+Getting Started with Kindle Translate
+Kindle Translate Languages
+Kindle Translate Eligibility and Troubleshooting
+Kindle Translate Quality
+Pricing, royalties, and reports for translations
+Terms and Conditions for the Beta Version of Kindle Translate
+Start a Book Series
+Update Your Series
+Edit your Series
+Delete a series
+Set the reading order for your series
+Where can I find my Amazon Series Page?
+How to create a series with multiple authors
+Can I offer discounts to books in my series?
+Series Collections on kdp.amazon.co.jp
+Orders & Book Copies
+Proof and Author Copies
+How do I order a proof or author copy?
+How much do proof or author copies cost?
+What is the cost to ship my proof or author copy?
+When will my proof or author copy arrive?
+I’m getting an error ordering my author copy
+I’m getting an error ordering my proof copy
+My proof or author copy came damaged
+My proof or author copy didn’t arrive on time
+My proof or author copy has printing errors
+Amazon Store & Detail Page
+KDP Categories
+Read Sample (Look Inside the Book)
+Customer Reviews
+Search Results
+How to find your book on Amazon
+Troubleshoot search results
+Link Your Books Together
+Why are my books not linked on Amazon?
+Link Your Books on the KDP Bookshelf
+How do I unlink my books?
+Sales Ranking
+Book Trends Data
+Recaps
+Marketing & Distribution
+Guidelines for use of the Available at Amazon Badge by KDP Publishers
+Ways to Promote Your Book
+KDP Select
+How to enroll in KDP Select
+How to cancel KDP Select
+KDP Select Benefits
+KDP Select Bonus
+Kindle Countdown Deals
+Kindle Unlimited
+Royalties in Kindle Unlimited
+Free Book Promotions
+Author Central
+A+ Content
+Create A+ Content
+A+ Content Examples
+A+ Content Guidelines
+Advertising for KDP books
+Expanded Distribution
+eBook Distribution Rights
+Paperback and Hardcover Distribution Rights
+Merchandising Tips
+Buying and Gifting eBooks for Others
+Sample Chapters
+Audiobooks Through ACX
+Amazon Literary Contests
+Nominate Your eBook for a Promotion (Beta)
+Book Updates
+Update Your Book
+Update your book details
+Update Your Manuscript
+Modify Converted eBook Content
+How to Send Your Updated eBook to Customers or Yourself
+Update Your Cover
+Remove or unpublish a book
+Payments & Reports
+Royalties
+eBook Royalties
+Paperback Royalty
+Hardcover Royalty
+KDP Reports
+How do I view a report of my orders and payment royalties?
+Dashboard
+Orders Report
+KENP Read
+Promotions Report
+Pre-Order Report
+Month-to-Date Report
+Prior Months' Royalties Report
+Royalties Estimator
+Payment Report
+KDP Payments
+KDP Payment Options
+When will I get paid?
+Troubleshoot Payment Issues
+Legal & Content Guidelines
+Kindle Direct Publishing Terms and Conditions
+Digital  Book Pricing Page
+Print Book Pricing Page
+eBook List Price Requirements
+Program Policies
+Content Guidelines
+Metadata Guidelines for Books
+Intellectual Property Rights Frequently Asked Questions
+Reporting Possible Violations of Our Guidelines
+Privacy Notice Information
+Bonus Content
+Featured Offer Eligibility for Third-Party Sellers
+EU Regulation on Deforestation-free Products (EUDR)
+User Guides
+Kindle Publishing Guidelines
+Getting Started
+Introduction
+Paths to Getting Your Content on Kindle
+Comparing Formats
+General Best Practices
+Cover Image Guidelines
+Navigation Guidelines
+HTML and CSS Guidelines
+Hyperlink Guidelines
+QA Standards
+Boxed and Bundles Edition Guidelines (eBook format only)
+Guidelines for Specific Types of eBooks
+Creating Reflowable Books
+Text Guidelines - Reflowable
+Image Guidelines - Reflowable
+Table Guidelines - Reflowable
+Creating Fixed-Layout Books with Text Pop-Ups
+Creating Fixed-Layout Books with Image Pop-Ups or Virtual Panels
+Creating Fixed-Layout Books Without Pop-Ups
+Creating Kindle Editions with Audio/Video Content
+Creating Dictionaries
+Appendices
+Enhanced Typesetting and Page Flip
+Attributes and Tags Supported by Enhanced Typesetting
+HTML and CSS Tags Supported in Kindle Format 8
+Media Queries
+Guidelines for Creating a Source File
+KDP Jumpstart
+1 – Set Up Your KDP Account
+2 – Prepare Your Manuscript
+3 – Prepare Your Cover
+4 – Title Setup: Book Details, Content, & Pricing
+5 – Publishing & Review
+6 – Promoting Your Book & Getting Paid
+KDP University
+Webinars
+Videos
+Contact Us
+Have feedback? Can't find your answer in our Help pages?
+Contact Us
+Search Help
+User Guides
+Kindle Publishing Guidelines
+Guidelines for Specific Types of eBooks
+Creating Reflowable Books
+Table Guidelines - Reflowable
+Table Guidelines - Reflowable
+Contents
+Large Tables
+Create Simple HTML Tables
+Split Tables as Needed
+Table Features with Enhanced Typesetting
+Large Tables
+Amazon recommends using HTML &lt;table&gt; layouts for tabular content and not rendering tables as images.
+A table rendered as an image cannot be paginated because the entire image is displayed on one screen. Tables displayed as images cannot be read by customers using assistive technology. If the table is rendered using HTML &lt;table&gt; tags, pagination is available and the content of the table can be made available to screen readers and refreshable braille displays. Readers will also be able to navigate through the cells in the table. If the table is significantly wider than the screen and forces panning, it creates a poor user experience.
+For the best user experience, tables should not contain whole paragraphs of text or large pictures in a cell.
+Tables containing more than 1,800 cells and 20,000 characters are not supported. Single columns of HTML text provide the best reading experience for customers using a variety of font sizes. Amazon recommends creating tables with less than 100 rows and 10 columns.
+If the table must be rendered as an image, follow our
+Image Guidelines
+and
+split tables as needed
+.
+Create Simple HTML Tables
+Use the &lt;table&gt; tags to create simple tables with standard rows and columns that can be displayed on Kindle devices and applications. KF8 has support for nested tables and merged cells, but Amazon recommends that publishers use this judiciously and only when necessary. Enhanced Typesetting does not support nested tables.
+Colspan and rowspan attributes should be less than or equal to the total number of columns or rows (as appropriate) in the table.
+Avoid negative margins in the table content for better readability. Enhanced Typesetting does not support negative margins.
+Split Tables as Needed
+There are times when it may be necessary to format a table as an image, but the image is still too large to be legible on one Kindle screen. In this case, it is a good idea to split the image. The following example is a guideline to use when splitting a two-page table. This logic can be extended for multiple-page table images.
+Example:
+Split the image in half horizontally 60% of the way down the image, then split the header, copy it to the bottom half of the image, and stitch these into a new image. The final two images should then be the same size, with table headers.
+Revise the source image, not the converted GIF; otherwise, the image will be converted into GIF format twice, which might result in lower quality.
+Table Features with Enhanced Typesetting
+If an eBook has Enhanced Typesetting enabled, an enhanced Table Viewer experience will be enabled for readers on tables with more than three columns by double-tapping on the table. Table features with Enhanced Typesetting include:
+Customers do not experience any data loss when reading tables. Text in tables is redistributed if it does not fit on the page and is not cropped on the screen edges.
+Enhanced Typesetting avoids excessive wrapping of text by using additional white space on the page to redistribute column widths based on the screen size. Minimum padding between rows and columns is always maintained to preserve proportional row and column boundaries for any font size or device type.
+Customers can navigate through multipage tables with the additional context of a continuation indicator.
+Customers can interact with a table that may have spanned multiple pages in a single view inside the Enhanced Typesetting viewer with panning, zooming, text highlights, and text lookup available.
+Best practices for utilizing Enhanced Typesetting with tables:
+Use a table structure of &lt;thead&gt;, &lt;tbody&gt;, &lt;tfoot&gt;.
+Do not add empty columns to provide extra padding.
+Use inline images instead of block images.
+Tables containing more than 1,800 cells and 20,000 characters are not supported in Enhanced Typesetting. For Enhanced Typesetting, split the table into smaller tables(s).
+Enhanced Typesetting does not currently support the use of floats in tables. We recommend using a media query to specify a replacement for Kindle using the CSS
+::first-letter Selector
+.
+Enhanced Typesetting does not currently support &lt;caption-side: bottom&gt;. Content styled with &lt;caption-side: bottom&gt; will be positioned at the top of the table like &lt;caption-side:top&gt;.
+Check whether your book supports
+Enhanced Typesetting with Kindle Previewer
+.
+Example:
+&lt;table class="defaultcontent" bordercolor="#E66C2C" border="1" cellpadding="4" p align="left"&gt;
+&lt;caption&gt;Ipsum lorem sit dolor&lt;&gt;caption&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th align="left"&gt;&lt;i&gt;Lorem ipsum&lt;/i&gt;&lt;/th&gt;
+&lt;th align="left"&gt;&lt;i&gt;Dolor sit&lt;/i&gt;&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;b&gt;amet&lt;/b&gt; amerit&lt;/td&gt;
+&lt;td&gt;&lt;b&gt;amat&lt;/b&gt; amerat&lt;/td&gt;
+&lt;/tr&gt; ...
+&lt;/tbody&gt;
+&lt;tfoot&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;b&gt;sedi&lt;/b&gt; sed&lt;/td&gt;
+&lt;td&gt;&lt;b&gt;seda&lt;/b&gt; sad&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tfoot&gt;
+&lt;/table&gt;
+Enhanced Typesetting will utilize the space on the page to avoid wrapping text and display a clear readable table.
+Before you publish
+, we recommend checking the following:
+Check tables for formatting errors, such as forced line breaks.
+Check for typos, extra spaces, single words spit across multiple cells.
+Ensure table cells are not cutting off text or images.
+Ensure table rows and columns are clearly differentiated, not cut-off or running together.
+Make more money and reach more readers through Kindle Unlimited.
+Learn More
+Total KDP Select Author Earnings
+June 2026
+&#x2022;
+$67.0 Million
+&copy;
+1996-2026, Amazon.com, Inc. or its affiliates. All Rights Reserved.
+Amazon and Kindle are trademarks of Amazon.com Inc. or its affiliates.
+KDP Select
+Earn more money and
+reach new readers
+KDP Community
+Connect with experts
+and fellow authors
+CreateSpace
+Indie print publishing
+made easy
+ACX
+Indie audiobook publishing
+made easy
+KDP Terms and Conditions
+|
+Privacy Notice
+|
+Conditions of Use
+|
+Contact Us
+|
+Join Our Team
+|
+kdp.amazon.co.jp
+An unexpected error occurred.  Please try again later.
+Your session has expired
+Please sign in to continue
+Sign In
+edit

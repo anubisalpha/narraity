@@ -33,6 +33,7 @@ class AppSettingsService {
 
   static const _keys = [
     'themeMode',
+    'libraryBackground',
     'dictation.language',
     'dictation.modelSize',
     'spellCheck.enabled',

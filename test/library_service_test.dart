@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:narraity/models/project.dart';
 import 'package:narraity/services/library_service.dart';
 import 'package:path/path.dart' as p;
 
@@ -72,6 +74,43 @@ void main() {
 
     final reloaded = await service.listProjects();
     expect(reloaded.single.seriesId, isNull);
+  });
+
+  test('createProject defaults to ProjectKind.novel when no kind is given', () async {
+    final project = await service.createProject(title: 'Untyped Book');
+
+    expect(project.kind, ProjectKind.novel);
+    final reloaded = await service.listProjects();
+    expect(reloaded.single.kind, ProjectKind.novel);
+  });
+
+  test('createProject accepts a ProjectKind, and it round-trips through project.json', () async {
+    final project =
+        await service.createProject(title: 'A Comic', kind: ProjectKind.comic);
+
+    expect(project.kind, ProjectKind.comic);
+    final reloaded = await service.listProjects();
+    expect(reloaded.single.kind, ProjectKind.comic);
+  });
+
+  test('Project.copyWith can change kind, and that persists', () async {
+    final project = await service.createProject(title: 'Genre Switch');
+    await service.saveProject(project.copyWith(kind: ProjectKind.script));
+
+    final reloaded = await service.listProjects();
+    expect(reloaded.single.kind, ProjectKind.script);
+  });
+
+  test('a project.json written before ProjectKind existed still loads, defaulting to novel',
+      () async {
+    final project = await service.createProject(title: 'Legacy Project');
+    final projectFile = File(p.join(tempDir.path, project.folderName, 'project.json'));
+    final json = jsonDecode(await projectFile.readAsString()) as Map<String, dynamic>;
+    json.remove('kind'); // simulate a project.json from before this field existed
+    await projectFile.writeAsString(jsonEncode(json));
+
+    final reloaded = await service.listProjects();
+    expect(reloaded.single.kind, ProjectKind.novel);
   });
 
   test('setCoverImage copies the file into assets/covers/ and persists coverImagePath',

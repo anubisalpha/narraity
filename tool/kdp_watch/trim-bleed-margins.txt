@@ -1,0 +1,756 @@
+﻿Set Trim Size, Bleed, and Margins
+English
+English
+Deutsch
+Français
+Español
+Italiano
+Português
+Nederlands
+|
+Help
+|
+Sign in
+|
+Give Feedback
+How would you rate your experience using this page?
+Very Dissatisfied
+Dissatisfied
+Neutral
+Satisfied
+Very Satisfied
+Visit our
+help center
+for resources to common issues
+Click here
+to take our survey and give us detailed feedback.
+Thank you for your feedback.
+Click here
+to take our survey and give us detailed feedback.
+Bookshelf
+|
+Reports
+|
+Community
+|
+Marketing
+Help Topics
+Help
+KDP Help Center Home
+Account & Taxes
+Set up your KDP account
+Create a KDP Account
+Add or update a bank account
+I set up my bank account, but I haven't received any payments.
+Troubleshooting common bank account errors
+Payment Service Provider Program FAQ
+Payment Service Provider Program Updates
+Payment Service Provider Program Risk Management Controls
+Manage Your KDP Account
+What happens when I close my KDP account?
+Account security and avoiding scams
+Sign in Issues
+Two-Step Verification
+Verify your identity
+Accepted IDs for Identity Verification
+What if my account name or country changes or is different from my ID?
+Taking photos of your ID
+Troubleshoot Identity Verification Errors
+CreateSpace Account
+Tax Information
+Year End Tax Forms
+What is my tax information status?
+Complete Tax Profile
+Tax Withholding
+Kindle Store: BR - BR Tax Withholding
+Goods and Services Tax (GST) for eBooks in Australia and India
+Taiwan VAT
+Applying for a US ITIN
+Applying for a U.S. EIN for Corporations and Non-Individual Entities
+How Taxes Affect List Prices
+Setting Prices for Amazon Japan
+How EU and the UK Taxes Affect Print Books List Price
+How EU Taxes Affect eBooks List Price
+EU VAT Invoices
+Book Formatting
+Format Your Paperback
+Set Trim Size, Bleed, and Margins
+Format Front Matter, Body Matter, and Back Matter
+Save Your Manuscript File
+Paperback and Hardcover Manuscript Templates
+Cover Creator
+Create a Paperback Cover
+Format Images in Your Book
+Paperback Fonts
+Fix Paperback and Hardcover Formatting Issues
+Paperback Submission Guidelines
+Format Your Hardcover
+Create a Hardcover Cover
+Format Your eBook
+What criteria does my eBook's cover image need to meet?
+Why is my cover image not updating on Amazon?
+What file formats are supported for eBook manuscripts?
+Digital Rights Management
+Create a Table of Contents
+Tools and Resources
+KDP Tools and Resources
+Publishing Service Providers & Resources
+Kindle Create Help Overview
+Getting Started with Kindle Create
+Kindle Create Tutorial
+Prepare Reflowable and Print Books with Kindle Create
+Prepare Comic and Kids' eBooks with Kindle Create
+Prepare Print Replica Books with Kindle Create
+Previewing and Publishing Your Kindle Create Book
+Kindle Previewer
+Quality Notifications Dashboard
+Guide to Kindle Content Quality
+Enhanced Typesetting
+X-Ray for Authors
+X-Ray for Authors: Tips and Tricks
+KDP Publishing
+Start publishing with KDP
+KDP Bookshelf
+Book Supported Languages
+Arabic
+Chinese (Traditional) (Beta)
+Publishing in Hebrew, Persian, and Yiddish
+Indian-Language Publishing
+Create a Book
+Book Detail Resources
+Books Titles & Editions
+Fixing typos on a book title or author name
+Authors & Contributors
+Write a Book Description
+Fixing errors or formatting with book descriptions
+Make Your Book More Discoverable with Keywords
+Kindle eBook Pre-Order
+Setting up pre-orders
+Pre-order statuses
+Reschedule a pre-order release
+Delay or cancel a pre-order release
+Pre-order pricing and sales reports
+Primary Audience and Reading Age
+Publishing Public Domain Content
+Language & Reading direction
+Release Date Options
+Schedule a Release
+Upload Book Resources
+Accessibility for eBooks
+Accessibility Features on Detail Page
+What is an ISBN and Imprint?
+Get an ISBN
+Change or view your ISBN
+Troubleshoot ISBN errors
+Barcodes
+Print Options
+Color Ink Options
+Groundwood Paper
+Upload and Preview Book Content
+Convert a Paperback Word File to PDF
+Pricing Resources
+Price Your Book
+Price Troubleshooting
+Paperback Printing Cost
+Hardcover Printing Cost
+RedirectA
+Printing Cost & Royalty Calculator
+Timelines
+Book Status
+Low-Content Books
+Hardcover
+Hardcover Print Elements
+Beta: Audiobooks with virtual voice
+Getting started with audiobooks with virtual voice
+Audiobooks with virtual voice eligibility and troubleshooting
+Virtual voice audio samples
+Pricing, royalties, and reports for audiobooks
+Edit audio in the Virtual Voice Studio
+Terms and Conditions for the Beta Version of Audiobooks with Virtual Voice
+Beta: Kindle Translate
+Getting Started with Kindle Translate
+Kindle Translate Languages
+Kindle Translate Eligibility and Troubleshooting
+Kindle Translate Quality
+Pricing, royalties, and reports for translations
+Terms and Conditions for the Beta Version of Kindle Translate
+Start a Book Series
+Update Your Series
+Edit your Series
+Delete a series
+Set the reading order for your series
+Where can I find my Amazon Series Page?
+How to create a series with multiple authors
+Can I offer discounts to books in my series?
+Series Collections on kdp.amazon.co.jp
+Orders & Book Copies
+Proof and Author Copies
+How do I order a proof or author copy?
+How much do proof or author copies cost?
+What is the cost to ship my proof or author copy?
+When will my proof or author copy arrive?
+I’m getting an error ordering my author copy
+I’m getting an error ordering my proof copy
+My proof or author copy came damaged
+My proof or author copy didn’t arrive on time
+My proof or author copy has printing errors
+Amazon Store & Detail Page
+KDP Categories
+Read Sample (Look Inside the Book)
+Customer Reviews
+Search Results
+How to find your book on Amazon
+Troubleshoot search results
+Link Your Books Together
+Why are my books not linked on Amazon?
+Link Your Books on the KDP Bookshelf
+How do I unlink my books?
+Sales Ranking
+Book Trends Data
+Recaps
+Marketing & Distribution
+Guidelines for use of the Available at Amazon Badge by KDP Publishers
+Ways to Promote Your Book
+KDP Select
+How to enroll in KDP Select
+How to cancel KDP Select
+KDP Select Benefits
+KDP Select Bonus
+Kindle Countdown Deals
+Kindle Unlimited
+Royalties in Kindle Unlimited
+Free Book Promotions
+Author Central
+A+ Content
+Create A+ Content
+A+ Content Examples
+A+ Content Guidelines
+Advertising for KDP books
+Expanded Distribution
+eBook Distribution Rights
+Paperback and Hardcover Distribution Rights
+Merchandising Tips
+Buying and Gifting eBooks for Others
+Sample Chapters
+Audiobooks Through ACX
+Amazon Literary Contests
+Nominate Your eBook for a Promotion (Beta)
+Book Updates
+Update Your Book
+Update your book details
+Update Your Manuscript
+Modify Converted eBook Content
+How to Send Your Updated eBook to Customers or Yourself
+Update Your Cover
+Remove or unpublish a book
+Payments & Reports
+Royalties
+eBook Royalties
+Paperback Royalty
+Hardcover Royalty
+KDP Reports
+How do I view a report of my orders and payment royalties?
+Dashboard
+Orders Report
+KENP Read
+Promotions Report
+Pre-Order Report
+Month-to-Date Report
+Prior Months' Royalties Report
+Royalties Estimator
+Payment Report
+KDP Payments
+KDP Payment Options
+When will I get paid?
+Troubleshoot Payment Issues
+Legal & Content Guidelines
+Kindle Direct Publishing Terms and Conditions
+Digital  Book Pricing Page
+Print Book Pricing Page
+eBook List Price Requirements
+Program Policies
+Content Guidelines
+Metadata Guidelines for Books
+Intellectual Property Rights Frequently Asked Questions
+Reporting Possible Violations of Our Guidelines
+Privacy Notice Information
+Bonus Content
+Featured Offer Eligibility for Third-Party Sellers
+EU Regulation on Deforestation-free Products (EUDR)
+User Guides
+Kindle Publishing Guidelines
+Getting Started
+Introduction
+Paths to Getting Your Content on Kindle
+Comparing Formats
+General Best Practices
+Cover Image Guidelines
+Navigation Guidelines
+HTML and CSS Guidelines
+Hyperlink Guidelines
+QA Standards
+Boxed and Bundles Edition Guidelines (eBook format only)
+Guidelines for Specific Types of eBooks
+Creating Reflowable Books
+Text Guidelines - Reflowable
+Image Guidelines - Reflowable
+Table Guidelines - Reflowable
+Creating Fixed-Layout Books with Text Pop-Ups
+Creating Fixed-Layout Books with Image Pop-Ups or Virtual Panels
+Creating Fixed-Layout Books Without Pop-Ups
+Creating Kindle Editions with Audio/Video Content
+Creating Dictionaries
+Appendices
+Enhanced Typesetting and Page Flip
+Attributes and Tags Supported by Enhanced Typesetting
+HTML and CSS Tags Supported in Kindle Format 8
+Media Queries
+Guidelines for Creating a Source File
+KDP Jumpstart
+1 – Set Up Your KDP Account
+2 – Prepare Your Manuscript
+3 – Prepare Your Cover
+4 – Title Setup: Book Details, Content, & Pricing
+5 – Publishing & Review
+6 – Promoting Your Book & Getting Paid
+KDP University
+Webinars
+Videos
+Contact Us
+Have feedback? Can't find your answer in our Help pages?
+Contact Us
+Search Help
+Book Formatting
+Format Your Paperback
+Set Trim Size, Bleed, and Margins
+Set Trim Size, Bleed, and Margins
+This page details how to format your book's trim size and margins, depending on whether your book requires bleed, to ensure your book prints correctly. Without proper sizing, your manuscript may be rejected on upload, or you may see print quality issues with your printed book.
+Contents:
+Trim Size
+Bleed
+When to choose bleed for your interior
+Margins
+Formatting in Microsoft Word or Pages for Mac
+A few key terms before you start:
+Trim size
+. Your printed book's width and height. The most common trim size for books in the US is 6" x 9" (152.4 x 228.6 mm), but you have several other
+options
+. Books with a measurement more than 6.12 inches (155.5 mm) or more than 9 inches (228.6 mm) in height are considered large trim sizes.
+Bleed
+. Bleed is a printing term that refers to when printed objects on a page, such as images, background color, or graphics, extend past where the publication will be trimmed. Setting your bleed properly ensures printed objects reach all the way to the edge of the page. Accounting for bleed is important, because it prevents a white border from appearing at the edge of the page when the book is trimmed.
+Margins
+. Every page has three outside margins (top, bottom, and side) and one inside margin (also called the gutter). Margins ensure your text isn't cut off during manufacturing. Set your trim size before you set your margins, since margin size depends on page count and on whether you have elements that bleed.
+Trim Size
+You can choose from a variety of trim sizes to set the size of your printed book. The most common trim size for paperbacks in the U.S. is 6 x 9 inches (152.4 x 228.6 mm) and is a regular trim size. The size of your book will determine its page count, and there are minimum and maximum page counts by size, which are listed in the
+Trim Size Specifications
+table below.
+Books with a measurement more than 6.12 inches (155.5 mm) in width or more than 9 inches (228.6 mm) in height are considered large trim sizes and have different printing costs than regular trim sizes. Learn more about printing costs for
+paperback
+and
+hardcover
+books.
+Note:
+To set your trim size, you typically need to adjust the page or paper size setting in your chosen software (for example, Microsoft Word).
+You can
+download a Microsoft Word template
+in the trim size you need with or without sample content.
+Trim size specifications (width x height) with minimum and maximum page counts(kdp.amazon.com)
+Paperback
+Trim Size
+Black ink and white paper
+Black ink and cream paper
+Black ink and groundwood paper
+Standard color ink and white paper
+Premium color ink and white paper
+5" x 8" (12.7 x 20.32 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+5.06" x 7.81" (12.85 x 19.84 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+5.25" x 8" (13.34 x 20.32 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+5.5" x 8.5" (13.97 x 21.59 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+6" x 9" (15.24 x 22.86 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+Large Trim Sizes
+6.14" x 9.21" (15.6 x 23.39 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+6.69" x 9.61" (16.99 x 24.41 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+7" x 10" x (17.78 x 25.4 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+7.44" x 9.69" (18.9 x 24.61 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+7.5" x 9.25" (19.05 x 23.5 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+8" x 10" (20.32 x 25.4 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+8.25" x 6" (20.96 x 15.24 cm)
+24 - 800
+24 - 750
+24 - 784
+72 - 600
+24 - 800
+8.25" x 8.25" (20.96 x 20.96 cm)
+24 - 800
+24 - 750
+24 - 784
+72 - 600
+24 - 800
+8.5" x 8.5" (21.59 x 21.59 cm)
+24 - 590
+24 - 550
+24 - 578
+72 - 600
+24 - 590
+8.5" x 11" (21.59 x 27.94 cm)
+24 - 590
+24 - 550
+24 - 578
+72 - 600
+24 - 590
+8.27" x 11.69" (21 x 29.7 cm)
+24 - 780
+24 - 730
+24 - 764
+Not available
+24 - 590
+Hardcover
+Trim Size
+Black ink and white paper
+Black ink and cream paper
+Black ink and groundwood paper
+Standard color ink and white paper
+Premium color ink and white paper
+5.5" x 8.5" (13.97 x 21.59 cm)
+75 - 550
+75 - 550
+Not available
+Not available
+75 - 550
+6" x 9" (15.24 x 22.86 cm)
+75 - 550
+75 - 550
+Not available
+Not available
+75 - 550
+Large Trim Sizes
+6.14" x 9.21" (15.6 x 23.39 cm)
+75 - 550
+75 - 550
+Not available
+Not available
+75 - 550
+7" x 10" (17.78 x 25.4 cm)
+75 – 550
+75 - 550
+Not available
+Not available
+75 - 550
+8.25" x 11" (20.96 x 27.94 cm)
+75 - 550
+75 - 550
+Not available
+Not available
+75 - 550
+Trim size specifications (width x height) with minimum and maximum page counts(kdp.amazon.co.jp)
+Paperback
+Trim Size
+Black ink and white paper
+Black ink and cream paper
+Black ink and groundwood paper
+Standard color ink and white paper
+Premium color ink and white paper
+4.06" x 7.17" (10.3 x 18.2 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+4.13" x 6.81" (10.5 x 17.3 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+4.41" x 6.85" (11.2 x 17.4 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+5" x 7.4" (12.7 x 18.8 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+5.04" x 7.17" (12.8 x 18.2 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+5.83" x 8.27" (14.8 x 21.0 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+5.98" x 8.58" (15.2 x 21.8 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+5.98" x 8.94"  (15.2 x 22.7 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+Large Trim Sizes
+7.17" x 10.12" (18.2 x 25.7 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+7.17" x 8.11" (18.2 x 20.6 cm)
+24 - 828
+24 - 776
+24 - 812
+72 - 600
+24 - 828
+8.27" x 10.12" (21.0 x 25.7 cm)
+24 - 780
+24 - 730
+24 - 764
+72 - 600
+24 - 780
+8.27" x 11.69" (21.0 x 29.7 cm)
+24 - 780
+24 - 730
+24 - 764
+Not available
+24 - 780
+Note:
+Hardcover is not available in kdp.amazon.co.jp
+Standard color is currently unavailable for Amazon.co.jp
+^ Back to top
+Bleed
+Bleed is a printing term that refers to when printed items on a page, such as images or illustrations, reach all the way to the edge of the page. All book covers on KDP require bleed. However, you can choose whether your interior has bleed or not.
+Note:
+Bleed is only supported for fixed-format files like print-ready PDFs.
+Book interior during file setup:
+No bleed (left) and with bleed (right)
+Book interior after final trim:
+No bleed (left) and with bleed (right)
+When a book is printed, all pages are trimmed to the selected trim size by cutting 0.125" (3.2 mm) from the top, bottom, and outside edges. In order for objects on your page to reach all the way to the edge of the page, those objects must extend past where the page will be trimmed by 0.125" (3.2 mm). This means you need to increase your page size beyond where it will be trimmed.
+Examples of page size with and without bleed(kdp.amazon.com)
+Page size without bleed
+Page size with bleed
+5" x 8" (12.7 x 20.32 cm)
+5.125" x 8.25" (13.01 x 20.96 cm)
+5.06" x 7.81" (12.85 x19.84 cm)
+5.185" x 8.06" (13.17 x 20.47 cm)
+5.25" x 8" (13.34 x 20.32 cm)
+5.375" x 8.25" (13.65 x 20.96 cm)
+5.5" x 8.5" (13.97 x 21.59 cm)
+5.626" x 8.75" (14.29 x 22.23 cm)
+6" x 9" (15.24 x 22.86 cm)
+6.125" x 9.25" (15.56 x 23.50 cm)
+Large Trim Sizes
+6.14" x 9.21" (15.6 x 23.39 cm)
+6.265" x 9.46" (15.9 x 23.99 cm)
+6.69" x 9.61" (16.99 x 24.4 cm)
+6.815" x 9.86" (17.29 x 25 cm)
+7" x 10" (17.78 x 25.4 cm)
+7.125" x 10.25" (18.08 x 26 cm)
+7.44" x 9.69" (18.9 x 24.61 cm)
+7.565" x 9.94" (19.2 x 25.21 cm)
+7.5" x 9.25" (19.05 x 23.5 cm)
+7.625" x 9.5" (19.35 x 24.1 cm)
+8" x 10" (20.32 x 25.4 cm)
+8.125" x 10.25" (20.52 x 26 cm)
+8.5" x 11" (21.59 x 27.94 cm)
+8.625" x 11.25" (21.89 x 28.54 cm)
+8.25" x 6" (20.96 x 15.24 cm)
+8.375" x 6.25" (21.26 x 15.84 cm)
+8.25" x 8.25" (20.96 x 20.96 cm)
+8.375" x 8.5" (21.26 x 21.56 cm)
+8.25" x 11" (20.96 x 27.94 cm)
+8.375" x 11.25" (21.26 x 28.54 cm)
+8.27" x 11.69" (21 x 29.7 cm)
+8.395" x 11.94" (21.3 x 30.3 cm)
+8.5" x 8.5" (21.59 x 21.59 cm)
+8.625" x 8.75" (21.91 x 22.23 cm)
+Examples of page size with and without bleed (kdp.amazon.co.jp)
+Page size without bleed
+Page size with bleed
+4.06" x 7.17" (10.3 x 18.2 cm)
+4.18" x 7.42" (10.62 x 18.84 cm)
+4.13" x 6.81" (10.5 x 17.3 cm)
+4.26" x 7.06" (10.82 x 17.94 cm)
+4.41" x 6.85" (11.2 x 17.4 cm)
+4.53" x 7.10" (11.52 x 18.04 cm)
+5" x 7.4" (12.7 x 18.8 cm)
+5.13" x 7.65" (13.02 x 19.44 cm)
+5.04" x 7.17" (12.8 x 18.2 cm)
+5.16" x 7.42" (13.12 x 18.84 cm)
+5.83" x 8.27" (14.8 x 21.0 cm)
+5.95" x 8.52" (15.12 x 21.64 cm)
+5.98" x 8.58" (15.2 x 21.8 cm)
+6.11" x 8.83" (15.52 x 22.44 cm)
+5.98" x 8.94" (15.2 x 22.7 cm)
+6.11" x 9.19" (15.52 x 23.34 cm)
+Large Trim Sizes
+7.17" x 10.12" (18.2 x 25.7 cm)
+7.29" x 10.37" (18.52 x 26.34 cm)
+7.17" x 8.11" (18.2 x 20.6 cm)
+7.29" x 8.36" (18.52 x 21.24 cm)
+8.27" x 10.12" (21.0 x 25.7 cm)
+8.39" x 10.37" (21.32 x 26.34 cm)
+8.27" x 11.69" (21.0 x 29.7 cm)
+8.39" x 11.94" (21.32 x 30.33 cm)
+When to choose bleed for your interior
+You should include bleed in your interior file if you have any images, backgrounds, or illustrations in your book that you want to reach the edge of the page.
+Note:
+Even if just one page in your interior requires bleed, then your entire file should be set up with bleed.
+Your paperback manuscript file must be sized correctly for bleed to prevent a white border from appearing at the edge of the page when the book is trimmed. To prevent the white border, increase your page size and ensure that the image extends beyond the trim line. This way, when the book is trimmed to size, the image will reach all the way to the edge. For help calculating your book dimensions,
+try our calculator
+. Alternatively, use the following formula to calculate your page width and height with bleed:
+Inches
+Centimeters
+(Trim height) + (0.125" x 2 (bleed)) = Page height with bleed
+(Trim width) +(0.125" (bleed)) = Page width with bleed
+(Trim Height) + (3.2 mm x 2 (bleed)) = Page height with bleed
+(Trim Width) + (3.2 mm (bleed)) = Page width with bleed
+For example, if your trim size is 6 x 9 inches (15.24 x 22.86 cm), set the page size to 6.125 x 9.25 inches (15.54 x 23.46 cm).
+Bleed manuscript layout for a 6 x 9 inch (15.24 x 22.86 cm) book:
+^ Back to top
+Margins
+Margins protect your content from running off the page and being cut off during the manufacturing process. The top, bottom, and outside margins must be a minimum of 0.25 inches  for books without bleed and 0.375 inches (9.6mm) for books with bleed. The inside margin size depends on the page count because the higher the number of pages, the thicker the book will become, which means the inside margin must also increase to allow enough space for the spine.
+Note:
+The inside margin is sometimes called the "gutter." Some software programs will have separate fields for both the inside margin and the gutter. Make sure to input the same value for your inside margin and the gutter.
+Minimum margin size by page count (with and without bleed):
+Page count
+Inside (gutter) margins
+Outside margins (no bleed)
+Outside margins (with bleed)
+24 to 150 pages
+0.375" in (9.6 mm)
+at least 0.25 in (6.4 mm)
+at least 0.375 in (9.6 mm)
+151 to 300 pages
+0.5 in (12.7 mm)
+at least 0.25 in (6.4 mm)
+at least 0.375 in (9.6 mm)
+301 to 500 pages
+0.625 in (15.9 mm)
+at least 0.25 in (6.4 mm)
+at least 0.375 in (9.6 mm)
+501 to 700 pages
+0.75 in (19.1 mm)
+at least 0.25 in (6.4 mm)
+at least 0.375 in (9.6 mm)
+701 to 828 pages
+0.875 in (22.3 mm)
+at least 0.25 in (6.4 mm)
+at least 0.375 in (9.6 mm)
+Note:
+your top, bottom, and outside margins do not have to be the same. For example, you can set the top and bottom margin to 1 inch, and the outside margin to 0.375 inches as long as they all meet the required minimum.
+^ Back to top
+Formatting in Microsoft Word or Pages for Mac
+See our step-by-step guides for formatting using Microsoft Word, or Pages for Mac.
+Note:
+These guides may not be up to date for your current software version.
+Build Your Book - Word for Windows
+Build Your Book - Word for Mac
+Build Your Book - Pages for Mac
+^ Back to top
+Was this article helpful?
+Yes
+|
+No
+Make more money and reach more readers through Kindle Unlimited.
+Learn More
+Total KDP Select Author Earnings
+June 2026
+&#x2022;
+$67.0 Million
+&copy;
+1996-2026, Amazon.com, Inc. or its affiliates. All Rights Reserved.
+Amazon and Kindle are trademarks of Amazon.com Inc. or its affiliates.
+KDP Select
+Earn more money and
+reach new readers
+KDP Community
+Connect with experts
+and fellow authors
+CreateSpace
+Indie print publishing
+made easy
+ACX
+Indie audiobook publishing
+made easy
+KDP Terms and Conditions
+|
+Privacy Notice
+|
+Conditions of Use
+|
+Contact Us
+|
+Join Our Team
+|
+kdp.amazon.co.jp
+An unexpected error occurred.  Please try again later.
+Your session has expired
+Please sign in to continue
+Sign In
+edit

@@ -2,8 +2,10 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:narraity/models/annotation.dart';
 import 'package:narraity/models/manuscript.dart';
 import 'package:narraity/models/project.dart';
+import 'package:narraity/services/annotation_service.dart';
 import 'package:narraity/services/export/epub_exporter.dart';
 import 'package:narraity/services/manuscript_service.dart';
 import 'package:path/path.dart' as p;
@@ -239,6 +241,257 @@ void main() {
     expect(section, contains('Prose here.'));
     // The TOC still lists it — [showTitle] only governs the in-page heading.
     expect(nav, contains('Hidden Scene'));
+  });
+
+  test('nav.xhtml nests chapter-boundary groups two levels deep for a Book > Act > Chapter tree, '
+      'capping at Kindle\'s 2-level limit rather than mirroring the full tree depth', () async {
+    // Book > Act > Chapter is 3 levels of chapter-boundary groups (Book,
+    // Act, and Chapter are all "chapter-like" labels per
+    // ManuscriptOutlineBuilder), but Kindle only supports 2 levels of nav
+    // nesting — the third level must fold into the second, not nest further.
+    final structure = ManuscriptStructure(nodes: [
+      ManuscriptNode(
+        id: 'act-1',
+        title: 'Act One',
+        typeLabel: 'Act',
+        children: [
+          ManuscriptNode(id: 'ch-1', title: 'Chapter 1', typeLabel: 'Chapter'),
+          ManuscriptNode(id: 'ch-2', title: 'Chapter 2', typeLabel: 'Chapter'),
+        ],
+      ),
+      ManuscriptNode(
+        id: 'act-2',
+        title: 'Act Two',
+        typeLabel: 'Act',
+        children: [ManuscriptNode(id: 'ch-3', title: 'Chapter 3', typeLabel: 'Chapter')],
+      ),
+    ]);
+    for (final id in ['act-1', 'ch-1', 'ch-2', 'act-2', 'ch-3']) {
+      await manuscriptService.writeScene(SceneDoc(id: id, title: 'x', content: 'Prose.'));
+    }
+
+    final bytes = await exporter.buildBytes(project, structure);
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final nav = String.fromCharCodes(archive.findFile('OEBPS/nav.xhtml')!.content as List<int>);
+
+    // Well-formed XML confirms the <ol>/<li> nesting balances correctly.
+    expect(() => XmlDocument.parse(nav), returnsNormally);
+
+    final doc = XmlDocument.parse(nav);
+    final topOl = doc.findAllElements('ol').first;
+    final topLis = topOl.childElements.where((e) => e.name.local == 'li').toList();
+    expect(topLis, hasLength(2)); // Act One, Act Two — not 5 flat entries
+
+    final actOneChildren = topLis[0].findElements('ol').single.findAllElements('li');
+    expect(actOneChildren.map((e) => e.innerText), ['Chapter 1', 'Chapter 2']);
+
+    final actTwoChildren = topLis[1].findElements('ol').single.findAllElements('li');
+    expect(actTwoChildren.map((e) => e.innerText), ['Chapter 3']);
+
+    // No third level anywhere, however deep the source tree nominally goes.
+    expect(nav.split('<ol>').length - 1, 3); // outer + 2 nested, never more
+  });
+
+  test('a flat chapter-only book (no Act grouping) still produces a plain flat list, matching '
+      'prior behavior', () async {
+    final structure = ManuscriptStructure(nodes: [
+      ManuscriptNode(id: 'ch-1', title: 'Chapter One', typeLabel: 'Chapter'),
+      ManuscriptNode(id: 'ch-2', title: 'Chapter Two', typeLabel: 'Chapter'),
+    ]);
+    await manuscriptService.writeScene(SceneDoc(id: 'ch-1', title: 'x', content: 'Prose.'));
+    await manuscriptService.writeScene(SceneDoc(id: 'ch-2', title: 'x', content: 'Prose.'));
+
+    final bytes = await exporter.buildBytes(project, structure);
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final nav = String.fromCharCodes(archive.findFile('OEBPS/nav.xhtml')!.content as List<int>);
+
+    final doc = XmlDocument.parse(nav);
+    final topOl = doc.findAllElements('ol').first;
+    expect(topOl.findElements('ol'), isEmpty); // no nested <ol> at all
+    expect(topOl.childElements.where((e) => e.name.local == 'li'), hasLength(2));
+  });
+
+  test('throws EpubExportException when a single section exceeds the configured byte limit',
+      () async {
+    // A tiny injected limit + ordinary content, rather than building a
+    // real ~30MB string — keeps the test fast and still exercises the same
+    // check `maxFileBytes` defaults to KDP's real 30MB limit for.
+    final smallLimitExporter = EpubExporter(projectDir, maxFileBytes: 50);
+    final structure = ManuscriptStructure(
+      nodes: [ManuscriptNode(id: 'ch-1', title: 'Chapter 1', typeLabel: 'Chapter')],
+    );
+    await manuscriptService.writeScene(SceneDoc(
+      id: 'ch-1',
+      title: 'x',
+      content: 'This paragraph alone is longer than fifty bytes of encoded XHTML.',
+    ));
+
+    expect(
+      () => smallLimitExporter.buildBytes(project, structure),
+      throwsA(isA<EpubExportException>()),
+    );
+  });
+
+  test('throws EpubExportException when the section count exceeds the configured file-count limit',
+      () async {
+    final smallLimitExporter = EpubExporter(projectDir, maxFileCount: 2);
+    final nodes = List.generate(
+      3,
+      (i) => ManuscriptNode(id: 'ch-$i', title: 'Chapter $i', typeLabel: 'Chapter'),
+    );
+    final structure = ManuscriptStructure(nodes: nodes);
+    for (final node in nodes) {
+      await manuscriptService.writeScene(SceneDoc(id: node.id, title: 'x', content: 'Prose.'));
+    }
+
+    // 3 chapter sections + nav.xhtml = 4 files, over the injected limit of 2.
+    expect(
+      () => smallLimitExporter.buildBytes(project, structure),
+      throwsA(isA<EpubExportException>()),
+    );
+  });
+
+  test('the real KDP limits (30MB/300 files) are the defaults when not overridden', () {
+    expect(EpubExporter(projectDir).maxFileBytes, kEpubMaxFileBytes);
+    expect(EpubExporter(projectDir).maxFileCount, kEpubMaxFileCount);
+  });
+
+  group('footnotes', () {
+    test('a footnote annotation renders as a noteref + aside, KDP\'s recommended structure',
+        () async {
+      final structure = ManuscriptStructure(
+        nodes: [ManuscriptNode(id: 'ch-1', title: 'Chapter 1', typeLabel: 'Chapter')],
+      );
+      const content = 'A word needs explaining.';
+      await manuscriptService.writeScene(SceneDoc(id: 'ch-1', title: 'x', content: content));
+
+      final annotations = AnnotationService(projectDir);
+      await annotations.create(
+        sceneId: 'ch-1',
+        kind: AnnotationKind.footnote,
+        anchor: const TextAnchor(start: 6, end: 6, quotedText: ''), // point anchor after "A word"
+        body: 'An explanatory note.',
+      );
+
+      final bytes = await exporter.buildBytes(project, structure);
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final section =
+          String.fromCharCodes(archive.findFile('OEBPS/text/section-1.xhtml')!.content as List<int>);
+
+      expect(() => XmlDocument.parse(section), returnsNormally);
+      expect(
+        section,
+        contains(
+          '<a id="src-1" href="#fn-1" epub:type="noteref" class="footnote-ref">1</a>',
+        ),
+      );
+      expect(
+        section,
+        contains('<aside id="fn-1" epub:type="footnote">'
+            '<p><a href="#src-1" epub:type="noteref">1.</a> An explanatory note.</p></aside>'),
+      );
+      // epub:type is used in the body, so the namespace must be declared.
+      expect(section, contains('xmlns:epub="http://www.idpf.org/2007/ops"'));
+    });
+
+    test('multiple footnotes in one scene are numbered in reading order, not insertion order',
+        () async {
+      final structure = ManuscriptStructure(
+        nodes: [ManuscriptNode(id: 'ch-1', title: 'Chapter 1', typeLabel: 'Chapter')],
+      );
+      const content = 'First point. Second point.';
+      await manuscriptService.writeScene(SceneDoc(id: 'ch-1', title: 'x', content: content));
+
+      final annotations = AnnotationService(projectDir);
+      // Created out of document order deliberately — the second (later)
+      // footnote is created first, to prove numbering follows position in
+      // the text, not creation order.
+      await annotations.create(
+        sceneId: 'ch-1',
+        kind: AnnotationKind.footnote,
+        anchor: const TextAnchor(start: 26, end: 26, quotedText: ''), // after "Second point."
+        body: 'Note on second point.',
+      );
+      await annotations.create(
+        sceneId: 'ch-1',
+        kind: AnnotationKind.footnote,
+        anchor: const TextAnchor(start: 11, end: 11, quotedText: ''), // after "First point."
+        body: 'Note on first point.',
+      );
+
+      final bytes = await exporter.buildBytes(project, structure);
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final section =
+          String.fromCharCodes(archive.findFile('OEBPS/text/section-1.xhtml')!.content as List<int>);
+
+      final firstNoteIndex = section.indexOf('id="src-1"');
+      final secondNoteIndex = section.indexOf('id="src-2"');
+      expect(firstNoteIndex, greaterThan(0));
+      expect(secondNoteIndex, greaterThan(firstNoteIndex));
+      expect(section, contains('id="fn-1"'));
+      expect(section, contains('Note on first point.'));
+      expect(section, contains('id="fn-2"'));
+      expect(section, contains('Note on second point.'));
+    });
+
+    test('a footnote\'s aside is placed in the same file its reference appears in', () async {
+      final structure = ManuscriptStructure(nodes: [
+        ManuscriptNode(id: 'ch-1', title: 'Chapter 1', typeLabel: 'Chapter'),
+        ManuscriptNode(id: 'ch-2', title: 'Chapter 2', typeLabel: 'Chapter'),
+      ]);
+      await manuscriptService.writeScene(SceneDoc(id: 'ch-1', title: 'x', content: 'Note here.'));
+      await manuscriptService.writeScene(SceneDoc(id: 'ch-2', title: 'x', content: 'No notes here.'));
+
+      final annotations = AnnotationService(projectDir);
+      await annotations.create(
+        sceneId: 'ch-1',
+        kind: AnnotationKind.footnote,
+        anchor: const TextAnchor(start: 4, end: 4, quotedText: ''),
+        body: 'A note.',
+      );
+
+      final bytes = await exporter.buildBytes(project, structure);
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final chapterOne =
+          String.fromCharCodes(archive.findFile('OEBPS/text/section-1.xhtml')!.content as List<int>);
+      final chapterTwo =
+          String.fromCharCodes(archive.findFile('OEBPS/text/section-2.xhtml')!.content as List<int>);
+
+      expect(chapterOne, contains('epub:type="footnote"'));
+      expect(chapterTwo, isNot(contains('epub:type="footnote"')));
+    });
+
+    test('a scene with no footnotes renders no aside and no stray marker characters', () async {
+      final structure = ManuscriptStructure(
+        nodes: [ManuscriptNode(id: 'ch-1', title: 'Chapter 1', typeLabel: 'Chapter')],
+      );
+      await manuscriptService.writeScene(SceneDoc(id: 'ch-1', title: 'x', content: 'Plain prose.'));
+
+      final bytes = await exporter.buildBytes(project, structure);
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final section =
+          String.fromCharCodes(archive.findFile('OEBPS/text/section-1.xhtml')!.content as List<int>);
+
+      expect(section, isNot(contains('epub:type="noteref"')));
+      expect(section, isNot(contains('epub:type="footnote"')));
+      expect(section, isNot(contains(String.fromCharCode(0xE000))));
+    });
+  });
+
+  test('xhtml documents declare the primary language, per KDP accessibility guidance', () async {
+    final structure = ManuscriptStructure(
+      nodes: [ManuscriptNode(id: 'ch-1', title: 'Chapter 1', typeLabel: 'Chapter')],
+    );
+    await manuscriptService.writeScene(SceneDoc(id: 'ch-1', title: 'x', content: 'Prose.'));
+
+    final bytes = await exporter.buildBytes(project, structure);
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final section =
+        String.fromCharCodes(archive.findFile('OEBPS/text/section-1.xhtml')!.content as List<int>);
+    final nav = String.fromCharCodes(archive.findFile('OEBPS/nav.xhtml')!.content as List<int>);
+
+    expect(section, contains('xml:lang="en"'));
+    expect(nav, contains('xml:lang="en"'));
   });
 
   test('exportToFile writes a real file to disk', () async {

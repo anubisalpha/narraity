@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+import '../screens/release_notes_screen.dart';
 import '../state/update_check_provider.dart';
 
 /// Tracks whether the banner has been dismissed this session — deliberately
@@ -31,8 +31,10 @@ class UpdateAvailableBanner extends ConsumerWidget {
       ),
       actions: [
         TextButton(
-          onPressed: () => launchUrl(Uri.parse(update.htmlUrl)),
-          child: const Text('View Release'),
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => ReleaseNotesScreen(highlightVersion: update.version)),
+          ),
+          child: const Text('View Release Notes'),
         ),
         TextButton(
           onPressed: () => ref.read(_updateBannerDismissedProvider.notifier).state = true,

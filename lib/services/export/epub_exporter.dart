@@ -5,13 +5,49 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../models/annotation.dart';
 import '../../models/manuscript.dart';
 import '../../models/project.dart';
+import '../annotation_service.dart';
 import '../manuscript_service.dart';
 import 'manuscript_outline_builder.dart';
 import 'markdown_lite.dart';
 
 const _uuid = Uuid();
+
+/// Private-Use-Area character pair used to mark a footnote's position
+/// inside a scene's raw markdown *before* `MarkdownLite.parse` runs — never
+/// appears in real user content, and isn't one of `MarkdownLite`'s special
+/// characters (`*`, `~`, `#`, `>`), so it survives parsing as ordinary
+/// literal text inside whatever run it lands in. Substituted for a real
+/// `<sup><a epub:type="noteref">` reference after the block/run HTML is
+/// generated, rather than threading footnote data through
+/// `_blockHtml`/`_runHtml`'s signatures.
+final _footnoteMarker = String.fromCharCode(0xE000);
+final _footnoteMarkerPattern =
+    RegExp('${String.fromCharCode(0xE000)}(\\d+)${String.fromCharCode(0xE000)}');
+
+String _wrapFootnoteMarker(int number) => '$_footnoteMarker$number$_footnoteMarker';
+
+/// KDP's hard technical limits for a Kindle eBook (per its QA Standards
+/// help page — see `KDP_CRIBSHEET.md`'s QA Standards section): each
+/// individual HTML file under 30MB, and fewer than 300 HTML files total.
+/// Checked at export time rather than left to fail silently at KDP upload —
+/// a book that trips either of these needs restructuring (split an
+/// enormous chapter, or reconsider a scene-per-file granularity), not a
+/// corrupted export handed to the user.
+const kEpubMaxFileBytes = 30 * 1000 * 1000;
+const kEpubMaxFileCount = 300;
+
+/// Thrown when the built EPUB would violate one of KDP's hard technical
+/// limits — see [kEpubMaxFileBytes]/[kEpubMaxFileCount].
+class EpubExportException implements Exception {
+  EpubExportException(this.message);
+  final String message;
+
+  @override
+  String toString() => message;
+}
 
 /// One EPUB spine file's worth of sections — a chapter-boundary section plus
 /// every non-boundary section (e.g. Scenes) that follows it before the next
@@ -31,13 +67,31 @@ class _EpubSectionGroup {
 /// counterpart) — like DOCX, no mature pure-Dart EPUB writer exists, so this
 /// is built the same way as that exporter, via `archive`.
 class EpubExporter {
-  EpubExporter(this.projectDir);
+  /// [maxFileBytes]/[maxFileCount] default to KDP's real limits — overridden
+  /// only by tests, so a limit-check test can use a small threshold and
+  /// small content instead of building a pathologically large (and slow to
+  /// parse) real string to trip the real 30MB/300-file limits.
+  EpubExporter(
+    this.projectDir, {
+    this.maxFileBytes = kEpubMaxFileBytes,
+    this.maxFileCount = kEpubMaxFileCount,
+  });
 
   final Directory projectDir;
+  final int maxFileBytes;
+  final int maxFileCount;
 
   Future<Uint8List> buildBytes(Project project, ManuscriptStructure structure) async {
     final manuscript = ManuscriptService(projectDir);
+    final annotations = AnnotationService(projectDir);
     final sections = ManuscriptOutlineBuilder.build(structure);
+
+    // Footnote bodies, keyed by their global sequential number (assigned in
+    // document reading order as encountered below) — shared across every
+    // group/file, since numbering runs continuously through the whole book
+    // rather than resetting per chapter.
+    final footnoteBodies = <int, String>{};
+    var nextFootnoteNumber = 1;
 
     final archive = Archive();
     void addStored(String path, String content) {
@@ -70,7 +124,32 @@ class EpubExporter {
         groups.add(_EpubSectionGroup(title: section.title, depth: section.depth));
       }
       final doc = await manuscript.readScene(section.id, fallbackTitle: section.title);
-      groups.last.parts.add((title: section.title, content: doc.content, showTitle: section.showTitle));
+      var content = doc.content;
+
+      // Numbered in ascending document order (so numbering reads naturally
+      // through the book), but *inserted* rightmost-first so each
+      // insertion's length doesn't shift the still-unprocessed offsets
+      // earlier in the same scene.
+      final footnotes = (await annotations.listForScene(section.id))
+          .where((a) => a.kind == AnnotationKind.footnote)
+          .toList()
+        ..sort((a, b) => a.anchor.start.compareTo(b.anchor.start));
+
+      final numbered = <(int number, Annotation footnote)>[];
+      for (final footnote in footnotes) {
+        final number = nextFootnoteNumber++;
+        footnoteBodies[number] = footnote.body;
+        numbered.add((number, footnote));
+      }
+
+      for (final (number, footnote) in numbered.reversed) {
+        final clamped = footnote.anchor.start.clamp(0, content.length);
+        content = content.substring(0, clamped) +
+            _wrapFootnoteMarker(number) +
+            content.substring(clamped);
+      }
+
+      groups.last.parts.add((title: section.title, content: content, showTitle: section.showTitle));
     }
 
     var index = 0;
@@ -78,9 +157,28 @@ class EpubExporter {
       index++;
       final id = 'section-$index';
       final href = 'text/$id.xhtml';
-      addFile('OEBPS/$href', _groupXhtml(group));
+      final xhtml = _groupXhtml(group, footnoteBodies);
+
+      final byteLength = utf8.encode(xhtml).length;
+      if (byteLength > maxFileBytes) {
+        throw EpubExportException(
+          'Section "${group.title}" is ${(byteLength / 1000000).toStringAsFixed(1)}MB, over '
+          'KDP\'s 30MB-per-file limit. Split it into smaller sections before exporting.',
+        );
+      }
+
+      addFile('OEBPS/$href', xhtml);
       manifestItems.add((id, href));
       navEntries.add((href, group.title, group.depth));
+    }
+
+    if (manifestItems.length + 1 > maxFileCount) {
+      // +1 accounts for nav.xhtml, an XHTML file itself — styles.css and
+      // content.opf aren't HTML documents, so they don't count toward this.
+      throw EpubExportException(
+        'This EPUB would contain ${manifestItems.length + 1} HTML files, over KDP\'s 300-file '
+        'limit. Consider merging some sections or reducing the chapter-boundary granularity.',
+      );
     }
 
     addFile('OEBPS/nav.xhtml', _navXhtml(project.title, navEntries));
@@ -148,7 +246,12 @@ class EpubExporter {
     }
   }
 
-  String _groupXhtml(_EpubSectionGroup group) {
+  /// [footnoteBodies] is the whole book's footnote text keyed by global
+  /// number — only the numbers actually referenced via markers *within this
+  /// group* get rendered as `<aside>` elements, placed at this file's end
+  /// (i.e. the enclosing chapter's end, since one group = one chapter file)
+  /// per KDP's footnote-placement guidance.
+  String _groupXhtml(_EpubSectionGroup group, Map<int, String> footnoteBodies) {
     final buffer = StringBuffer();
     var sawFirstParagraph = false;
     for (final part in group.parts) {
@@ -163,11 +266,41 @@ class EpubExporter {
         if (isFirstParagraphOfChapter) sawFirstParagraph = true;
       }
     }
+
+    // Footnote markers survive `_escape` untouched (they're not &/</>), so
+    // they're still literally present in the buffer at this point — collect
+    // which numbers this file actually references before replacing them,
+    // so only relevant asides get appended here.
+    final referenced = _footnoteMarkerPattern
+        .allMatches(buffer.toString())
+        .map((m) => int.parse(m.group(1)!))
+        .toSet();
+
+    var body = buffer.toString().replaceAllMapped(_footnoteMarkerPattern, (match) {
+      final number = match.group(1)!;
+      // Not <sup> — it's absent from KDP's Kindle Format 8 supported-tag list
+      // (see KDP_CRIBSHEET.md). class="footnote-ref" gets the same raised,
+      // smaller look via styles.css instead.
+      return '<a id="src-$number" href="#fn-$number" '
+          'epub:type="noteref" class="footnote-ref">$number</a>';
+    });
+
+    if (referenced.isNotEmpty) {
+      final asides = (referenced.toList()..sort()).map((number) {
+        final text = footnoteBodies[number] ?? '';
+        return '<aside id="fn-$number" epub:type="footnote">'
+            '<p><a href="#src-$number" epub:type="noteref">$number.</a> ${_escape(text)}</p>'
+            '</aside>';
+      }).join();
+      body += asides;
+    }
+
     return '<?xml version="1.0" encoding="UTF-8"?>'
-        '<html xmlns="http://www.w3.org/1999/xhtml">'
+        '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" '
+        'xml:lang="en" lang="en">'
         '<head><title>${_escape(group.title)}</title>'
         '<link href="../styles.css" rel="stylesheet" type="text/css"/></head>'
-        '<body>${buffer.toString()}</body></html>';
+        '<body>$body</body></html>';
   }
 
   static const _stylesCss = '''
@@ -179,16 +312,70 @@ p.noindent, p.scenebreak { text-indent: 0; }
 p.scenebreak { text-align: center; margin: 1.2em 0; }
 blockquote { margin: 1em 2em; }
 blockquote p { text-indent: 0; }
+a.footnote-ref { vertical-align: super; font-size: 0.7em; text-decoration: none; }
 ''';
 
+  /// Builds the nav doc's `<ol>`, nested **at most two levels deep** —
+  /// Kindle devices/apps only support two levels of ToC nesting (see
+  /// `KDP_CRIBSHEET.md`'s Navigation section); a manuscript tree can easily
+  /// go deeper than that (Book > Act > Chapter all count as chapter-boundary
+  /// groups per `ManuscriptOutlineBuilder`), so this must actively collapse
+  /// rather than mirror the tree's real depth. Top level = the shallowest
+  /// depth present among the boundary groups; everything else, regardless
+  /// of how much deeper it nominally sits, becomes a second-level leaf
+  /// under the nearest preceding top-level entry rather than nesting
+  /// further — matching KDP's cap instead of silently exceeding it.
+  String _navList(List<(String href, String title, int depth)> entries) {
+    if (entries.isEmpty) return '<ol></ol>';
+    final topDepth = entries.map((e) => e.$3).reduce((a, b) => a < b ? a : b);
+
+    final buffer = StringBuffer('<ol>');
+    var topLevelOpen = false; // a top-level <li> is open, awaiting its closing tag
+    var childrenOpen = false; // that <li>'s nested <ol> for second-level entries is open
+
+    void closeTopLevelLi() {
+      if (childrenOpen) {
+        buffer.write('</ol></li>');
+        childrenOpen = false;
+      } else if (topLevelOpen) {
+        buffer.write('</li>');
+      }
+      topLevelOpen = false;
+    }
+
+    for (final entry in entries) {
+      final (href, title, depth) = entry;
+      final link = '<a href="$href">${_escape(title)}</a>';
+      // Falls back to top-level even when depth > topDepth if no top-level
+      // <li> is open yet to nest under — shouldn't happen given how
+      // `ManuscriptOutlineBuilder` walks (front matter and the tree both
+      // start at depth 0), but nesting an <ol> directly under another <ol>
+      // with no <li> ancestor would produce invalid HTML if it ever did.
+      if (depth <= topDepth || !topLevelOpen) {
+        closeTopLevelLi();
+        buffer.write('<li>$link');
+        topLevelOpen = true;
+      } else {
+        if (!childrenOpen) {
+          buffer.write('<ol>');
+          childrenOpen = true;
+        }
+        buffer.write('<li>$link</li>');
+      }
+    }
+    closeTopLevelLi();
+    buffer.write('</ol>');
+    return buffer.toString();
+  }
+
   String _navXhtml(String bookTitle, List<(String href, String title, int depth)> entries) {
-    final items = entries.map((e) => '<li><a href="${e.$1}">${_escape(e.$2)}</a></li>').join();
     return '<?xml version="1.0" encoding="UTF-8"?>'
-        '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">'
+        '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" '
+        'xml:lang="en" lang="en">'
         '<head><title>Table of Contents</title>'
         '<link href="styles.css" rel="stylesheet" type="text/css"/></head>'
         '<body><nav epub:type="toc" id="toc">'
-        '<h1>${_escape(bookTitle)}</h1><ol>$items</ol>'
+        '<h1>${_escape(bookTitle)}</h1>${_navList(entries)}'
         '</nav></body></html>';
   }
 

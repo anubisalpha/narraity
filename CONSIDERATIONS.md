@@ -102,3 +102,87 @@ questions, not known implementation gaps.
   not a cover belonging to the series itself. Fine while a series is small, but means the card's
   cover can change unexpectedly as books get edited. A dedicated series-level cover (independent of
   any member project's) would be the more correct model if this proves confusing in practice.
+
+- **KDP Kindle Publishing Guidelines gaps against the EPUB exporter** (found reviewing KDP's
+  guidelines hub, 2026-08-01, ahead of Phase 6.3 — see PLAN.md's eBook section and
+  `KDP_CRIBSHEET.md` for full detail). The eBook path is now built as far as it can be without
+  other unbuilt features: 2-level ToC nesting cap, 30MB/300-file hard limits, footnote-to-`<aside>`
+  round-trip, and language tagging are all done; `styles.css`'s units and color-contrast were
+  audited and found already compliant. Still genuinely blocked:
+  - **PDF/DOCX footnote support** — the EPUB exporter now handles footnotes (numbered in reading
+    order, `<sup><a epub:type="noteref">` + `<aside epub:type="footnote">` at the enclosing
+    chapter's end), but PDF and DOCX still don't touch `annotation_service.dart`/footnote
+    annotations at all. The character-offset-anchor-to-rendered-output mapping now exists as a
+    proven pattern (private-use-area marker inserted pre-parse, substituted post-render) — porting
+    it to PDF/DOCX is the remaining work, not a new design problem.
+  - **Table support** — confirmed 2026-08-01: the editor is a plain markdown-lite `TextField`, not
+    `flutter_quill` (an earlier, incorrect assumption in this doc) — there's no table-authoring UI
+    at all, so there's nothing for any exporter to support yet. Blocked on that editor feature
+    existing first, not an export-side gap.
+  - **Image alt text** — blocked on image embedding existing in exports at all (a separate,
+    already-tracked gap below).
+
+- **KDP paperback export gaps** (`kdp_paperback_exporter.dart`, built 2026-08-01 — see
+  `KDP_CRIBSHEET.md`'s Paperback section for full detail). Trim size, bleed, page-count-banded
+  gutter margins, roman/Arabic page numbering, alternating running headers (with correct
+  chapter-opening-page suppression), and an auto-generated copyright page are all built. Still open:
+  - **True mirrored (odd/even) margins — confirmed structurally out of reach without a much
+    bigger rewrite** (verified 2026-08-01 by reading the `pdf` package's own source):
+    `MultiPage`'s page format/margin are fixed at construction with no per-page-callback mechanism
+    at all. True mirroring would mean abandoning automatic flow-layout pagination entirely and
+    hand-rolling page-by-page layout — a different project, not a follow-up task. Symmetric
+    margins (same value every edge/page, using the larger gutter value on both left and right so
+    the KDP minimum holds regardless of which edge is the real binding side) remain the v1 and
+    likely long-term approach unless full manual pagination is ever built for other reasons.
+  - **Half-title page and true recto/verso (right/left-facing) enforcement.** The copyright page
+    is built and placed right after title, but neither it nor a (still nonexistent) half-title page
+    is forced onto the correct facing side — that needs blank-page-insertion logic (e.g. "if title
+    would otherwise land on a left-facing page, insert one blank page first to push it to the
+    right") that doesn't exist yet. A real half-title page also needs its own content type, since
+    Narraity has no concept of one today.
+  - **First-paragraph-no-indent and justified-body-text** rules (already correct in the EPUB
+    exporter) haven't been ported to `PdfWidgetBuilder`, which both `PdfExporter` and
+    `KdpPaperbackExporter` share — worth doing together rather than duplicating per-exporter.
+
+- **Dual-ruleset KDP export for forward-dated rule changes.** If KDP ever announces a rule change
+  with a stated future effective date (precedent: the MOBI→EPUB transition), both the old and new
+  rules are legitimately valid depending on submission date — a user mid-project when the cutover
+  happens shouldn't be forced onto the new rules before they're actually required. Not building a
+  general "pick any past ruleset" export option (KDP only evaluates uploads against current-at-
+  submission rules, so exporting against stale rules by choice just risks rejection) — but *if* a
+  dated transition is ever announced, the export logic could auto-select the correct ruleset by
+  comparing today's date to the announced effective date, no manual picker needed. See
+  `KDP_CRIBSHEET.md`'s "Handling forward-dated rule changes" section for how such a change would
+  get recorded if one shows up. Nothing tracked today carries a future effective date, so there's
+  nothing to build yet.
+
+- **Release notes in the app.** No in-app "what's new" surface exists — the update checker
+  (`update_check_service.dart`) links out to GitHub's release page rather than showing changelog
+  content itself. Worth revisiting once there's a real backlog of releases to show; v1.0.1 is
+  still the only one.
+
+- **A News page, fed from a page in the repo, updatable when internet access is available.**
+  Similar mechanism to the update checker's GitHub API polling — could fetch a `NEWS.md` (or
+  similar) from the repo's raw content URL, cache locally, and show in-app, refreshing whenever
+  online. Not scoped: how often to check, whether it needs its own opt-out (some users may not
+  want any outbound network calls beyond the existing opt-in Drive sync and the update checker),
+  and how it'd differ from just directing users to the GitHub releases page the update checker
+  already links to.
+
+- **A Feedback page, with voice-to-text input.** The voice dictation infrastructure from Phase 1.3
+  (Vosk on Windows, native `SpeechRecognizer` on Android) already exists and could be reused for a
+  feedback text field. The open question is delivery, not capture: there's no SMTP/email-sending
+  feature (see the existing "Emailing/sharing exported review files" item above — same gap
+  applies), and having a shipped end-user app silently file GitHub issues on the user's behalf
+  (the way `kdp-watch` does for the dev-only page-monitoring case) isn't appropriate without the
+  user's own GitHub auth. Needs a decision on the actual transport (mailto: link, a lightweight
+  hosted endpoint, or requiring the user to have their own GitHub account) before this is buildable.
+
+- **KDP hardcover interior margin/bleed rules have no independently-confirmed source.** Not a
+  "haven't looked yet" gap — re-checked 2026-08-01 across three separate KDP help pages (trim/
+  bleed/margins, "Format Your Hardcover", and the paperback/hardcover manuscript templates page),
+  all three point at the same paperback-only table with no hardcover-specific numbers. The current
+  build's working assumption (hardcover interior uses paperback's margin/bleed rules, banded by
+  hardcover's own trim sizes/page counts) is the best answer available from KDP's own docs. See
+  `KDP_CRIBSHEET.md`'s Hardcover section and `PLAN.md`'s open questions for full detail; only worth
+  revisiting if KDP publishes something new.

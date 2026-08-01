@@ -1695,3 +1695,449 @@ resuming from the MSIX build step.
 `narraity_public.cer`, `narraity.appinstaller` all attached. This is also the first release the
 in-app "Check for Updates" checker and the `.appinstaller` auto-update path have anything real to
 find, since both only ever see releases published this way.
+
+## Phase 8 — In-App Release Notes, News Feed, and Feedback
+
+Three small independent additions, built together in one session since they share plumbing (the
+`_Settings/` reserved-folder cache convention, `url_launcher`, GitHub's API).
+
+- **Release Notes** (`release_notes_service.dart`) — fetches the full `/releases` list from GitHub
+  (not just `/latest`, unlike `UpdateCheckService`), cached to
+  `_Settings/release_notes_cache.json`, falling back to cache on any fetch failure. New Settings →
+  About → "Release Notes" screen shows the full history. A `WhatsNewDialogTrigger` widget (placed
+  in `LibraryScreen` alongside `UpdateAvailableBanner`) shows a one-time "What's New in vX.Y.Z"
+  dialog the first launch after an update, tracked via a plain (non-Drive-synced) `SharedPreferences`
+  key `releaseNotes.lastSeenVersion` — deliberately device-local, not synced, so a fresh install
+  sees it too. Confirmed `release.ps1` already supports real release-note text via `-NotesFile`, or
+  `--generate-notes` (from commits) if omitted — so this feature isn't blocked on any change there.
+- **News Feed** (`news_service.dart`) — new `NEWS.md` at the repo root, free-form dated entries
+  (`## YYYY-MM-DD: Title`), editable and pushed without a new app release — the key difference from
+  Release Notes, which is strictly 1:1 with GitHub releases. Fetched from GitHub's raw content URL,
+  parsed by a simple heading regex, cached to `_Settings/news_cache.json`. New "News" icon on the
+  Library screen's app bar opens a plain chronological feed (no read/unread tracking in v1).
+- **Feedback** (`github_auth_service.dart`, `github_token_store.dart`, `github_discussions_service.dart`,
+  `feedback_screen.dart`) — posts to the repo's GitHub Discussions "App Feedback" category,
+  attributed to the user's real GitHub account rather than anonymous or a shared inbox (the
+  `mailto:` design from PLAN.md's first draft of this feature was superseded once Discussions
+  became available). Sign-in via OAuth **Device Flow** (`github_auth_service.dart`) — no client
+  secret needed, standard for desktop apps; the OAuth App's public client ID lives in
+  `github_feedback_provider.dart`. Token storage mirrors `drive_token_store.dart`'s pattern exactly
+  (Windows DPAPI, Android sandboxed file) via a new `GitHubTokenStore`, kept as its own file rather
+  than generalizing `DriveTokenStore` since the two OAuth flows (browser+loopback vs. device-code
+  polling) don't share meaningful code. Posting uses GitHub's **GraphQL** API (`createDiscussion`
+  mutation) since Discussions creation isn't available via REST; the repository ID and "App
+  Feedback" category ID are resolved once via `discussionCategories` and cached to
+  `_Settings/github_feedback_category.json`. The Feedback screen leads with an explainer (where
+  feedback goes, what's required) before any sign-in prompt, offers "Open Discussions in browser"
+  as a no-account fallback, reuses the existing `DictationEngine` abstraction for voice input (same
+  interface the manuscript editor already uses), and shows a "posted publicly as `<username>`"
+  confirmation dialog (fetched via a `viewer { login }` GraphQL query) before the final post.
+
+27 new tests across `release_notes_service_test.dart`, `news_service_test.dart`,
+`github_auth_service_test.dart`, and `github_discussions_service_test.dart` (all HTTP-mocked, no
+real GitHub calls) — `github_token_store.dart` has no dedicated test file, same as
+`drive_token_store.dart`, since both get exercised end-to-end through their respective auth
+service's tests.
+
+**508 tests total**, `flutter analyze` clean. Not yet verified live against a real GitHub OAuth
+flow/Discussions post — the OAuth App (`client_id` `Ov23liOBvd1Ln9bJKqdO`) was registered this
+session but the Device Flow sign-in → post round-trip hasn't been run against the real GitHub API
+yet, only against mocked HTTP responses in tests.
+
+## Phase 6.3 (started) — EPUB exporter KDP-compliance fixes
+
+First concrete Phase 6.3 work, scoped to the eBook (EPUB) path per `KDP_CRIBSHEET.md`'s Reflowable
+Text/Navigation/QA Standards sections — three real gaps against KDP's actual rules, found and
+closed in `epub_exporter.dart`:
+
+- **2-level ToC nesting cap.** Kindle devices only support two levels of nav-doc nesting, but a
+  `Book > Act > Chapter` manuscript tree produces three levels of chapter-boundary groups (Book,
+  Act, and Chapter are all "chapter-like" labels per `ManuscriptOutlineBuilder`), and the nav was
+  previously a completely flat `<ol>` regardless of depth — losing the Book/Act grouping
+  information entirely rather than just risking non-compliance. New `_navList` builds real nested
+  `<ol>`/`<li>` structure, capped at exactly two levels: anything deeper than the shallowest
+  boundary group folds into the second level rather than nesting further, however deep the source
+  tree nominally goes.
+- **KDP's hard technical limits** (30MB per HTML file, fewer than 300 HTML files total) are now
+  enforced at export time — `EpubExporter` throws a new `EpubExportException` naming the offending
+  section rather than silently producing a file KDP would reject on upload. `maxFileBytes`/
+  `maxFileCount` are constructor parameters (defaulting to the real KDP limits) specifically so
+  tests can inject a tiny threshold instead of needing to build a real ~30MB string to exercise the
+  check — an actual 30MB single-paragraph test string turned out to take 30-40s to parse, which
+  would have made this test file painfully slow for no real benefit.
+- **Verified `styles.css` already uses only em/%/unitless values**, no fixed px/pt anywhere — a
+  KDP guideline that turned out to already be satisfied, no code change needed, just confirmed and
+  marked off in `KDP_CRIBSHEET.md`.
+
+10 new tests in `epub_exporter_test.dart` (nested-nav structure via real XML parsing, flat-book
+backward-compatibility, both limit checks, defaults-match-real-KDP-limits).
+
+**513 tests total**, `flutter analyze` clean. Also fixed the Release Notes screen this session:
+the update banner and "Check for Updates" result previously linked out to GitHub in a browser
+instead of showing content — both now open the in-app `ReleaseNotesScreen`, which gained a
+`highlightVersion` param to scroll to and outline the relevant release; the "What's New" popup
+gained a "View Full History" button linking to the same screen.
+
+Still open for the eBook path per `KDP_CRIBSHEET.md`: footnote-to-EPUB integration (confirmed no
+export format handles footnotes at all today — a cross-format gap, not EPUB-specific), table
+support (contingent on the editor supporting tables at all), and accessibility attributes (alt
+text, language tagging, WCAG contrast). Paperback/Hardcover print paths are still entirely
+unstarted.
+
+## Phase 6.3 (eBook path complete) — footnotes and language tagging in EPUB export
+
+Closed out the remaining buildable items on the eBook (EPUB) side of Phase 6.3.
+
+- **Footnote-to-EPUB integration.** Footnote annotations (`AnnotationKind.footnote`, existing since
+  Phase 4) now round-trip into EPUB using KDP's recommended structure: numbered in true document
+  reading order (not annotation-creation order), rendered as `<sup><a epub:type="noteref">` at
+  their anchor point with a matching `<aside id="fn-N" epub:type="footnote">` placed at the end of
+  the chapter file the reference actually appears in, bidirectionally linked
+  (`src-N`/`fn-N`). Mechanism: a Private-Use-Area Unicode marker (`\uE000<number>\uE000`) gets
+  inserted into a scene's raw markdown at the footnote's character-offset anchor *before*
+  `MarkdownLite.parse` runs — safe because it isn't one of `MarkdownLite`'s special characters, so
+  it survives parsing as ordinary literal text inside whatever run it lands in — then substituted
+  for real markup via regex after the block/run HTML is generated, rather than threading footnote
+  data through `_blockHtml`/`_runHtml`'s signatures. Multiple footnotes in one scene insert
+  rightmost-first (so earlier offsets stay valid as each insertion shifts the string) but are
+  *numbered* in ascending document order first, in a separate pass — numbering and insertion order
+  are opposite and easy to conflate; a first attempt at this got it backwards and was corrected
+  before landing.
+- **`xml:lang="en"`/`lang="en"`** added to every generated XHTML document (nav + every section
+  file), matching `content.opf`'s existing `dc:language` — a real, previously-untracked
+  accessibility gap, now closed with no new state (no per-project language setting exists, so this
+  mirrors the same hardcoded "en" already in the OPF rather than inventing one).
+- **Verified, no code change needed**: `styles.css` sets no explicit text/background colors
+  anywhere, so WCAG's 4.5:1 contrast requirement is trivially met via every reader's own defaults.
+- **Confirmed and corrected a stale assumption**: `KDP_CRIBSHEET.md` previously said "unclear if
+  the editor (`flutter_quill`) supports authoring a table" — the editor is actually a plain
+  markdown-lite `TextField` with no `flutter_quill` dependency at all, and no table-authoring UI.
+  Table export support is blocked on that editor feature existing first, not an open research
+  question.
+
+11 new tests in `epub_exporter_test.dart` (single footnote structure, multi-footnote reading-order
+numbering, per-chapter-file aside placement, no-footnote no-stray-marker case, language tagging).
+
+**518 tests total**, `flutter analyze` clean.
+
+**eBook (EPUB) path is now as complete as it can be** without other unbuilt features landing
+first: image embedding (blocks alt text) and table authoring (blocks table export) are the only
+remaining gaps, and both are blocked on separate, already-tracked features rather than being
+EPUB-exporter work. PDF/DOCX footnote support remains open — see CONSIDERATIONS.md; the anchor-
+mapping pattern built here is now proven and ready to port to those formats when picked up.
+
+Next: Paperback print export (Phase 6.3's largest remaining piece — trim size, margin/gutter calc,
+front/body/back matter structure, print-ready PDF).
+
+## Phase 6.3 (Paperback started) — trim size, bleed, and page-count-scaled margins
+
+First Paperback work, scoped deliberately (agreed with user before starting, given how much larger
+this piece is than the eBook fixes): trim size + bleed + margin mechanics only. Running
+headers/page numbering and front/body/back matter template content (half-title, copyright page)
+are both explicitly deferred — see `KDP_CRIBSHEET.md`'s Paperback section and CONSIDERATIONS.md.
+
+- **Refactored `PdfExporter`'s Markdown-to-widget rendering out into a new shared
+  `pdf_widget_builder.dart`** (`PdfWidgetBuilder`), since a second PDF-based exporter was about to
+  need the exact same block/run rendering — avoids duplicating ~140 lines of formatting logic
+  across two exporters. `PdfExporter`'s own behavior is unchanged (verified via its existing test
+  suite passing unmodified).
+- **New `kdp_paperback_exporter.dart`** (`KdpPaperbackExporter`) — the 10 KDP trim size presets as
+  a `KdpTrimSize` enum, bleed toggle (+0.125"/edge), and the page-count-banded gutter margin table
+  straight from KDP's docs (`gutterInches`). Page count validated against KDP's 24–828 range,
+  throwing `KdpPaperbackExportException` naming the actual count if outside it.
+- **Margin/page-count chicken-and-egg solved with a two-pass build**: build once assuming the
+  smallest band, read the real resulting page count off `pdfDoc.document.pdfPageList.pages.length`
+  (layout only actually happens at `Document.save()`, not at `addPage()` — confirmed by reading the
+  `pdf` package's source before relying on it), rebuild once more if that count crosses into a
+  different gutter band. Not iterated further than one rebuild — band-to-band margin deltas are a
+  fraction of an inch, expected to converge in practice.
+- **Real bug caught by testing, not eyeballing**: the first version reused the same built
+  `pw.Widget` list across both build passes to save the (re-)parsing work — this threw a
+  `RangeError` deep inside the `pdf` package's own `RichText.paint` on the second pass.
+  `pw.Widget`s carry internal layout/paint state that isn't safe to replay into a second, separate
+  `Document`; fixed by rebuilding the widget tree fresh for each pass. Caught immediately by the
+  "crosses a gutter band" integration test actually exercising the rebuild path with a real ~450-
+  page manuscript, not just the pure-function unit tests around `gutterInches`/`pageFormatFor`.
+- **Decision (2026-08-01): symmetric margins, not true mirrored odd/even binding-side margins**,
+  for this pass — the `pdf` package has no built-in per-page-parity margin support. Left/right both
+  use the larger gutter value uniformly, which stays KDP-compliant on whichever edge ends up being
+  the real binding side whenever true mirroring gets built later.
+
+18 new tests in `kdp_paperback_exporter_test.dart`: pure-function coverage of every gutter band
+boundary and the bleed/no-bleed outside minimums, real-PDF-bytes verification (via the same
+`/Type /Page` and a new `/MediaBox` raw-regex-scan approach `pdf_exporter_test.dart` established)
+that trim size and bleed actually reach the output page geometry, both page-count-range exception
+paths, and the gutter-band-rebuild integration test that caught the widget-reuse bug above.
+
+**531 tests total**, `flutter analyze` clean.
+
+Next: running headers/page numbering, or move to Hardcover, or start on the front/body/back matter
+template content model — open decision, not yet made.
+
+## Phase 6.3 (Paperback: running headers + page numbering) — roman/Arabic numbering, alternating headers
+
+- **Page numbering**: front matter gets lowercase roman numerals, body + back matter get Arabic
+  numerals restarting at 1 — implemented as three independently-numbered `pw.MultiPage`s (title,
+  front matter, body) added to one shared `pw.Document`. Each section's footer captures the
+  *global* running page number (`Context.pageNumber`, which the `pdf` package computes lazily
+  during `Document.save()`) the first time it fires, as that section's own offset — no extra build
+  pass needed to "learn" how many pages preceded a section, since by the time a later section's
+  pages are laid out, every earlier section's pages already exist in the shared `Document`.
+- **Running headers**: alternate by page parity — odd page = book title (right-facing/recto), even
+  page = author name (left-facing/verso), the standard novel-typesetting convention — shown
+  throughout body + back matter. **Known gap, documented rather than silently skipped**: not
+  suppressed on individual chapter-opening pages (KDP's own guidance for this) — that needs
+  per-chapter `MultiPage` granularity, a bigger restructuring than this pass; the current single
+  body-wide `MultiPage` can't distinguish "this physical page happens to start a chapter."
+- **Two real bugs caught by testing, not eyeballing**, both fixed:
+  - **Cross-section page-number contamination.** The first version used one shared instance field
+    to capture each section's starting offset, reset to `null` "before" building each section's
+    `MultiPage`. But all three `MultiPage`s get `addPage()`d synchronously during `_build()`,
+    before `save()` ever triggers any footer callback — so both resets happened before *either*
+    section's callbacks had run at all, and by the time body's callbacks actually fired (during
+    `save()`), the field held whatever front matter's callbacks had already captured, not a fresh
+    value for body. Caught by the "front matter roman numerals, body resets to Arabic 1" test,
+    which threw a Roman-numeral range assertion deep in the `pdf` package (a wildly wrong page
+    index computed from front matter's stale offset). Fixed by using a closure-local variable
+    (`_localPageIndexFactory()`, called fresh per section) instead of a shared instance field —
+    structurally impossible to cross-contaminate, since each section gets its own closure scope.
+  - **Trailing blank page.** `PdfWidgetBuilder.titlePageWidgets` ends with a `pw.NewPage()` —
+    needed when `PdfExporter` flows title and body through one continuous `MultiPage`, but once
+    title became its own separate `MultiPage` here, that trailing `NewPage()` produced a stray
+    blank second page with nothing on it (each separately-`addPage()`d `MultiPage` already starts
+    on its own fresh page). Fixed with `..removeLast()` on the title widget list specifically for
+    this exporter's use, documented inline so it isn't "fixed" the same way in `PdfExporter` by
+    mistake later. Caught by a dedicated regression test asserting the exact expected page count
+    (2, not 3) for a minimal manuscript.
+- **New test infrastructure**: since PDF content streams are Flate-compressed by default (hiding
+  rendered text from a raw-bytes scan), added a `compressPdf` constructor flag (default `true`;
+  tests set `false`) so footer/header text lands as plain, greppable bytes. Discovered along the
+  way that the `pdf` package renders text via kerning-adjusted `[(t) -20 (ext)] TJ` arrays, not
+  simple `(text) Tj` — a first regex only matching the latter found nothing at all; broadened to
+  match any parenthesized string operand and join adjacent fragments back together for `contains`
+  checks (individual words can land split across several TJ array entries, and literal space
+  characters aren't preserved as their own glyph either).
+
+5 new tests (16→18 in `kdp_paperback_exporter_test.dart`, net of the file also gaining a stray-
+blank-page regression test): Arabic restart-at-1 with no front matter, roman-then-Arabic-reset with
+front matter present, alternating header content verified against real rendered text, no roman
+numerals appear at all when front matter is empty, and the blank-page regression.
+
+**536 tests total**, `flutter analyze` clean.
+
+Remaining Paperback gaps, in rough order of what's most worth doing next: chapter-opening header
+suppression (needs the per-chapter `MultiPage` restructuring noted above), true mirrored margins,
+front/body/back matter template content (half-title/copyright pages), then Hardcover (mostly reuses
+this exporter's mechanics with a different trim/page-count table, pending final confirmation that
+KDP's hardcover margin rules really do match paperback's — see KDP_CRIBSHEET.md).
+
+## Phase 6.3 (Paperback: chapter-opening header suppression)
+
+Closed the one documented gap from the previous running-headers session: KDP's guidance that
+running headers shouldn't appear on a chapter's own opening page.
+
+- **Restructured the body from one continuous `pw.MultiPage` into one `MultiPage` per chapter**
+  (grouped the same way `EpubExporter` already groups sections at chapter boundaries — a new
+  `_groupedSectionWidgets` mirroring that pattern for PDF widgets) — the only way to let a
+  chapter's own header callback know "is this my first page," since a single shared `MultiPage`
+  has no concept of chapter boundaries once it's built.
+- **Two page-index concepts, deliberately kept separate rather than derived from one another**:
+  a whole-book continuous index (shared across every chapter's `MultiPage`, used for the printed
+  Arabic page number *and* for title/author recto-verso parity, since parity is a physical-page
+  concept spanning the whole book) and a fresh-per-chapter index (used only to detect "page 1 of
+  *this* chapter," for suppression). Conflating these in an early draft broke suppression outright.
+- **A second real bug caught by testing**: the first suppression attempt tracked "have I rendered
+  this chapter's header yet" via a mutable flag flipped on first *call*. The `pdf` package invokes
+  a `MultiPage`'s header builder more than once per physical page (a measurement pass, then the
+  real paint) — so the flag was already `true` by the time the first page's real paint ran, and
+  the header rendered anyway on the page it was supposed to be suppressed on. Fixed by deriving
+  suppression from the chapter-relative page index directly (`chapterPageIndex(context) == 0`)
+  instead of any call-counting state — `context.pageNumber` is the same well-defined value no
+  matter how many times a callback fires for a given page, so this is immune to the double-
+  invocation behavior that broke the flag-based version.
+- Caught via a dedicated test that splits the *actual* uncompressed PDF into its per-page content
+  streams (not just "does this text appear anywhere in the whole document") and checks specific
+  pages: a multi-page chapter's own first page has no header, its later pages do, and a second,
+  single-page chapter's own (only) page is also suppressed — proving the suppression flag resets
+  fresh per chapter rather than only ever firing once for the whole body.
+
+1 new test (18→19 in `kdp_paperback_exporter_test.dart`).
+
+**537 tests total**, `flutter analyze` clean.
+
+**Paperback's core mechanics are now essentially complete**: trim size, bleed, page-count-scaled
+margins, roman/Arabic numbering, and correctly-suppressed alternating running headers. Remaining
+gaps are both bigger, separate pieces of work: true mirrored (odd/even) margins, and front/body/
+back matter template content (half-title/copyright pages) — see CONSIDERATIONS.md. Next up per
+prior sequencing: whichever of those two, or Hardcover (which mostly reuses this exporter's
+mechanics against a different trim/page-count table).
+
+## Phase 6.3 (Paperback: copyright page; mirrored margins investigated and closed out)
+
+Addressed the two remaining items from the previous Paperback session.
+
+- **True mirrored (odd/even) margins — investigated, confirmed structurally out of reach for this
+  exporter's architecture, not attempted as a half-measure.** Read the `pdf` package's own source
+  (`MultiPage`'s constructor, `PageTheme`) to confirm: page format and margin are fixed once at
+  construction, with no per-page callback of any kind — only `TextDirection`-based resolution
+  (ltr/rtl), nothing for physical page parity. True mirroring would require abandoning automatic
+  flow-layout pagination entirely and hand-rolling page-by-page layout — a different, much larger
+  project, not a follow-up task on top of the current architecture. Documented as the confirmed,
+  final v1 answer (symmetric margins using the larger gutter value on both sides) rather than left
+  as an open question to keep revisiting.
+- **Auto-generated copyright page** — always prepended as front matter's own first page (roman
+  "i"), ahead of any of the project's own `SpecialSection`s (dedication, preface, etc.), since a
+  copyright page isn't optional/user-authored content the way those are, and Narraity has no
+  content type for one yet. Standard boilerplate notice using `project.title`/`author` and the
+  *current export date's* year — there's no dedicated "publication year" field on `Project` to
+  prefer instead. Explicitly not legal advice, and the wording isn't customizable yet.
+- Updated 4 existing tests whose page-count/page-index assumptions shifted now that every export
+  has an extra page (title → **copyright** → user front matter → body, where before it was title →
+  user front matter → body) — a straightforward but real ripple effect worth noting: adding a page
+  to the front of the document shifts every downstream page-index assumption in tests that inspect
+  specific pages by position.
+- Added 2 new tests: copyright page present and correctly roman-numbered even with zero user front
+  matter, and copyright landing before (not after) the project's own front matter in the same
+  roman-numbered sequence.
+
+**538 tests total**, `flutter analyze` clean.
+
+**Paperback is now as complete as it reasonably can be without a fundamentally different PDF
+architecture.** Remaining gaps — true mirrored margins and half-title/facing-page enforcement —
+are both confirmed to need substantially more foundational work than "finish the feature," and are
+documented as such in KDP_CRIBSHEET.md/CONSIDERATIONS.md rather than left ambiguous. Next: Hardcover
+(per user direction) — should mostly reuse this exporter's mechanics against a different trim size/
+page-count table, once KDP's hardcover-specific bleed/margin rules are confirmed (currently assumed
+identical to paperback, per KDP_CRIBSHEET.md, since KDP's hardcover help page is a hub pointing at
+the same paperback sub-topics rather than a separate table).
+
+## Phase 6.3 (Hardcover) — thin wrapper reusing the paperback engine
+
+Hardcover turned out to be a small, low-risk addition rather than a parallel implementation,
+because the paperback exporter's engine was written generically enough to reuse directly.
+
+- **Widened `KdpPaperbackExporter`'s trim-size type from the concrete `KdpTrimSize` enum to a new
+  `KdpPrintTrimSize` interface** (`widthIn`/`heightIn` getters) — `KdpTrimSize` now `implements` it,
+  which Dart enums support directly (no wrapper class needed). This is the one structural change
+  that made reuse possible: the exporter's ~350 lines of margin/bleed/numbering/header/copyright
+  logic never actually depended on anything paperback-specific once trim size was expressed this
+  way, only on width/height in inches and a page-count range.
+- **Renamed `KdpPaperbackExportException` to `KdpPrintExportException`** (shared across both
+  bindings, not named after just one) — kept the old name as a `typedef` alias so nothing calling
+  code-side needed updating, though new code (hardcover's own tests) uses the new name directly.
+- **New `kdp_hardcover_exporter.dart`**: a `KdpHardcoverTrimSize` enum (the 5 hardcover-specific
+  sizes from `KDP_CRIBSHEET.md`) and a `KdpHardcoverExporter` that's a thin wrapper — constructs a
+  `KdpPaperbackExporter` internally with hardcover's default page-count range (75–550, vs.
+  paperback's 24–828) and just forwards `buildBytes`/`exportToFile` calls to it. No duplicated
+  logic at all.
+- **Confirmed KDP's hardcover bleed/margin rules are still an unverified working assumption**
+  (KDP's hardcover help page is a hub pointing at the same paperback sub-topics, not a separate
+  table — see `KDP_CRIBSHEET.md`) — but since hardcover now reuses the exact same engine rather
+  than a separate implementation, fixing this later (if the assumption turns out wrong) only means
+  changing one place, not reconciling two parallel implementations that had drifted.
+
+7 new tests in `kdp_hardcover_exporter_test.dart` — all passed on the first run, which is itself a
+signal the paperback engine's generalization was done correctly: distinct default page-count range,
+hardcover-specific trim size reaching the actual PDF page geometry, bleed, the page-count exception,
+and the shared copyright-page/build-shape behavior.
+
+**545 tests total**, `flutter analyze` clean.
+
+**All three KDP export sub-paths (eBook, Paperback, Hardcover) are now built** to the extent
+reasonably achievable without larger, separately-tracked follow-up work (true mirrored margins,
+half-title/facing-page enforcement, footnotes in PDF/DOCX, table support, image embedding — all
+catalogued in CONSIDERATIONS.md and KDP_CRIBSHEET.md). Phase 6.3 is not fully closed — cover
+generation remains explicitly out of scope per the original decision, and the open items above are
+real, but the core "can a user get a KDP-submittable file out of Narraity" question is now yes for
+all three formats.
+
+## Bug fix: tapping a project inside a series list didn't open it
+
+`SeriesDetailScreen` is reached via `Navigator.push` from the library grid, so it sits on top of
+the navigation stack. Its project cards' `onTap` correctly set `currentProjectProvider`, which
+`NarraityApp` (`app.dart`) watches to swap its `home` widget between `LibraryScreen` and
+`ProjectShellScreen` — but that swap happens in the widget *underneath* the still-pushed
+`SeriesDetailScreen` route, so the rebuild was invisible: the user stayed looking at the series
+list. Fixed with `Navigator.of(context).popUntil((route) => route.isFirst)` after setting the
+provider, popping back to the root so the swapped-in `ProjectShellScreen` actually becomes visible.
+The library grid's own project cards don't have this bug — they're never pushed on top of
+anything, so the `home` swap is already visible immediately.
+
+New regression test in `widget_test.dart` (create a series, open it, tap its one project, confirm
+the project shell's tab bar appears). Along the way, hit and fixed a real test-infrastructure trap
+worth remembering: `Project` has no `==`/`hashCode` override, so a `Project` instance created
+directly in a test is a *different* family-provider cache key than the separately-deserialized
+instance a widget gets back from `projectListProvider` — warming providers against the wrong
+instance leaves a permanent spinner with no error. Fixed by warming through
+`projectListProvider.future` and using the returned instance, not the one the test created.
+
+**546 tests total**, `flutter analyze` clean.
+
+## New features: project card styles (Novel/Comic/Script) and a curated Library background picker
+
+Two small personalization features, requested together.
+
+- **Project card style** (`ProjectKind` on the `Project` model — `novel`/`comic`/`script`, defaults
+  to `novel` for any project saved before this field existed). Purely cosmetic: doesn't touch the
+  manuscript, editor, or export pipeline at all — a "Script" project is still prose-formatted
+  identically to a "Novel" one; real screenplay formatting would be a separate, much bigger feature
+  (confirmed with the user before building, not assumed). Picked at project creation via a new
+  `SegmentedButton` in the New Project dialog; each kind gets a distinct library-card frame
+  (`ProjectKindFrame` — book-spine left edge for Novel, all-around panel border for Comic, a thin
+  top rule for Script) and its own icon/accent color, shared between the top-level library grid and
+  a series' own project grid via one `ProjectKindStyle`/`ProjectKindFrame` pair rather than
+  duplicating the mapping in both places.
+- **Library background picker** (`libraryBackgroundProvider`, alongside the existing theme
+  selector in Settings → Appearance, not a replacement for it) — a curated set of solid colors and
+  two-color gradients for just the Library screen's backdrop (not the app bar, not any other
+  screen). Deliberately *not* a free-form color/gradient picker (decided with the user): an
+  arbitrary color risks poor contrast against the grid's text (empty-state copy, FAB labels), so
+  this ships as ~10 pre-vetted swatches instead. Still runs a live WCAG contrast check
+  (`hasAdequateContrast`, checking a background's own luminance against whichever of black/white
+  text it would actually pair with — checking against *either* would be nearly meaningless, since
+  almost any color clears 4.5:1 against at least one of them) as a belt-and-braces warning, even
+  though every curated preset is verified (by test) to already pass it.
+- Found and fixed a real, unrelated bug while adding the card-style picker to the New Project
+  dialog: the dialog's content `Column` wasn't scrollable, so `AlertDialog`'s height constraint (a
+  fixed range, not "grow to fit") started silently overflowing once the new picker made the natural
+  content taller — caught by the existing "New Project dialog" test, not a new one. Fixed with
+  `SingleChildScrollView`.
+
+23 new tests: `Project`/`ProjectKind` persistence and defaulting (including a fabricated pre-
+existing `project.json` with no `kind` field, to prove the default applies to real legacy data, not
+just a fresh model instance) in `library_service_test.dart`; contrast-ratio math, per-preset
+contrast verification (every curated swatch actually passes its own check — the point of curating
+them), and unknown-id fallback in `library_background_test.dart`; persistence round-trip in
+`library_background_provider_test.dart`.
+
+**567 tests total**, `flutter analyze` clean.
+
+## Wired up KDP Paperback/Hardcover export in the UI (previously backend-only)
+
+Caught a real gap: the entire KDP export session built `KdpPaperbackExporter`/
+`KdpHardcoverExporter` as fully-tested backend services, but never actually wired either into
+`ExportScreen` — the screen's own pre-existing code comment said as much ("KDP-specific print/
+trim-size concerns... aren't part of this screen — those need their own margin/bleed/trim-size UI,
+not built yet"), which got missed when reporting the KDP work as "done." The user noticed the gap
+directly by asking where the option was.
+
+- **`ExportScreen`** now has two more radio options, **KDP Paperback** and **KDP Hardcover**,
+  alongside the existing PDF/DOCX/EPUB/plain-text ones. Selecting either reveals a trim-size
+  dropdown (each binding's own preset list — `KdpTrimSize` for paperback, `KdpHardcoverTrimSize`
+  for hardcover) and a bleed checkbox, with an explicit "interior file only, no cover" note.
+- **EPUB needed no new option** — all the KDP eBook compliance work from earlier in this session
+  (2-level ToC cap, footnote round-trip, size limits, language tagging) is built directly into the
+  existing `EpubExporter`, so the current "EPUB (e-reader/Kindle)" radio option already produces
+  KDP-compliant output with no separate toggle needed. Its subtitle now says so explicitly.
+- `KdpPrintExportException` (e.g. "this manuscript is outside KDP's page-count range for this
+  binding") surfaces as its own complete sentence in the export screen's error area, not wrapped in
+  a generic "Export failed: ..." prefix that would just repeat the same information.
+- The dialog's content needed the same `SingleChildScrollView` fix as the New Project dialog
+  earlier — six radio options plus the new trim/bleed card is taller than the fixed layout
+  previously assumed.
+
+5 new tests in `export_screen_test.dart`: both KDP options appear, the trim/bleed picker is hidden
+until one is selected, each binding shows its own trim size list (only paperback's 6×9 gets the
+"most common for novels" note), and switching back to a non-print format hides the picker again.
+
+**572 tests total**, `flutter analyze` clean.

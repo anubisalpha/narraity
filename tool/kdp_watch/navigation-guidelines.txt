@@ -1,0 +1,584 @@
+﻿Navigation Guidelines
+English
+English
+Deutsch
+Français
+Español
+Italiano
+Português
+Nederlands
+|
+Help
+|
+Sign in
+|
+Give Feedback
+How would you rate your experience using this page?
+Very Dissatisfied
+Dissatisfied
+Neutral
+Satisfied
+Very Satisfied
+Visit our
+help center
+for resources to common issues
+Click here
+to take our survey and give us detailed feedback.
+Thank you for your feedback.
+Click here
+to take our survey and give us detailed feedback.
+Bookshelf
+|
+Reports
+|
+Community
+|
+Marketing
+Help Topics
+Help
+KDP Help Center Home
+Account & Taxes
+Set up your KDP account
+Create a KDP Account
+Add or update a bank account
+I set up my bank account, but I haven't received any payments.
+Troubleshooting common bank account errors
+Payment Service Provider Program FAQ
+Payment Service Provider Program Updates
+Payment Service Provider Program Risk Management Controls
+Manage Your KDP Account
+What happens when I close my KDP account?
+Account security and avoiding scams
+Sign in Issues
+Two-Step Verification
+Verify your identity
+Accepted IDs for Identity Verification
+What if my account name or country changes or is different from my ID?
+Taking photos of your ID
+Troubleshoot Identity Verification Errors
+CreateSpace Account
+Tax Information
+Year End Tax Forms
+What is my tax information status?
+Complete Tax Profile
+Tax Withholding
+Kindle Store: BR - BR Tax Withholding
+Goods and Services Tax (GST) for eBooks in Australia and India
+Taiwan VAT
+Applying for a US ITIN
+Applying for a U.S. EIN for Corporations and Non-Individual Entities
+How Taxes Affect List Prices
+Setting Prices for Amazon Japan
+How EU and the UK Taxes Affect Print Books List Price
+How EU Taxes Affect eBooks List Price
+EU VAT Invoices
+Book Formatting
+Format Your Paperback
+Set Trim Size, Bleed, and Margins
+Format Front Matter, Body Matter, and Back Matter
+Save Your Manuscript File
+Paperback and Hardcover Manuscript Templates
+Cover Creator
+Create a Paperback Cover
+Format Images in Your Book
+Paperback Fonts
+Fix Paperback and Hardcover Formatting Issues
+Paperback Submission Guidelines
+Format Your Hardcover
+Create a Hardcover Cover
+Format Your eBook
+What criteria does my eBook's cover image need to meet?
+Why is my cover image not updating on Amazon?
+What file formats are supported for eBook manuscripts?
+Digital Rights Management
+Create a Table of Contents
+Tools and Resources
+KDP Tools and Resources
+Publishing Service Providers & Resources
+Kindle Create Help Overview
+Getting Started with Kindle Create
+Kindle Create Tutorial
+Prepare Reflowable and Print Books with Kindle Create
+Prepare Comic and Kids' eBooks with Kindle Create
+Prepare Print Replica Books with Kindle Create
+Previewing and Publishing Your Kindle Create Book
+Kindle Previewer
+Quality Notifications Dashboard
+Guide to Kindle Content Quality
+Enhanced Typesetting
+X-Ray for Authors
+X-Ray for Authors: Tips and Tricks
+KDP Publishing
+Start publishing with KDP
+KDP Bookshelf
+Book Supported Languages
+Arabic
+Chinese (Traditional) (Beta)
+Publishing in Hebrew, Persian, and Yiddish
+Indian-Language Publishing
+Create a Book
+Book Detail Resources
+Books Titles & Editions
+Fixing typos on a book title or author name
+Authors & Contributors
+Write a Book Description
+Fixing errors or formatting with book descriptions
+Make Your Book More Discoverable with Keywords
+Kindle eBook Pre-Order
+Setting up pre-orders
+Pre-order statuses
+Reschedule a pre-order release
+Delay or cancel a pre-order release
+Pre-order pricing and sales reports
+Primary Audience and Reading Age
+Publishing Public Domain Content
+Language & Reading direction
+Release Date Options
+Schedule a Release
+Upload Book Resources
+Accessibility for eBooks
+Accessibility Features on Detail Page
+What is an ISBN and Imprint?
+Get an ISBN
+Change or view your ISBN
+Troubleshoot ISBN errors
+Barcodes
+Print Options
+Color Ink Options
+Groundwood Paper
+Upload and Preview Book Content
+Convert a Paperback Word File to PDF
+Pricing Resources
+Price Your Book
+Price Troubleshooting
+Paperback Printing Cost
+Hardcover Printing Cost
+RedirectA
+Printing Cost & Royalty Calculator
+Timelines
+Book Status
+Low-Content Books
+Hardcover
+Hardcover Print Elements
+Beta: Audiobooks with virtual voice
+Getting started with audiobooks with virtual voice
+Audiobooks with virtual voice eligibility and troubleshooting
+Virtual voice audio samples
+Pricing, royalties, and reports for audiobooks
+Edit audio in the Virtual Voice Studio
+Terms and Conditions for the Beta Version of Audiobooks with Virtual Voice
+Beta: Kindle Translate
+Getting Started with Kindle Translate
+Kindle Translate Languages
+Kindle Translate Eligibility and Troubleshooting
+Kindle Translate Quality
+Pricing, royalties, and reports for translations
+Terms and Conditions for the Beta Version of Kindle Translate
+Start a Book Series
+Update Your Series
+Edit your Series
+Delete a series
+Set the reading order for your series
+Where can I find my Amazon Series Page?
+How to create a series with multiple authors
+Can I offer discounts to books in my series?
+Series Collections on kdp.amazon.co.jp
+Orders & Book Copies
+Proof and Author Copies
+How do I order a proof or author copy?
+How much do proof or author copies cost?
+What is the cost to ship my proof or author copy?
+When will my proof or author copy arrive?
+I’m getting an error ordering my author copy
+I’m getting an error ordering my proof copy
+My proof or author copy came damaged
+My proof or author copy didn’t arrive on time
+My proof or author copy has printing errors
+Amazon Store & Detail Page
+KDP Categories
+Read Sample (Look Inside the Book)
+Customer Reviews
+Search Results
+How to find your book on Amazon
+Troubleshoot search results
+Link Your Books Together
+Why are my books not linked on Amazon?
+Link Your Books on the KDP Bookshelf
+How do I unlink my books?
+Sales Ranking
+Book Trends Data
+Recaps
+Marketing & Distribution
+Guidelines for use of the Available at Amazon Badge by KDP Publishers
+Ways to Promote Your Book
+KDP Select
+How to enroll in KDP Select
+How to cancel KDP Select
+KDP Select Benefits
+KDP Select Bonus
+Kindle Countdown Deals
+Kindle Unlimited
+Royalties in Kindle Unlimited
+Free Book Promotions
+Author Central
+A+ Content
+Create A+ Content
+A+ Content Examples
+A+ Content Guidelines
+Advertising for KDP books
+Expanded Distribution
+eBook Distribution Rights
+Paperback and Hardcover Distribution Rights
+Merchandising Tips
+Buying and Gifting eBooks for Others
+Sample Chapters
+Audiobooks Through ACX
+Amazon Literary Contests
+Nominate Your eBook for a Promotion (Beta)
+Book Updates
+Update Your Book
+Update your book details
+Update Your Manuscript
+Modify Converted eBook Content
+How to Send Your Updated eBook to Customers or Yourself
+Update Your Cover
+Remove or unpublish a book
+Payments & Reports
+Royalties
+eBook Royalties
+Paperback Royalty
+Hardcover Royalty
+KDP Reports
+How do I view a report of my orders and payment royalties?
+Dashboard
+Orders Report
+KENP Read
+Promotions Report
+Pre-Order Report
+Month-to-Date Report
+Prior Months' Royalties Report
+Royalties Estimator
+Payment Report
+KDP Payments
+KDP Payment Options
+When will I get paid?
+Troubleshoot Payment Issues
+Legal & Content Guidelines
+Kindle Direct Publishing Terms and Conditions
+Digital  Book Pricing Page
+Print Book Pricing Page
+eBook List Price Requirements
+Program Policies
+Content Guidelines
+Metadata Guidelines for Books
+Intellectual Property Rights Frequently Asked Questions
+Reporting Possible Violations of Our Guidelines
+Privacy Notice Information
+Bonus Content
+Featured Offer Eligibility for Third-Party Sellers
+EU Regulation on Deforestation-free Products (EUDR)
+User Guides
+Kindle Publishing Guidelines
+Getting Started
+Introduction
+Paths to Getting Your Content on Kindle
+Comparing Formats
+General Best Practices
+Cover Image Guidelines
+Navigation Guidelines
+HTML and CSS Guidelines
+Hyperlink Guidelines
+QA Standards
+Boxed and Bundles Edition Guidelines (eBook format only)
+Guidelines for Specific Types of eBooks
+Creating Reflowable Books
+Text Guidelines - Reflowable
+Image Guidelines - Reflowable
+Table Guidelines - Reflowable
+Creating Fixed-Layout Books with Text Pop-Ups
+Creating Fixed-Layout Books with Image Pop-Ups or Virtual Panels
+Creating Fixed-Layout Books Without Pop-Ups
+Creating Kindle Editions with Audio/Video Content
+Creating Dictionaries
+Appendices
+Enhanced Typesetting and Page Flip
+Attributes and Tags Supported by Enhanced Typesetting
+HTML and CSS Tags Supported in Kindle Format 8
+Media Queries
+Guidelines for Creating a Source File
+KDP Jumpstart
+1 – Set Up Your KDP Account
+2 – Prepare Your Manuscript
+3 – Prepare Your Cover
+4 – Title Setup: Book Details, Content, & Pricing
+5 – Publishing & Review
+6 – Promoting Your Book & Getting Paid
+KDP University
+Webinars
+Videos
+Contact Us
+Have feedback? Can't find your answer in our Help pages?
+Contact Us
+Search Help
+User Guides
+Kindle Publishing Guidelines
+General Best Practices
+Navigation Guidelines
+Navigation Guidelines
+To make a full use of Kindle apps navigation functionality, it is required to create a complete NCX file in a content file. The NCX file is mirrored to TOC in the menu of the apps and the TOC is shown in any pages, while the HTML TOC is shown as page(s) in a book. The HTML TOC has a location and to get to the TOC readers need to go to that location.
+HTML Table of Contents Guidelines
+Place the HTML table of contents (ToC) toward the beginning of the book and not at the end of the book. This ensures that a customer paging through the book from the beginning encounters the ToC naturally. Incorrect placement of the ToC affects the accuracy of the "Last Page Read" feature. Correct placement ensures that the ToC appears in sample downloads of the book.
+HTML ToC best practices:
+The entries in the ToC must be HTML links so that users can click to go to a specific location. A table of contents that is not made of links is not useful on Kindle.
+Do not create a ToC using HTML
+&lt;table&gt;
+tags. Tables are for tabular data only, not for layout.
+Do not use page numbers in the ToC. Kindle books do not always map directly to page numbers in physical editions of the book.
+If you are importing the document from Word, use the "Heading" styles and the "Table of Contents" feature of Microsoft Word. The ToC created by Word will be imported correctly and will convert to a ToC that follows these guidelines.
+For bundled editions containing more than one individual book, include an overarching ToC at the beginning of the file.
+If your ToC includes a List of Maps or Illustrations, provide an HTML link to each map or illustration.
+Before you publish
+, we recommend checking the following:
+Check that all your TOC links are linked correctly, to the correct locations.
+Make sure the TOC is in chronological order.
+Using a Nested HTML ToC
+To create useful and navigable nested ToC entries, Amazon recommends using the following syntax in the HTML ToC. The examples below show two ways of writing the same sample code: style attributes and CSS classes.
+Using style attributes:
+&lt;div&gt;
+Section 1
+&lt;/div&gt;
+&lt;div style="margin-left:2%;"&gt;
+Chapter 1
+&lt;/div&gt;
+&lt;div style="margin-left:2%;"&gt;
+Chapter 2
+&lt;/div&gt;
+&lt;div style="margin-left:2%;"&gt;
+Chapter 3
+&lt;/div&gt;
+&lt;div style="margin-left:4%;"&gt;
+Subchapter 1
+&lt;/div&gt;
+&lt;div style="margin-left:4%;"&gt;
+Subchapter 2
+&lt;/div&gt;
+&lt;div style="margin-left:2%;"&gt;
+Chapter 4
+&lt;/div&gt;
+&lt;div style="margin-left:4%;"&gt;
+Subchapter 1
+&lt;/div&gt;
+&lt;div&gt;
+Section 2
+&lt;/div&gt;
+...
+Using CSS classes:
+&lt;style&gt;
+div.chapter { margin-left: 1em}
+div.subchapter { margin-left: 2em}
+&lt;/style&gt;
+&lt;div&gt;
+Section 1
+&lt;/div&gt;
+&lt;div class="chapter"&gt;
+Chapter 1
+&lt;/div&gt;
+&lt;div class="chapter"&gt;
+Chapter 2
+&lt;/div&gt;
+&lt;div class="chapter"&gt;
+Chapter 3
+&lt;/div&gt;
+&lt;div class="subchapter"&gt;
+Subchapter 1
+&lt;/div&gt;
+&lt;div class="subchapter"&gt;
+Subchapter 2
+&lt;/div&gt;
+&lt;div class="chapter"&gt;
+Chapter 4
+&lt;/div&gt;
+&lt;div class="subchapter"&gt;
+Subchapter 1
+&lt;/div&gt;
+&lt;div&gt;
+Section 2
+&lt;/div&gt;
+...
+NCX Guidelines
+Logical ToCs are generated using toc nav elements or a navigational control file for XML application (NCX). Creating a logical ToC exposes the hierarchical structure of a Kindle book and allows the user to navigate through it using the Kindle menu. The inclusion of a logical ToC is especially important for books that are longer than 20 pages.
+In logical ToC-enabled books, users can see where they are in the book because the part, chapter, or section is exposed. This progress indicator also shows relative progress through the book.
+See guidance on creating a logical ToC using a toc nav element
+.
+See guidance on creating a logical ToC using NCX
+.
+Important:
+Kindle devices and applications support two levels of nesting.
+Before you publish
+, we recommend checking the following:
+Make sure your book contains NCX.
+Check that all the links in the NCX are correct, and navigating to the correct location.
+The NCX is not missing any chapters/sections, or contain any duplicates.
+Check for any typos in the NCX.
+NCX links are in chronological order.
+Creating a Logical ToC Using a toc nav Element
+See
+details on the toc nav element (IDPF 3.0 specification)
+.
+Creating a toc nav element provides both a logical ToC and an HTML ToC. The toc nav element should be a separate HTML document from the HTML ToC.
+Example:
+&lt;nav epub:type="toc"&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;a href="Sway_body.html#preface_1"&gt;
+AUTHOR'S NOTE
+&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="Sway_body.html#part_1"&gt;
+PART ONE
+&lt;/a&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;a href="Sway_body.html#chapter_1"&gt;
+THE HOUSES, 1969
+&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="Sway_body.html#chapter_2"&gt;
+ROCK AND ROLL, 1962
+&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="Sway_body.html#chapter_3"&gt;
+THE EMPRESS, 1928–1947
+&lt;/a&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/nav&gt;
+The example above defines the following ToC hierarchy:
+AUTHOR'S NOTE
+PART ONE
+THE HOUSES, 1969
+ROCK AND ROLL, 1962
+THE EMPRESS, 1928–1947
+This excerpt from the OPF (publication header file) shows how to declare the
+toc nav
+element in the
+&lt;manifest&gt;
+:
+Example:
+&lt;manifest&gt;
+&lt;item id="toc" properties="nav" href="xhtml/toc.xhtml" mediatype="application/xhtml+xml"/&gt;
+Using it in the
+&lt;spine&gt;
+is optional if it will be used as the HTML ToC.
+Example:
+&lt;spine&gt;
+&lt;itemref idref="toc"/&gt;
+Creating a Logical ToC Using NCX
+See IDPF 2.0 specifications for NCX
+.
+NCX Example:
+&lt;navMap&gt;
+&lt;navPoint class="titlepage" id="L1T" playOrder="1"&gt;
+&lt;navLabel&gt;&lt;text&gt;
+AUTHOR'S NOTE
+&lt;/text&gt;&lt;/navLabel&gt;
+&lt;content src="Sway_body.html#preface_1" /&gt;
+&lt;/navPoint&gt;
+&lt;navPoint class="book" id="level1-book1" playOrder="2"&gt;
+&lt;navLabel&gt;&lt;text&gt;
+PART ONE
+&lt;/text&gt;&lt;/navLabel&gt;
+&lt;content src="Sway_body.html#part_1" /&gt;
+&lt;navPoint class="chapter" id="level2-book1chap01" playOrder="3"&gt;
+&lt;navLabel&gt;&lt;text&gt;
+THE HOUSES, 1969
+&lt;/text&gt;&lt;/navLabel&gt;
+&lt;content src="Sway_body.html#chapter_1" /&gt;
+&lt;/navPoint&gt;
+&lt;navPoint class="chapter" id="level2-book1chap02" playOrder="4"&gt;
+&lt;navLabel&gt;&lt;text&gt;
+ROCK AND ROLL, 1962
+&lt;/text&gt;&lt;/navLabel&gt;
+&lt;content src="Sway_body.html#chapter_2" /&gt;
+&lt;/navPoint&gt;
+&lt;navPoint class="chapter" id="level2-book1chap03" playOrder="5"&gt;
+&lt;navLabel&gt;&lt;text&gt;
+THE EMPRESS, 1928–1947
+&lt;/text&gt;&lt;/navLabel&gt;
+&lt;content src="Sway_body.html#chapter_3" /&gt;
+&lt;/navPoint&gt;
+&lt;/navPoint&gt;
+&lt;/navMap&gt;
+The NCX example above defines the following ToC hierarchy:
+AUTHOR'S NOTE
+PART ONE
+THE HOUSES, 1969
+ROCK AND ROLL, 1962
+THE EMPRESS, 1928–1947
+Amazon requires that the NCX elements follow the same order as the book. (For example, the link for Chapter 2 should not precede the link for Chapter 1.) This excerpt from the OPF (publication header file) shows how to add an NCX table of contents to a book.
+Declare the NCX in the &lt;manifest&gt;:
+&lt;manifest&gt;
+&lt;item id="toc" media-type="application/x-dtbncx+xml"
+href="toc.ncx"/&gt;
+And reference it in the
+&lt;spine&gt;
+:
+&lt;spine toc="toc"&gt;
+Guide Items
+Guide items are an optional feature in the EPUB format but are highly recommended. Kindle provides support for the cover, ToC, and start reading location ("Go to Beginning") guide items. You can define guide items for the cover and ToC as described in the following section, Defining Cover and ToC. The start reading location is defined by Amazon. If you choose not to include guide items for the cover and ToC, these list items will still appear in the Kindle menus, but will be grayed out and not selectable.
+Defining Cover and ToC
+Kindle supports both
+landmarks nav
+elements and guide items for defining the cover and table of contents (ToC). These elements serve to supplement the ToC and should not be used in place of one.
+The landmarks nav elements are part of the IDPF 3.0 specification and are described at:
+http://idpf.org/epub/30/spec/epub30-contentdocs-20111011.html#sec-xhtml-nav-def-model
+and
+http://idpf.org/epub/30/spec/epub30-contentdocs-20111011.html#sec-xhtml-nav-def-types-landmarks
+.
+Here is an example of a guide item for a ToC (underlined elements are mandatory):
+&lt;guide&gt; &lt;reference
+type="toc"
+title="Table of Contents" href="toc.html"/&gt; &lt;/guide&gt;
+Here is an example of a
+landmarks nav
+element for a ToC (underlined elements are mandatory):
+&lt;nav epub:type="landmarks"&gt;
+&lt;ol&gt;&lt;li&gt;&lt;a
+epub:type="toc"
+href="toc.html"&gt;
+Table of Contents
+&lt;/a&gt;&lt;/li&gt;&lt;/ol&gt;
+&lt;/nav&gt;
+Make more money and reach more readers through Kindle Unlimited.
+Learn More
+Total KDP Select Author Earnings
+June 2026
+&#x2022;
+$67.0 Million
+&copy;
+1996-2026, Amazon.com, Inc. or its affiliates. All Rights Reserved.
+Amazon and Kindle are trademarks of Amazon.com Inc. or its affiliates.
+KDP Select
+Earn more money and
+reach new readers
+KDP Community
+Connect with experts
+and fellow authors
+CreateSpace
+Indie print publishing
+made easy
+ACX
+Indie audiobook publishing
+made easy
+KDP Terms and Conditions
+|
+Privacy Notice
+|
+Conditions of Use
+|
+Contact Us
+|
+Join Our Team
+|
+kdp.amazon.co.jp
+An unexpected error occurred.  Please try again later.
+Your session has expired
+Please sign in to continue
+Sign In
+edit

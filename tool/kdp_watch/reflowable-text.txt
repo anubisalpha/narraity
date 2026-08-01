@@ -1,0 +1,646 @@
+﻿Text Guidelines - Reflowable
+English
+English
+Deutsch
+Français
+Español
+Italiano
+Português
+Nederlands
+|
+Help
+|
+Sign in
+|
+Give Feedback
+How would you rate your experience using this page?
+Very Dissatisfied
+Dissatisfied
+Neutral
+Satisfied
+Very Satisfied
+Visit our
+help center
+for resources to common issues
+Click here
+to take our survey and give us detailed feedback.
+Thank you for your feedback.
+Click here
+to take our survey and give us detailed feedback.
+Bookshelf
+|
+Reports
+|
+Community
+|
+Marketing
+Help Topics
+Help
+KDP Help Center Home
+Account & Taxes
+Set up your KDP account
+Create a KDP Account
+Add or update a bank account
+I set up my bank account, but I haven't received any payments.
+Troubleshooting common bank account errors
+Payment Service Provider Program FAQ
+Payment Service Provider Program Updates
+Payment Service Provider Program Risk Management Controls
+Manage Your KDP Account
+What happens when I close my KDP account?
+Account security and avoiding scams
+Sign in Issues
+Two-Step Verification
+Verify your identity
+Accepted IDs for Identity Verification
+What if my account name or country changes or is different from my ID?
+Taking photos of your ID
+Troubleshoot Identity Verification Errors
+CreateSpace Account
+Tax Information
+Year End Tax Forms
+What is my tax information status?
+Complete Tax Profile
+Tax Withholding
+Kindle Store: BR - BR Tax Withholding
+Goods and Services Tax (GST) for eBooks in Australia and India
+Taiwan VAT
+Applying for a US ITIN
+Applying for a U.S. EIN for Corporations and Non-Individual Entities
+How Taxes Affect List Prices
+Setting Prices for Amazon Japan
+How EU and the UK Taxes Affect Print Books List Price
+How EU Taxes Affect eBooks List Price
+EU VAT Invoices
+Book Formatting
+Format Your Paperback
+Set Trim Size, Bleed, and Margins
+Format Front Matter, Body Matter, and Back Matter
+Save Your Manuscript File
+Paperback and Hardcover Manuscript Templates
+Cover Creator
+Create a Paperback Cover
+Format Images in Your Book
+Paperback Fonts
+Fix Paperback and Hardcover Formatting Issues
+Paperback Submission Guidelines
+Format Your Hardcover
+Create a Hardcover Cover
+Format Your eBook
+What criteria does my eBook's cover image need to meet?
+Why is my cover image not updating on Amazon?
+What file formats are supported for eBook manuscripts?
+Digital Rights Management
+Create a Table of Contents
+Tools and Resources
+KDP Tools and Resources
+Publishing Service Providers & Resources
+Kindle Create Help Overview
+Getting Started with Kindle Create
+Kindle Create Tutorial
+Prepare Reflowable and Print Books with Kindle Create
+Prepare Comic and Kids' eBooks with Kindle Create
+Prepare Print Replica Books with Kindle Create
+Previewing and Publishing Your Kindle Create Book
+Kindle Previewer
+Quality Notifications Dashboard
+Guide to Kindle Content Quality
+Enhanced Typesetting
+X-Ray for Authors
+X-Ray for Authors: Tips and Tricks
+KDP Publishing
+Start publishing with KDP
+KDP Bookshelf
+Book Supported Languages
+Arabic
+Chinese (Traditional) (Beta)
+Publishing in Hebrew, Persian, and Yiddish
+Indian-Language Publishing
+Create a Book
+Book Detail Resources
+Books Titles & Editions
+Fixing typos on a book title or author name
+Authors & Contributors
+Write a Book Description
+Fixing errors or formatting with book descriptions
+Make Your Book More Discoverable with Keywords
+Kindle eBook Pre-Order
+Setting up pre-orders
+Pre-order statuses
+Reschedule a pre-order release
+Delay or cancel a pre-order release
+Pre-order pricing and sales reports
+Primary Audience and Reading Age
+Publishing Public Domain Content
+Language & Reading direction
+Release Date Options
+Schedule a Release
+Upload Book Resources
+Accessibility for eBooks
+Accessibility Features on Detail Page
+What is an ISBN and Imprint?
+Get an ISBN
+Change or view your ISBN
+Troubleshoot ISBN errors
+Barcodes
+Print Options
+Color Ink Options
+Groundwood Paper
+Upload and Preview Book Content
+Convert a Paperback Word File to PDF
+Pricing Resources
+Price Your Book
+Price Troubleshooting
+Paperback Printing Cost
+Hardcover Printing Cost
+RedirectA
+Printing Cost & Royalty Calculator
+Timelines
+Book Status
+Low-Content Books
+Hardcover
+Hardcover Print Elements
+Beta: Audiobooks with virtual voice
+Getting started with audiobooks with virtual voice
+Audiobooks with virtual voice eligibility and troubleshooting
+Virtual voice audio samples
+Pricing, royalties, and reports for audiobooks
+Edit audio in the Virtual Voice Studio
+Terms and Conditions for the Beta Version of Audiobooks with Virtual Voice
+Beta: Kindle Translate
+Getting Started with Kindle Translate
+Kindle Translate Languages
+Kindle Translate Eligibility and Troubleshooting
+Kindle Translate Quality
+Pricing, royalties, and reports for translations
+Terms and Conditions for the Beta Version of Kindle Translate
+Start a Book Series
+Update Your Series
+Edit your Series
+Delete a series
+Set the reading order for your series
+Where can I find my Amazon Series Page?
+How to create a series with multiple authors
+Can I offer discounts to books in my series?
+Series Collections on kdp.amazon.co.jp
+Orders & Book Copies
+Proof and Author Copies
+How do I order a proof or author copy?
+How much do proof or author copies cost?
+What is the cost to ship my proof or author copy?
+When will my proof or author copy arrive?
+I’m getting an error ordering my author copy
+I’m getting an error ordering my proof copy
+My proof or author copy came damaged
+My proof or author copy didn’t arrive on time
+My proof or author copy has printing errors
+Amazon Store & Detail Page
+KDP Categories
+Read Sample (Look Inside the Book)
+Customer Reviews
+Search Results
+How to find your book on Amazon
+Troubleshoot search results
+Link Your Books Together
+Why are my books not linked on Amazon?
+Link Your Books on the KDP Bookshelf
+How do I unlink my books?
+Sales Ranking
+Book Trends Data
+Recaps
+Marketing & Distribution
+Guidelines for use of the Available at Amazon Badge by KDP Publishers
+Ways to Promote Your Book
+KDP Select
+How to enroll in KDP Select
+How to cancel KDP Select
+KDP Select Benefits
+KDP Select Bonus
+Kindle Countdown Deals
+Kindle Unlimited
+Royalties in Kindle Unlimited
+Free Book Promotions
+Author Central
+A+ Content
+Create A+ Content
+A+ Content Examples
+A+ Content Guidelines
+Advertising for KDP books
+Expanded Distribution
+eBook Distribution Rights
+Paperback and Hardcover Distribution Rights
+Merchandising Tips
+Buying and Gifting eBooks for Others
+Sample Chapters
+Audiobooks Through ACX
+Amazon Literary Contests
+Nominate Your eBook for a Promotion (Beta)
+Book Updates
+Update Your Book
+Update your book details
+Update Your Manuscript
+Modify Converted eBook Content
+How to Send Your Updated eBook to Customers or Yourself
+Update Your Cover
+Remove or unpublish a book
+Payments & Reports
+Royalties
+eBook Royalties
+Paperback Royalty
+Hardcover Royalty
+KDP Reports
+How do I view a report of my orders and payment royalties?
+Dashboard
+Orders Report
+KENP Read
+Promotions Report
+Pre-Order Report
+Month-to-Date Report
+Prior Months' Royalties Report
+Royalties Estimator
+Payment Report
+KDP Payments
+KDP Payment Options
+When will I get paid?
+Troubleshoot Payment Issues
+Legal & Content Guidelines
+Kindle Direct Publishing Terms and Conditions
+Digital  Book Pricing Page
+Print Book Pricing Page
+eBook List Price Requirements
+Program Policies
+Content Guidelines
+Metadata Guidelines for Books
+Intellectual Property Rights Frequently Asked Questions
+Reporting Possible Violations of Our Guidelines
+Privacy Notice Information
+Bonus Content
+Featured Offer Eligibility for Third-Party Sellers
+EU Regulation on Deforestation-free Products (EUDR)
+User Guides
+Kindle Publishing Guidelines
+Getting Started
+Introduction
+Paths to Getting Your Content on Kindle
+Comparing Formats
+General Best Practices
+Cover Image Guidelines
+Navigation Guidelines
+HTML and CSS Guidelines
+Hyperlink Guidelines
+QA Standards
+Boxed and Bundles Edition Guidelines (eBook format only)
+Guidelines for Specific Types of eBooks
+Creating Reflowable Books
+Text Guidelines - Reflowable
+Image Guidelines - Reflowable
+Table Guidelines - Reflowable
+Creating Fixed-Layout Books with Text Pop-Ups
+Creating Fixed-Layout Books with Image Pop-Ups or Virtual Panels
+Creating Fixed-Layout Books Without Pop-Ups
+Creating Kindle Editions with Audio/Video Content
+Creating Dictionaries
+Appendices
+Enhanced Typesetting and Page Flip
+Attributes and Tags Supported by Enhanced Typesetting
+HTML and CSS Tags Supported in Kindle Format 8
+Media Queries
+Guidelines for Creating a Source File
+KDP Jumpstart
+1 – Set Up Your KDP Account
+2 – Prepare Your Manuscript
+3 – Prepare Your Cover
+4 – Title Setup: Book Details, Content, & Pricing
+5 – Publishing & Review
+6 – Promoting Your Book & Getting Paid
+KDP University
+Webinars
+Videos
+Contact Us
+Have feedback? Can't find your answer in our Help pages?
+Contact Us
+Search Help
+User Guides
+Kindle Publishing Guidelines
+Guidelines for Specific Types of eBooks
+Creating Reflowable Books
+Text Guidelines - Reflowable
+Text Guidelines - Reflowable
+Contents
+Heading Alignment and Justification
+Body Text Defaults
+Formatting Paragraphs
+Fixed Values
+Margin and Padding Formatting
+Drop Caps
+CSS for Page Breaks
+Embedded Fonts
+Customizing Font Selection
+Page Number Guidelines
+Enabling Real Page Numbers
+Footnote Guidelines
+MathML Support
+Heading Alignment and Justification
+Because text in reflowable eBooks is fully justified by default (i.e., text-align: justify;), Amazon strongly recommends specifying the appropriate CSS alignment for all headings to prevent excessive spaces between words (i.e., text-align: left; text-align: right; text-align: center;).
+Avoid forced right/center alignment of body text.
+Body Text Defaults
+The body text in a reflowable Kindle book (fiction and nonfiction) must be all defaults. Amazon encourages content creators to use creative styles for headings, special paragraphs, footnotes, tables of contents, etc., but not for body text. See
+details on using embedded fonts
+. The reason for this is that any styling on body text in the HTML will override the user's preferred default reading settings. Users report such behavior as a poor reading experience. Here are the most important points:
+The body text font should be set in the CSS using the font-family attribute. Body text must use the default font size (1em) and line height. Body text should not use the &lt;font size="…"&gt; tag or the font-size and line-height attributes in CSS.
+Body text should not be primarily bold or italicized. Selected parts of the text can be bold or italicized for emphasis. This guideline only prohibits a book from being entirely bold, for example.
+Body text should not have an imposed font color throughout the book. If you prefer to use imposed font color in some sections of your book, do not use too light or too dark a color. Light colors will not display with enough contrast on devices set to white backgrounds or on E-reader devices. Dark colors will not display well on devices set to black backgrounds. See the
+W3C recommendation for maintaining a readable contrast ratio between text and background colors
+. For grays, use colors within the hex value range of #666 to #999.
+To determine if a color falls within this range,
+use a tool to convert your color to RGB values
+. Enter the resulting three numbers into the following formula: Y = (0.2126 * R) + (0.7152 * G) + (0.0722 * B). If the value of Y falls within a range of 102 and 153, this color will create a good customer experience across Kindle devices and applications.
+In a book with Enhanced Typesetting enabled, Kindle readers can be sure that any text of any color that appears above any background color will be legible. Font colors will adapt automatically to provide sufficient contrast with either the device color theme chosen by the reader or to the background color of any element. In the below example, the same colors ("yellow", "black", and "orange") were applied to both the font and their background container; notice how the font color changes to provide readable contrast with the background. Learn more about
+Enhanced Typesetting
+.
+Body text must not have a black or white background color. Customers report this as a bad user experience because it can create an awkward, boxy reading experience when the device background is set to a different color and because the text can become invisible when a user changes the background color setting on their device and the font color automatically inverts.
+Body text should not have a forced font face. Make sure that you have followed the
+guidelines for embedded fonts
+. Not following these guidelines could lead to customers not having the ability to change their preferred reading font.
+Body text must not use non-breaking spaces in place of normal spaces in between words in paragraphs.
+Body text must not have an imposed left/right margin or padding throughout the book. If there are paragraphs that do require left/right margin to differentiate them visually from body text, such as a recipe list or a block quote, margins applied to these sections should be specified as percentages rather than ems or point values.
+The following font fixes will be applied in during the upload process:
+The font size used in the majority of the content will be normalized to 1em.
+The font-family used in the majority of the content will be moved to the root tag (body text).
+Forced font colors used in body text will be removed so the user may change the color of the text.
+Formatting Paragraphs
+For body text, either indents or extra line spacing must be used to distinguish paragraphs for customers. Amazon recommends using the text-indent attribute in the CSS to set indent values of no more than 4 ems for body paragraphs. To change the space before or after each paragraph, use the margin-top or margin-bottom styles respectively in the CSS. We recommend using em values for these attributes. Never use the height property to control the size of elements containing text or instances of overlapping text may occur in your book. The height property should only ever be applied to images in reflowable books.
+Avoid double-spacing between paragraphs.
+Fixed Values
+Avoid using fixed values such as points and pixels for CSS properties such as font-size, width, height, margin, padding, and text-indent. To enable rendering across various screen sizes and resolutions, specify these values in ems or percentages.
+Margin and Padding Formatting
+When using left or right margin and padding CSS properties, specify the values in percentage (%) instead of em units. This ensures that the margins do not grow too wide with large font sizes and impair reading. Margins should be assigned values of 0 or greater to keep content from falling off the edge of the screen or overlapping other content. Always set left and right margins to 0 for normal body text to allow users the full range of margin selection using device defaults. Top/bottom margins should be specified in ems so that spacing between paragraphs is easily distinguishable at any font or device size.
+Before you publish
+, we recommend checking the following:
+Ensure the body of text does not overlap the required margin.
+Keep padding consistent throughout the content, checking section/chapter headings and opening paragraphs.
+Ensure the margin is not forced.
+Check that no text is cut-off in the margin.
+Drop Caps
+Elements such as drop caps should be specified using percentages or relative units (positive or negative) instead of fixed values such as points and pixels. The top of the drop cap should be aligned with the body text. To create drop caps, Amazon recommends using the following sample CSS:
+Example:
+p.para {
+font-size: 1em;
+margin-bottom: 0;
+margin-top: 0;
+text-align: justify;
+text-indent: 0;
+}
+@media  amzn-kf8
+{
+span.dropcaps
+{
+font-weight:normal;         font-size:320%;         float:left;         margin-top:-0.3225em;         margin-bottom:-0.3245em;
+}
+}
+@media  amzn-mobi
+{
+span.dropcaps
+{
+font-size:3em;         font-weight: bold;
+}
+}
+&lt;p class="para"&gt;&lt;span class="dropcaps"&gt;T&lt;/span&gt;his is a sample.
+To verify that the drop caps display as intended,
+test the book
+. The following is an example of a drop cap formatted using this method in a book with
+Enhanced Typesetting
+:
+Small font setting
+Large font setting
+CSS for Page Breaks
+Kindle now supports CSS attributes for page-break-inside:avoid and break-inside:avoid. This allows publishers to group elements together so they do not break across pages. Use cases include images with captions and headlines with paragraphs you want to keep together in your design.
+In addition, Kindle supports CSS for page-break-after and break-after as well as page-break-before and break-before, which can be used to avoid page breaks before and after specified containers or blocks. Kindle looks at these properties to determine if page breaks need to be prevented between or inside elements. Values for these attributes are :avoid, :auto, and :always.
+Insert page breaks after new chapters/sections of the book.
+Using Embedded Fonts
+Kindle supports embedded fonts within the eBook. These fonts can be either Open Type (OTF) or True Type (TTF). Kindle does not recommend the use of Type 1 (Postscript) fonts. To provide Kindle customers with the best possible reading experience, reflowable books that use Type 1 fonts are rendered using Kindle fonts by default. On KF8-enabled devices and applications, customers have the option to turn publisher-provided fonts on or off.
+It is the responsibility of the publisher to secure the appropriate license rights for fonts. Unless embedded fonts are necessary to convey intent, Amazon recommends using the default set of fonts installed on Kindle devices and applications because they have been tuned for high quality rendering.
+When choosing a font, consider usability for readers with moderate vision impairments. Choose a simple, clear font which will contrast well against all tablet and E-reader backgrounds.
+Accessibility tip:
+Thin fonts are harder to read and can impact the perceived contrast of the text with the background. Amazon recommends avoiding thin fonts for the body text of your manuscript.
+Kindle also supports a monospaced font. Content in the following tags will be rendered in monospaced font: &lt;pre&gt;, &lt;code&gt;, &lt;samp&gt;, &lt;kbd&gt;, &lt;tt&gt;, &lt;font face="courier"&gt;, &lt;font face="monospace"&gt;.
+With the exception of &lt;pre&gt;, the tags listed above do not change the text align.
+Customizing Font Selection
+The primary or main font in a book should be set at the &lt;body&gt; level. If you prefer to use additional text styling such as bold or italics, ensure that the styles are set on the text rather than the font so that any font that the customer selects correctly displays these styling elements. Below are examples of both correct and incorrect implementation of customizing fonts in a Kindle book.
+Incorrect HTML Code
+Correct HTML Code
+&lt;html&gt;
+&lt;body&gt;
+&lt;p style="font-family:PrimaryFont"&gt; Primary font content&lt;/p&gt;
+&lt;p style="font-family:SecondaryFont"&gt; Secondary font content&lt;/p&gt;
+&lt;p style="font-family:PrimaryFont"&gt; Primary font content&lt;/p&gt;
+&lt;p style="font-family:PrimaryFont"&gt; Primary font content&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+&lt;html&gt;
+&lt;body style="font-family:PrimaryFont"&gt;
+&lt;p&gt;Primary font content&lt;/p&gt;
+&lt;p style="font-family:SecondaryFont"&gt; Secondary font content&lt;/p&gt;
+&lt;p&gt;Primary font content&lt;/p&gt; &lt;p&gt;Primary font content&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+The same behavior can be achieved by using CSS classes as shown below.
+Incorrect CSS Code
+Correct CSS Code
+body{ font-size: asize; }
+.indent { font-size: asize; font-family: PrimaryFont;
+}
+.sidebar-text { font-family: SecondaryFont; font-weight: bold;
+}
+body { font-family: PrimaryFont; font-size: asize;
+}
+.indent {
+font-size: asize;
+}
+.sidebar-text { font-family: SecondaryFont; weight: bold;
+}
+When coding fonts, make sure that HTML tags are closed correctly to avoid an override conflict. When there is an override conflict, the font files within the book will be intentionally removed to provide Kindle customers with the best possible reading experience when they select the font settings.
+For example:
+Incorrect HTML Code
+Correct HTML Code
+&lt;html&gt;
+&lt;body style="fontfamily:PrimaryFont"&gt;
+&lt;p&gt;Primary font content&lt;/p&gt;
+&lt;div style="fontfamily:SecondaryFont"&gt;
+Secondary font content.
+&lt;div style="font-family:ThirdFont"&gt;
+Third font content
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p&gt;Primary font content&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+&lt;html&gt;
+&lt;body style="font-family:PrimaryFont"&gt;
+&lt;p&gt;Primary font content&lt;/p&gt;
+&lt;div style="fontfamily:SecondaryFont"&gt;
+Secondary font content.
+&lt;/div&gt;
+&lt;div style="font-family:ThirdFont"&gt;
+Third font content
+&lt;/div&gt;
+&lt;p&gt;Primary font content&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+Incorrect CSS Code
+Correct CSS Code
+h2.title, h3.title {
+text-indent:0;
+text-align:center;
+font-family:'PrimaryFont';
+}
+h3.title  {
+font-family:'SecondaryFont';
+font-size:2em;
+font-weight:bold;
+}
+h2.title  {
+text-indent:0;
+text-align:center;
+font-family:'PrimaryFont';
+}
+h3.title  {
+text-indent:0;
+text-align:center;
+font-size:2em;
+font-weight:bold;
+font-family:'SecondaryFont';
+}
+Page Number Guidelines
+Kindle books do not always map directly to page numbers in physical editions of the book. Even if the Kindle Real Page Numbers feature is activated in the Go To menu, references to page numbers within the eBook should be handled as follows:
+Table of contents (ToC):
+If there are page numbers in the print source's ToC, they should be removed in the digital conversion. The name of the section should be retained and hyperlinked to the relevant location in the eBook. For example, if a print source ToC displays the entry "Chapter 1 ... P. 36," then the eBook should only display "Chapter 1" hyperlinked to the correct digital location.
+Internal links:
+If there is text that refers to another page in the eBook, such as "see page XX", this text should be linked to the relevant paragraph within the eBook.
+Index:
+Every page number in the index should be linked to the relevant paragraph in the eBook (or the relevant illustration, table, or chart).
+Links within index:
+If there is an entry that references another section of the index, such as "see also XXX", this text should be linked to the relevant section within the index.
+Enabling Real Page Numbers
+Readers enjoy page numbers because they are a familiar method of navigation and allow readers to coordinate reading with their peers who use print versions, such as in a classroom or book club. Authors and publishers can include Amazon's Real Page Number feature in their Kindle books by adding page numbers in the EPUB, which are displayed on Kindle devices and applications.
+Publishers should map the Real Page Numbers in the eBook to the print edition (hardcover, paperback, etc.) that most closely matches the eBook and provide that ISBN in metadata as described in
+http://kb.daisy.org/publishing/docs/navigation/pagelist.html#desc
+. At this time, Real Page Numbers cannot be previewed in Kindle Previewer or by sideloading, but they are visible when your eBook is published and are mentioned on the detail page.
+To support the Real Page Number feature:
+EPUB 3: Follow the
+EPUB 3 accessibility guidelines for page numbers
+.
+EPUB 2: Follow the
+NCX requirements in OPF 2.0 section 2.4.1.2
+.
+Additional notes:
+Only use Roman or Arabic numerals for adding page numbers. (Example: i, ii, iii, etc. and/or 1, 2, 3, 4, etc.)
+Do not add additional text such as "Page" in the name attribute of the pages tags (Example: "Page 1", "Page 2"). Kindle adds the word "Page" in front of the page number attribute by default.
+Make sure there are no duplicate HTML locations referenced as different pages.
+Make sure there are no duplicate page labels referenced as different HTML locations.
+Make sure there are no empty page labels (even for blank pages).
+Make sure there are no anchors without proper targets.
+Make sure that all paths to the HTML pages are relative.
+Footnote Guidelines
+Amazon strongly recommends marking footnotes with the HTML5 aside element, together with the epub:type attribute. This allows accessible reading systems to ignore the footnotes except when followed by their referents and allows any reading system to handle them more intelligently (e.g., as popups). This usage ensures that even if the EPUB semantic is not recognized, the notes will still be treated as secondary content due the nature of the HTML5 aside element.
+Regardless of whether the aside element is used, Amazon requires formatting footnotes with bidirectional hyperlinks (the text is linked to the footnote and the footnote is linked back to the text). This makes it easier for customers to return to the text after viewing the footnote. On some Kindle devices, such as Kindle Paperwhite, footnotes with bi-directional hyperlinks are displayed in a pop-up.
+For a better reading experience, Amazon strongly recommends placing the footnote text at the end of the chapter or book.
+Define footnotes using either of the following methods:
+Method 1 (preferred):
+&lt;p&gt;This footnote example uses the aside element with the epub:type attribute and bi-directional hyperlinks.&lt;sup&gt;&lt;a id="source" href="#ft-1-1" epub:type="noteref"&gt;1&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
+...
+&lt;aside id="ft-1-1" epub:type="footnote"&gt;
+&lt;p&gt;&lt;a epub:type="noteref" href="#source"&gt;1.&lt;/a&gt; This is the footnote text, which should be placed at the end of the chapter or book.&lt;/p&gt;
+&lt;/aside&gt;
+Method 2:
+&lt;p&gt;This footnote example uses bi-directional hyperlinks only. &lt;sup&gt;&lt;a href=&gt;footnotes.html#fn1" id="r1"&gt;[2]&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
+...
+&lt;p id="fn1"&gt;&lt;a href="chapter01.html#r1"&gt;2.&lt;/a&gt; This is the footnote text, which should be placed at the end of the chapter or book.&lt;/p&gt;
+If your book includes footnotes or endnotes without numbers or symbols, Amazon recommends creating a single link from the note to the relevant text in the book.
+Example:
+&lt;p&gt;This example describes an &lt;a id="fn1"/&gt;event that happened.&lt;/p&gt;
+...
+&lt;p&gt;&lt;a href="chapter01.html#fn1"&gt;event that happened&lt;/a&gt; This is the endnote text, which provides a reference for the details of the event.&lt;/p&gt;
+Before you publish
+, we recommend the following:
+Ensure footnotes are bidirectionally hyperlinked, and the locations are correct.
+Make sure the footnote pop-up isn’t blank.
+MathML Support
+Enhanced Typesetting supports MathML.
+Supported Tags:
+maligngroup
+mrow
+semantics
+malignmark
+ms
+math
+mspace
+menclose
+msqrt
+mfenced
+mstyle
+mfrac
+msub
+mi
+msubsup
+mlabeledtr
+msup
+mmultiscripts
+mtable
+mn
+mtd
+mo
+mtext
+mover
+mtr
+mpadded
+munder
+mphantom
+munderover
+mroot
+annotation
+Unsupported Tags:
+maction
+mglyph
+mlongdiv
+msgroup
+mstack
+Troubleshooting:
+Open the HTML page with MathJax. If MathML is displayed without any issues, then it will be supported in Enhanced Typesetting.
+Make more money and reach more readers through Kindle Unlimited.
+Learn More
+Total KDP Select Author Earnings
+June 2026
+&#x2022;
+$67.0 Million
+&copy;
+1996-2026, Amazon.com, Inc. or its affiliates. All Rights Reserved.
+Amazon and Kindle are trademarks of Amazon.com Inc. or its affiliates.
+KDP Select
+Earn more money and
+reach new readers
+KDP Community
+Connect with experts
+and fellow authors
+CreateSpace
+Indie print publishing
+made easy
+ACX
+Indie audiobook publishing
+made easy
+KDP Terms and Conditions
+|
+Privacy Notice
+|
+Conditions of Use
+|
+Contact Us
+|
+Join Our Team
+|
+kdp.amazon.co.jp
+An unexpected error occurred.  Please try again later.
+Your session has expired
+Please sign in to continue
+Sign In
+edit

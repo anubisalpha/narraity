@@ -8,9 +8,11 @@ import '../state/theme_provider.dart';
 import '../state/thesaurus_provider.dart';
 import '../widgets/drive_sync_settings_section.dart';
 import '../widgets/editor_settings_form.dart';
+import '../widgets/library_background_picker.dart';
 import '../widgets/read_aloud_settings_form.dart';
 import '../widgets/about_section.dart';
 import '../widgets/vault_settings_section.dart';
+import 'feedback_screen.dart';
 
 enum _SettingsCategory {
   appearance,
@@ -21,46 +23,49 @@ enum _SettingsCategory {
   spellCheck,
   drive,
   export,
+  feedback,
   about,
 }
 
 extension on _SettingsCategory {
   String get label => switch (this) {
-        _SettingsCategory.appearance => 'Appearance',
-        _SettingsCategory.editor => 'Editor',
-        _SettingsCategory.dictation => 'Dictation',
-        _SettingsCategory.readAloud => 'Read Aloud',
-        _SettingsCategory.backup => 'Backup & Vault',
-        _SettingsCategory.spellCheck => 'Spell Check & Language',
-        _SettingsCategory.drive => 'Google Drive Sync',
-        _SettingsCategory.export => 'Export',
-        _SettingsCategory.about => 'About',
-      };
+    _SettingsCategory.appearance => 'Appearance',
+    _SettingsCategory.editor => 'Editor',
+    _SettingsCategory.dictation => 'Dictation',
+    _SettingsCategory.readAloud => 'Read Aloud',
+    _SettingsCategory.backup => 'Backup & Vault',
+    _SettingsCategory.spellCheck => 'Spell Check & Language',
+    _SettingsCategory.drive => 'Google Drive Sync',
+    _SettingsCategory.export => 'Export',
+    _SettingsCategory.feedback => 'Feedback',
+    _SettingsCategory.about => 'About',
+  };
 
   IconData get icon => switch (this) {
-        _SettingsCategory.appearance => Icons.palette_outlined,
-        _SettingsCategory.editor => Icons.edit_note,
-        _SettingsCategory.dictation => Icons.mic_outlined,
-        _SettingsCategory.readAloud => Icons.volume_up_outlined,
-        _SettingsCategory.backup => Icons.shield_outlined,
-        _SettingsCategory.spellCheck => Icons.spellcheck,
-        _SettingsCategory.drive => Icons.cloud_sync_outlined,
-        _SettingsCategory.export => Icons.ios_share,
-        _SettingsCategory.about => Icons.info_outline,
-      };
+    _SettingsCategory.appearance => Icons.palette_outlined,
+    _SettingsCategory.editor => Icons.edit_note,
+    _SettingsCategory.dictation => Icons.mic_outlined,
+    _SettingsCategory.readAloud => Icons.volume_up_outlined,
+    _SettingsCategory.backup => Icons.shield_outlined,
+    _SettingsCategory.spellCheck => Icons.spellcheck,
+    _SettingsCategory.drive => Icons.cloud_sync_outlined,
+    _SettingsCategory.export => Icons.ios_share,
+    _SettingsCategory.feedback => Icons.feedback_outlined,
+    _SettingsCategory.about => Icons.info_outline,
+  };
 
   /// Categories for phases not built yet — shown in the nav so the
   /// structure is ready, with a "coming soon" placeholder as their content.
   bool get isComingSoon => switch (this) {
-        _SettingsCategory.export => true,
-        _ => false,
-      };
+    _SettingsCategory.export => true,
+    _ => false,
+  };
 
   /// Which phase will implement this — shown in the placeholder.
   String get comingInPhase => switch (this) {
-        _SettingsCategory.export => 'Phase 6',
-        _ => '',
-      };
+    _SettingsCategory.export => 'Phase 6',
+    _ => '',
+  };
 }
 
 /// App-wide settings, organized by category in a side nav — built to grow:
@@ -125,9 +130,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _SettingsCategory.backup => const _BackupSection(),
       _SettingsCategory.spellCheck => const _SpellCheckSection(),
       _SettingsCategory.drive => const _DriveSyncSection(),
+      _SettingsCategory.feedback => const _FeedbackSection(),
       _SettingsCategory.about => const AboutSectionContent(),
       _ => const SizedBox.shrink(),
     };
+  }
+}
+
+class _FeedbackSection extends StatelessWidget {
+  const _FeedbackSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeader(
+          title: 'Feedback',
+          subtitle:
+              'Report a bug or suggest something, posted to the GitHub Discussions '
+              '"App Feedback" category under your own GitHub account.',
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const FeedbackScreen())),
+          icon: const Icon(Icons.feedback_outlined),
+          label: const Text('Send Feedback'),
+        ),
+      ],
+    );
   }
 }
 
@@ -169,7 +202,11 @@ class _ComingSoonSection extends StatelessWidget {
             padding: const EdgeInsets.all(24),
             child: Row(
               children: [
-                Icon(category.icon, color: Theme.of(context).disabledColor, size: 32),
+                Icon(
+                  category.icon,
+                  color: Theme.of(context).disabledColor,
+                  size: 32,
+                ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Text(
@@ -222,9 +259,24 @@ class _AppearanceSection extends ConsumerWidget {
                 ),
               ],
               selected: {themeMode},
-              onSelectionChanged: (selection) =>
-                  ref.read(themeModeProvider.notifier).setThemeMode(selection.first),
+              onSelectionChanged: (selection) => ref
+                  .read(themeModeProvider.notifier)
+                  .setThemeMode(selection.first),
             ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        const _SectionHeader(
+          title: 'Library Background',
+          subtitle:
+              'An extra option alongside the theme above — just the backdrop behind the '
+              'project grid. A curated set, not a free color picker, so nothing here fights '
+              'with readability.',
+        ),
+        const Card(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: LibraryBackgroundPicker(),
           ),
         ),
       ],
@@ -242,7 +294,8 @@ class _EditorSection extends StatelessWidget {
       children: [
         const _SectionHeader(
           title: 'Editor',
-          subtitle: 'Typography used while writing (separate from export fonts).',
+          subtitle:
+              'Typography used while writing (separate from export fonts).',
         ),
         const Card(
           child: Padding(
@@ -265,7 +318,8 @@ class _ReadAloudSection extends StatelessWidget {
       children: [
         const _SectionHeader(
           title: 'Read Aloud',
-          subtitle: 'Voice, speed, and pitch used when reading a scene back to you.',
+          subtitle:
+              'Voice, speed, and pitch used when reading a scene back to you.',
         ),
         const Card(
           child: Padding(
@@ -295,7 +349,9 @@ class _SpellCheckSectionState extends ConsumerState<_SpellCheckSection> {
   }
 
   void _loadCustomWords() {
-    _customWords = ref.read(spellCheckServiceProvider.future).then((s) => s.customWords());
+    _customWords = ref
+        .read(spellCheckServiceProvider.future)
+        .then((s) => s.customWords());
   }
 
   Future<void> _removeWord(String word) async {
@@ -314,7 +370,8 @@ class _SpellCheckSectionState extends ConsumerState<_SpellCheckSection> {
       children: [
         const _SectionHeader(
           title: 'Spell Check & Language',
-          subtitle: 'Offline, en-GB only for now — a language/variant picker and additional '
+          subtitle:
+              'Offline, en-GB only for now — a language/variant picker and additional '
               'downloadable dictionaries are a future follow-up.',
         ),
         Card(
@@ -322,22 +379,31 @@ class _SpellCheckSectionState extends ConsumerState<_SpellCheckSection> {
             children: [
               SwitchListTile(
                 title: const Text('Spell check'),
-                subtitle: const Text('Red squiggle underline + right-click suggestions while writing.'),
+                subtitle: const Text(
+                  'Red squiggle underline + right-click suggestions while writing.',
+                ),
                 value: spellCheckEnabled,
-                onChanged: (value) => ref.read(spellCheckEnabledProvider.notifier).set(value),
+                onChanged: (value) =>
+                    ref.read(spellCheckEnabledProvider.notifier).set(value),
               ),
               const Divider(height: 1),
               SwitchListTile(
                 title: const Text('Thesaurus'),
-                subtitle: const Text('"Look Up" in the right-click menu for a selected word.'),
+                subtitle: const Text(
+                  '"Look Up" in the right-click menu for a selected word.',
+                ),
                 value: thesaurusEnabled,
-                onChanged: (value) => ref.read(thesaurusEnabledProvider.notifier).set(value),
+                onChanged: (value) =>
+                    ref.read(thesaurusEnabledProvider.notifier).set(value),
               ),
             ],
           ),
         ),
         const SizedBox(height: 24),
-        Text('Custom Dictionary', style: Theme.of(context).textTheme.titleMedium),
+        Text(
+          'Custom Dictionary',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
         const SizedBox(height: 4),
         const Text(
           'Words added via "Add to Dictionary" in the spelling panel while writing.',
@@ -412,7 +478,8 @@ class _DriveSyncSection extends StatelessWidget {
       children: const [
         _SectionHeader(
           title: 'Google Drive Sync',
-          subtitle: 'Every save is already local and immediate — sync is best-effort, '
+          subtitle:
+              'Every save is already local and immediate — sync is best-effort, '
               'manual, and never overwrites diverging edits without asking.',
         ),
         DriveSyncSettingsSection(),
@@ -505,7 +572,8 @@ class _DictationSectionState extends ConsumerState<_DictationSection> {
       children: [
         const _SectionHeader(
           title: 'Dictation',
-          subtitle: 'Fully offline voice-to-text. Switch language/accuracy or '
+          subtitle:
+              'Fully offline voice-to-text. Switch language/accuracy or '
               'free up space at any time.',
         ),
         Card(
@@ -519,10 +587,15 @@ class _DictationSectionState extends ConsumerState<_DictationSection> {
                     Expanded(
                       child: DropdownButtonFormField<DictationLanguage>(
                         initialValue: language,
-                        decoration: const InputDecoration(labelText: 'Language'),
+                        decoration: const InputDecoration(
+                          labelText: 'Language',
+                        ),
                         items: [
                           for (final lang in DictationLanguage.values)
-                            DropdownMenuItem(value: lang, child: Text(lang.displayName)),
+                            DropdownMenuItem(
+                              value: lang,
+                              child: Text(lang.displayName),
+                            ),
                         ],
                         onChanged: downloading
                             ? null
@@ -539,7 +612,9 @@ class _DictationSectionState extends ConsumerState<_DictationSection> {
                     Expanded(
                       child: DropdownButtonFormField<DictationModelSize>(
                         initialValue: size,
-                        decoration: const InputDecoration(labelText: 'Accuracy'),
+                        decoration: const InputDecoration(
+                          labelText: 'Accuracy',
+                        ),
                         items: const [
                           DropdownMenuItem(
                             value: DictationModelSize.small,
@@ -554,7 +629,9 @@ class _DictationSectionState extends ConsumerState<_DictationSection> {
                             ? null
                             : (s) {
                                 if (s != null) {
-                                  ref.read(dictationModelSizeProvider.notifier).select(s);
+                                  ref
+                                      .read(dictationModelSizeProvider.notifier)
+                                      .select(s);
                                 }
                               },
                       ),
@@ -564,14 +641,17 @@ class _DictationSectionState extends ConsumerState<_DictationSection> {
                 const SizedBox(height: 8),
                 resolvedAsync.when(
                   loading: () => const LinearProgressIndicator(),
-                  error: (err, stack) => Text('Could not check model catalog: $err'),
+                  error: (err, stack) =>
+                      Text('Could not check model catalog: $err'),
                   data: (model) => downloadedAsync.when(
                     loading: () => const SizedBox.shrink(),
                     error: (err, stack) => const SizedBox.shrink(),
                     data: (isReady) => Row(
                       children: [
                         Icon(
-                          isReady ? Icons.check_circle : Icons.download_outlined,
+                          isReady
+                              ? Icons.check_circle
+                              : Icons.download_outlined,
                           size: 18,
                           color: isReady ? Colors.green : null,
                         ),
@@ -586,7 +666,9 @@ class _DictationSectionState extends ConsumerState<_DictationSection> {
                         if (!downloading)
                           TextButton(
                             onPressed: isReady ? _redownload : _download,
-                            child: Text(isReady ? 'Re-download fresh copy' : 'Download'),
+                            child: Text(
+                              isReady ? 'Re-download fresh copy' : 'Download',
+                            ),
                           ),
                       ],
                     ),
@@ -594,19 +676,29 @@ class _DictationSectionState extends ConsumerState<_DictationSection> {
                 ),
                 if (downloading) ...[
                   const SizedBox(height: 8),
-                  LinearProgressIndicator(value: _progress == 0 ? null : _progress),
+                  LinearProgressIndicator(
+                    value: _progress == 0 ? null : _progress,
+                  ),
                   Text('${((_progress ?? 0) * 100).round()}%'),
                 ],
                 if (_error != null) ...[
                   const SizedBox(height: 8),
-                  Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 ],
               ],
             ),
           ),
         ),
         const SizedBox(height: 24),
-        Text('Downloaded models', style: Theme.of(context).textTheme.titleSmall),
+        Text(
+          'Downloaded models',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
         const SizedBox(height: 8),
         Card(
           child: allModelsAsync.when(

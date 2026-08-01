@@ -298,8 +298,13 @@ Two sync targets beyond your projects, always present once connected (no extra t
 - **Plain text (.txt)** — an explicit stripped-down option; the app warns that formatting and images
   are dropped before it exports one
 - Reachable from the project toolbar's Export icon — pick a format, choose where to save, done
-- KDP-specific print formatting (trim size, margins, bleed, a separate wraparound cover) isn't built
-  yet — this is general-purpose export, not the print-ready path
+- **KDP Paperback / Hardcover** — print-ready interior PDFs: trim size (all 16 paperback sizes,
+  5 hardcover sizes), bleed, page-count-scaled gutter margins, roman/Arabic page numbering,
+  alternating running headers, an auto-generated copyright page, and validation against KDP's real
+  page-count range (which varies by trim size *and* ink/paper type for paperback). Interior file
+  only — cover generation is out of scope; use KDP's own Cover Creator for that
+- The EPUB export above is already KDP-eBook-compliant (2-level ToC cap, footnote round-trip, size
+  limits) — no separate KDP eBook option needed
 
 ## Tech stack
 

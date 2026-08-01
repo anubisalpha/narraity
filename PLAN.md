@@ -459,37 +459,137 @@ is directly useful for Phase 6 export quality).
 - **Plain text (.txt)** — explicit stripped-down option; export dialog must warn that images and
   special formatting are excluded, so it's never a surprise
 
-**Kindle/KDP-ready export (differentiator):** split into ebook and print paths, since KDP treats
-them very differently and a single generic "Kindle export" would produce invalid submissions.
+**See `KDP_CRIBSHEET.md` for the full flat checklist** (every rule extracted so far, mapped to
+build status) — this section is the narrative summary; the cribsheet is the thing to update when
+`kdp-watch` flags a source page as changed.
 
-*Ebook (Kindle e-reader):*
+**Kindle/KDP-ready export (differentiator):** three distinct sub-paths — **eBook**, **Paperback**,
+**Hardcover** — since KDP treats them as genuinely different products with different constraints
+(page-count ranges and trim sizes differ between paperback and hardcover; a single generic "print
+export" would produce invalid submissions for one or the other). **Interior/manuscript only —
+covers are explicitly out of scope for this feature** (decision 2026-08-01): Narraity already has
+front-cover-image storage against a project (library/series display use), and that's as far as
+cover handling goes. No cover formatting, wraparound/spine-width PDF generation, jacket mechanics,
+or cover file spec handling is planned here — KDP's own Cover Creator/templates cover that need.
+Sourced from KDP's own help docs: [Format Your Paperback](https://kdp.amazon.com/en_US/help/topic/G201834190),
+[Set Trim Size, Bleed, and Margins](https://kdp.amazon.com/en_US/help/topic/GVBQ3CMEQW3W2VL6),
+[Format Front Matter, Body Matter, and Back Matter](https://kdp.amazon.com/en_US/help/topic/GDDYZG2C7RVF5N9J),
+[Format Your Hardcover](https://kdp.amazon.com/en_US/help/topic/GKYZRXFBZH2LDXAK),
+[Format Your eBook](https://kdp.amazon.com/en_US/help/topic/G201723130)
+(2026-08-01 — re-verify against KDP's docs before build, as these specs change).
+
+### eBook
+
 - Format: **EPUB** (KDP's current standard; MOBI is deprecated and Amazon converts from EPUB
   automatically)
 - Reflowable text, proper heading structure feeding the EPUB nav document (reuses Automatic TOC),
   embedded cover, front matter in correct order (title page, copyright page template, dedication)
 - Font embedding matters less here — Kindle readers control their own display font — so the
   publishing-font picker is print-focused primarily
+- No page-count/trim/bleed constraints (reflowable) — the print rules below don't apply
 
-*Print (KDP paperback/hardcover):*
-- **Trim size presets** (dropdown, not free entry, to avoid invalid submissions): 5"×8", 5.25"×8",
-  5.5"×8.5", 6"×9" (most common for novels), 6.14"×9.21", 6.69"×9.61", 7"×10", 8.5"×11"
-- **Margin/gutter calculation**: automatic, scaled to estimated page count per KDP's rules (inside
-  margin must grow with page count) — not left for the user to guess
-- **Structure options**: single- vs double-sided (novels typically double-sided/mirrored margins),
-  running headers (book title/chapter title alternating pages, toggleable), page numbering start
-  point (front matter often unnumbered/roman, body starts at 1), bleed vs no-bleed
-- **Output**: print-ready PDF with embedded fonts (KDP requirement), correct trim size + bleed box
-  set in the PDF itself; **cover exported separately** as a wraparound PDF (front + spine + back)
-  since KDP uploads print covers separately from interior — spine width auto-calculated from page
-  count and paper type using KDP's published formula
+### Paperback
+
+- **Trim size presets** (dropdown, not free entry, to avoid invalid submissions): standard —
+  5"×8", 5.06"×7.81", 5.25"×8", 5.5"×8.5", 6"×9" (most common for novels); large — 6.14"×9.21",
+  6.69"×9.61", 7"×10", 8"×10", 8.5"×11" (large trim = anything over 6.12"×9", different print
+  cost tier)
+- **Page count range: 24–828 pages** (varies by paper/ink type) — validate before export and warn
+  if the manuscript falls outside this
+- **Bleed**: covers always require bleed; interior only if images/elements run to the page edge.
+  Bleed adds **0.125" (3.2mm) per edge** beyond trim — a 6"×9" bled page becomes 6.125"×9.25"
+- **Margins scale with page count** (gutter must grow to accommodate binding thickness):
+
+  | Page range | Inside (gutter) | Outside, no bleed | Outside, with bleed |
+  |---|---|---|---|
+  | 24–150 | 0.375" | ≥0.25" | ≥0.375" |
+  | 151–300 | 0.5" | ≥0.25" | ≥0.375" |
+  | 301–500 | 0.625" | ≥0.25" | ≥0.375" |
+  | 501–700 | 0.75" | ≥0.25" | ≥0.375" |
+  | 701–828 | 0.875" | ≥0.25" | ≥0.375" |
+
+  Top/bottom/outside can differ from each other but must clear the minimums; gutter is the one
+  that's non-negotiable per page-count band. This can't be computed once at export-config time —
+  page count isn't known until layout is run, so the pipeline needs an iterate-until-stable step
+  (lay out at a guessed margin, check resulting page count against the band, re-layout if it
+  crossed a boundary).
+- **Structure options**: double-sided/mirrored margins (standard for novels), running headers
+  (left header = author name, right header = book title, alternating — off on chapter title
+  pages), page numbering (Arabic numerals; front matter conventionally unnumbered or roman, body
+  starts at 1)
+- **Front/body/back matter ordering** (from KDP's own structure guide):
+  - *Front matter*, in order: half-title → title page → copyright page → reviews/praise
+    (optional) → dedication → Table of Contents → preface (optional) → acknowledgments
+    (optional) → prologue (optional) → introduction (optional). Half-title and title pages are
+    always right-facing, carry no page number or header. Copyright page falls on the first
+    left-facing page after title. ToC must match body chapter names exactly (Automatic ToC
+    feature already guarantees this).
+  - *Body matter*: first chapter starts right-facing; subsequent chapters start on next available
+    page; no header on chapter-title pages; chapter's first paragraph has no first-line indent
+    (subsequent paragraphs do); body text fully justified.
+  - *Back matter*, right-facing: bibliography/references, author bio, index (index uses
+    flush-and-hang indentation; headers/page numbers only if it spans more than one page — index
+    itself is not planned for v1, bio/references are the realistic near-term targets).
+- **Output**: print-ready interior PDF with embedded fonts (KDP requirement — this is where the
+  "real embedded Unicode font" CONSIDERATIONS.md item stops being deferrable), correct trim size +
+  bleed box set in the PDF itself. Interior only — no cover output (see scope note above).
+
+### Hardcover
+
+- **Interior mechanics only** — KDP prints hardcovers as **case laminate**: no dust jacket, art
+  printed directly on the case. Even if cover export were in scope this would make it simpler than
+  paperback's wrap, but it's moot here since covers aren't handled at all.
+- Distinct trim size set from paperback (smaller list): 5.5"×8.5", 6"×9", 6.14"×9.21", 7"×10",
+  8.25"×11"
+- **Page count range: 75–550 pages** — narrower than paperback's 24–828; needs its own validation
+  message ("too short/long for hardcover, still fine for paperback")
+- KDP's hardcover help page is a navigation hub to the *same* "Set trim size/margins" and "Front,
+  body, back matter" sub-topics used for paperback — it does not present separate bleed/margin
+  tables. Working assumption: the paperback bleed (0.125"/edge) and margin-scaling table above
+  apply to hardcover too, using hardcover's own trim size list and 75–550 page-count bands where
+  the table's ranges overlap. **Not 100% confirmed as identical — worth a final check against
+  KDP's live hardcover formatting flow before shipping**, but there's no evidence of a divergent
+  hardcover-specific table.
+- Also noted: hardcover is currently unsupported for the JP marketplace — not relevant to
+  Narraity's export logic, just a KDP submission-side constraint.
+- Same front/body/back matter structure rules as paperback apply (KDP's structure guide isn't
+  format-specific).
+
+### eBook — additional detail
+
+KDP's eBook formatting page is also a hub (points to separate "supported file formats," "cover
+image criteria," and the Kindle Publishing Guidelines) rather than listing specifics inline.
+Nothing there changes the eBook scope above; EPUB via Automatic ToC's nav document is the correct
+target. Pulled the Kindle Publishing Guidelines hub and its reflowable-book sub-pages (Text,
+Images, Tables, Navigation, HTML/CSS, QA Standards, Accessibility — 2026-08-01) for anything that
+would cause a real KDP rejection; two hard constraints worth calling out explicitly (the rest are
+implementation-detail gaps, tracked in CONSIDERATIONS.md rather than here):
+
+- **Logical ToC (nav doc/NCX) nesting is capped at two levels** on Kindle devices/apps, regardless
+  of how deep a manuscript's tree actually goes (Book → Act → Chapter → Scene can be 4 deep).
+  Automatic ToC's EPUB nav document needs to collapse to depth 2, not mirror the full tree —
+  deeper levels beyond that render grayed-out/non-navigable rather than erroring outright, so this
+  is easy to miss without deliberately testing a deeply-nested book.
+- **Hard size limits**: every individual HTML file inside the EPUB must be under 30MB, and the
+  whole EPUB must contain fewer than 300 HTML files. The current per-chapter file-grouping
+  approach (one XHTML file per chapter boundary, not per scene) should comfortably clear both for
+  any realistic novel, but a validation check before export would catch the pathological case
+  cheaply rather than relying on it never coming up.
+
+Handling KDP rule changes that come with a stated future effective date (e.g. a precedent like the
+MOBI→EPUB transition) is deferred — see CONSIDERATIONS.md's "Dual-ruleset KDP export" item and
+KDP_CRIBSHEET.md's "Handling forward-dated rule changes" section. Nothing to build now; no rule
+tracked today carries a future effective date.
 
 **Data model:**
 ```json
 // export-profile.json (per project, reusable presets)
 { "profiles": [
   { "id": "kdp-ebook", "type": "epub", "target": "kindle" },
-  { "id": "kdp-print-6x9", "type": "print-pdf", "trimSize": "6x9", "doubleSided": true,
-    "runningHeaders": true, "bleed": false }
+  { "id": "kdp-paperback-6x9", "type": "print-pdf", "binding": "paperback", "trimSize": "6x9",
+    "doubleSided": true, "runningHeaders": true, "bleed": false },
+  { "id": "kdp-hardcover-6x9", "type": "print-pdf", "binding": "hardcover", "trimSize": "6x9",
+    "doubleSided": true, "runningHeaders": true, "bleed": false }
 ] }
 ```
 
@@ -505,27 +605,121 @@ them very differently and a single generic "Kindle export" would produce invalid
 - Offline-first: every save is local and immediate; sync is best-effort (manual "Sync now" +
   on-foreground background sync)
 
+## Feature: In-App Release Notes, News Feed, and Feedback
+
+Three small, independent additions, specced together because they share plumbing
+(`UpdateCheckService`'s GitHub API pattern, the reserved `_Settings/` cache-file convention,
+`url_launcher`, which is already a dependency) even though they ship separately.
+
+### Release Notes
+
+- `UpdateCheckService.checkForUpdate` already fetches `UpdateInfo.notes` (the GitHub release
+  body, Markdown) but today only the version number and `htmlUrl` get used — the notes text is
+  fetched and discarded. That's the one piece already built.
+- **New**: a `ReleaseNotesService` that hits `GET /repos/anubisalpha/narraity/releases` (the full
+  list, not just `/latest`) so more than one past version's notes are available, not just the
+  newest. Cached to `_Settings/release_notes_cache.json` (same reserved-folder convention as
+  `_GlobalIdeas/`, custom dictionary, etc.), refreshed on the same session-cached startup check
+  `UpdateCheckService` already does — no new network surface, same call pattern as what's already
+  shipped.
+- **New**: Settings → About → "Release Notes" screen rendering the cached list, newest first,
+  Markdown-rendered.
+- **New**: a one-time "What's New in vX.Y.Z" dialog on first launch after an update — compare a
+  persisted `lastSeenVersion` (via `AppSettingsService`, same as other settings) against the
+  running version; if the running version is newer and its notes were fetched, show the dialog
+  once, then persist `lastSeenVersion = runningVersion` so it never reappears for that version.
+- Release-authoring gap to close alongside this: check whether `release.ps1`'s `gh release create`
+  call currently passes meaningful release-note body text, or ships with an empty/auto-generated
+  one — this feature is only as good as what's actually written into each GitHub release.
+
+### News Feed
+
+- **New** `NEWS.md` in the repo root (same convention as `PLAN.md`/`BUILD_LOG.md`/
+  `CONSIDERATIONS.md`) — free-form, dated entries (`## YYYY-MM-DD: Title`), edited directly and
+  pushed without needing a new app release. This is the key difference from Release Notes: News
+  can be posted any time; Release Notes are strictly 1:1 with GitHub releases.
+- **New** `NewsService` fetches the raw file via
+  `https://raw.githubusercontent.com/anubisalpha/narraity/main/NEWS.md`, parses top-level headings
+  into entries, caches to `_Settings/news_cache.json` with a fetch timestamp. Refresh on-foreground
+  when online (same pattern as Drive sync's background sync trigger); when offline, show the cached
+  feed with a "last updated <date>" note rather than an error.
+- **New** screen, entry point from the Library screen (icon) or folded into Settings → About —
+  v1 keeps it simple: chronological feed, no read/unread tracking or badges.
+
+### Feedback
+
+**Transport: GitHub Discussions, posted as the user's own identity** — not `mailto:` (superseded;
+the repo now has Discussions enabled with a dedicated **"App Feedback"** category). Posting via
+GitHub's GraphQL API attributes each post to the actual signed-in GitHub user rather than arriving
+anonymously or from a shared inbox, which is the whole point.
+
+- **GitHub sign-in via OAuth Device Flow** — the standard flow for CLI/desktop apps with no
+  embeddable client secret: the app requests a device code from GitHub, shows the user a short
+  code plus a "Open github.com/login/device" button (`url_launcher`, already a dependency), the
+  user approves in their browser, and the app polls until the token arrives. Needed scopes:
+  `read:discussion` + `write:discussion`.
+  - **Prerequisite, not yet done**: a GitHub OAuth App needs registering under the `anubisalpha`
+    org (or wherever makes sense) with Device Flow enabled, to get a `client_id`. Public client ID
+    is safe to ship in the app (device flow needs no client secret) — this is a one-time setup
+    step separate from writing any Narraity code.
+  - **Token storage**: reuse the existing pattern from `drive_token_store.dart` (Windows DPAPI
+    `CryptProtectData`; Android app-private sandboxed storage) rather than building a new secure-
+    storage mechanism — this becomes a second token stored the same way, for a second OAuth
+    provider.
+  - Sign-in is a one-time action, remembered across sessions; Settings gets a "Sign out of GitHub"
+    action alongside it.
+- **Category resolution**: the "App Feedback" category's ID needs looking up once via a
+  `repositoryDiscussionCategories` GraphQL query and then hardcoded/cached — it isn't expected to
+  change, no need to re-query on every submission.
+- **New** screen (Settings → "Send Feedback"), with an explicit explainer as the first thing shown
+  — before any sign-in prompt, not buried in a settings toggle or a ToS link. Must state plainly:
+  - **Where it goes**: posted publicly to the Narraity GitHub repo's Discussions, "App Feedback"
+    category — anyone can read it, including other users.
+  - **What's required**: a GitHub account, signed in via the OAuth flow below. The post is
+    attributed to the user's real GitHub username, not anonymous.
+  - **No GitHub account? Two options, both offered**: (1) sign up for one (link to
+    github.com/signup) then continue in-app, or (2) skip sign-in entirely and use a
+    **"Open Discussions in browser"** button that opens the App Feedback category page directly
+    (`url_launcher`) — lets them read existing feedback and, if they already have an account they
+    don't want to OAuth-connect to Narraity, post manually themselves. This resolves the
+    no-account case rather than leaving it a dead end.
+  - Below the explainer: **"Continue with GitHub"** (starts the Device Flow sign-in) and **"Open
+    Discussions in browser"** (the direct-link fallback) as two clearly separate buttons — the
+    explainer, not a settings toggle, is where consent lives.
+- After sign-in: a title field (Discussions require one) + body field with a mic button wired to
+  the existing `DictationEngine` abstraction (`VoskWindowsDictationEngine` on Windows,
+  `AndroidDictationEngine` on Android) exactly as the manuscript editor already uses it — no new
+  dictation engine work, just a second consumer of the existing interface.
+- Optional, off-by-default "Include diagnostic info" checkbox — appends app version and
+  platform/OS to the discussion body (and, only if separately confirmed, the tail of `app.log` for
+  bug reports). Shown as visible preview text before posting, never appended silently — doubly
+  important given this posts publicly under the user's own name, not into a private inbox.
+- Before the final "Post" tap: a one-line reminder ("This will be posted publicly to GitHub as
+  <username>") rather than relying on the user to remember the explainer they saw earlier in the
+  flow.
+
 ## Phases
 
-| Phase | Scope |
-|---|---|
-| 0 | Project scaffold, data model, local file storage, create/open project, dark mode, app shell |
-| 0.5 | Global Ideas — capture space, quick-capture modal, list/search/tag view, promotion path |
-| 1 | Manuscript editor, act/chapter/scene tree with drag-reorder, Focus Mode, find & replace, undo/redo, prologue/epilogue/front-back matter, basic formatting tools, editing-view fonts, per-project todo list |
-| 1.3 | Voice-to-text dictation — platform speech engines, voice commands, review-flow highlighting |
-| 1.5 | Adaptive Goal Engine — data model, calculation logic, setup wizard, progress UI, heatmap |
-| 1.7 | Version History — auto snapshots, named checkpoints, diff view, restore, pruning |
-| 2 | Character profiles, Worldbuilding entries, Story Notes, `quickRef` field curation |
-| 2.5 | Reference Panel — docking UI, `@mention` autocomplete + tags, pin/unpin, scene auto-populate |
-| 3 | Plot Grid — plot lines, plot points, POV/color labels, linked to scenes |
-| 3.5 | Timeline page (multi-track) + Family tree/relationship diagram |
-| 4 | Comments, highlights, sticky notes, footnotes (shared anchor mechanism), text-to-speech, AI/external review export-import round-trip |
-| 4.5 | Spell check (Hunspell, multi-language, en-GB default), thesaurus + dictionary (Open English WordNet) |
-| 5 | Google Drive OAuth + sync engine + conflict UI (reuses Version History diff/restore for conflicts) |
-| 6 | General export (PDF, DOCX, plain-text-with-warning), automatic Table of Contents, publishing fonts, subtitle/series metadata, cover + in-book image upload |
-| 6.3 | KDP-ready export — ebook (EPUB) path, print (trim size presets, margin/gutter calc, running headers, wraparound cover with spine calc) |
-| 6.5 | Multi-Novel Series Support — series entity, shared characters/worldbuilding/relationships/timeline, series dashboard |
-| 7 (parked) | Co-authoring — **parked, not scoped for v1.** Real-time concurrent editing needs a different sync model entirely (CRDT/OT), distinct from the file-level Drive sync used everywhere else. Needs dedicated design thought before it's even phased in; revisit once the core app is solid. |
+| Phase | Status | Scope |
+|---|---|---|
+| 0 | ✅ Done | Project scaffold, data model, local file storage, create/open project, dark mode, app shell |
+| 0.5 | ✅ Done | Global Ideas — capture space, quick-capture modal, list/search/tag view, promotion path |
+| 1 | ✅ Done | Manuscript editor, act/chapter/scene tree with drag-reorder, Focus Mode, find & replace, undo/redo, prologue/epilogue/front-back matter, basic formatting tools, editing-view fonts, per-project todo list |
+| 1.3 | ✅ Done | Voice-to-text dictation — platform speech engines, voice commands, review-flow highlighting |
+| 1.5 | ✅ Done | Adaptive Goal Engine — data model, calculation logic, setup wizard, progress UI, heatmap |
+| 1.7 | ✅ Done | Version History — auto snapshots, named checkpoints, diff view, restore, pruning |
+| 2 | ✅ Done | Character profiles, Worldbuilding entries, Story Notes, `quickRef` field curation |
+| 2.5 | ✅ Done | Reference Panel — docking UI, `@mention` autocomplete + tags, pin/unpin, scene auto-populate |
+| 3 | ✅ Done | Plot Grid — plot lines, plot points, POV/color labels, linked to scenes |
+| 3.5 | ✅ Done | Timeline page (multi-track) + Family tree/relationship diagram |
+| 4 | ✅ Done | Comments, highlights, sticky notes, footnotes (shared anchor mechanism), text-to-speech, AI/external review export-import round-trip |
+| 4.5 | ✅ Done | Spell check (Hunspell, multi-language, en-GB default), thesaurus + dictionary (Open English WordNet) |
+| 5 | ✅ Done | Google Drive OAuth + sync engine + conflict UI (reuses Version History diff/restore for conflicts) |
+| 6 | ✅ Done | General export (PDF, DOCX, plain-text-with-warning), automatic Table of Contents, publishing fonts, subtitle/series metadata, cover + in-book image upload |
+| 6.3 | 🚧 Core done, cover explicitly out of scope | KDP-ready export, interior/manuscript only (no cover handling) — three sub-paths: **eBook** (✅ done as far as buildable — 2-level ToC nesting cap, 30MB/300-file limits, footnote-to-`<aside>` round-trip, language tagging all built 2026-08-01; tables/image-alt-text blocked on separate unbuilt editor/export features, see KDP_CRIBSHEET.md), **Paperback** (✅ done as far as reasonably buildable — trim size, bleed, page-count-scaled gutter margins, roman/Arabic page numbering, correctly-suppressed alternating running headers, and an auto-generated copyright page all built 2026-08-01; true mirrored margins confirmed structurally out of reach without a full pagination rewrite, half-title/facing-page enforcement remains open — see KDP_CRIBSHEET.md/CONSIDERATIONS.md), **Hardcover** (✅ done 2026-08-01 — thin wrapper (`KdpHardcoverExporter`) reusing the paperback engine wholesale via a widened `KdpPrintTrimSize` interface; own trim sizes + 75–550 page range; bleed/margin rules still an unverified working assumption pending a hardcover-specific KDP source, see KDP_CRIBSHEET.md). All three sub-paths now produce a KDP-submittable interior file; remaining gaps (mirrored margins, half-title/facing-page, footnotes in PDF/DOCX, tables, image embedding) are separately tracked, larger pieces of work, not oversights |
+| 6.5 | ✅ Done (core) | Multi-Novel Series Support — series entity, shared characters/worldbuilding/relationships/timeline, series dashboard. Series/covers/drag-reorder shipped; series-level dashboard beyond the stack-card/detail screen not separately scoped — revisit if needed |
+| 7 (parked) | ⏸ Parked | Co-authoring — **parked, not scoped for v1.** Real-time concurrent editing needs a different sync model entirely (CRDT/OT), distinct from the file-level Drive sync used everywhere else. Needs dedicated design thought before it's even phased in; revisit once the core app is solid. |
+| 8 | ✅ Done | In-App Release Notes, News Feed, and Feedback — see Feature section above and BUILD_LOG.md. Built 2026-08-01; GitHub OAuth App registered (`client_id` `Ov23liOBvd1Ln9bJKqdO`), all three built and unit-tested (mocked HTTP), but not yet verified against a real GitHub OAuth/Discussions round-trip. |
 
 ## Cross-Platform Roadmap (macOS, iOS, Linux — post-v1)
 
@@ -564,40 +758,62 @@ when that platform is scoped.
 
 ## Open questions / decisions still needed
 
-- Export priority order for Phase 6 (docx first is easiest; PDF/EPUB need a formatting engine)
 - Play Store readiness requirements (privacy policy, data safety form re: Drive scope, signing
-  config for MSIX/AAB) — worth revisiting once core phases are closer to done
+  config for MSIX/AAB) — worth revisiting now that v1.0.1 has shipped
 - Timing for picking up macOS/iOS/Linux — no date set; revisit once Windows+Android v1 is solid
+- Whether/when to pick up Phase 6.3 (KDP eBook/Paperback/Hardcover export) — the only unbuilt
+  phase in the core plan. Paperback specs are now sourced from KDP's own docs (see the Export
+  feature section); hardcover bleed/margin/jacket mechanics and the spine-width formula still need
+  a research pass before build
+- Phase 8's real-world sign-in/posting flow hasn't been exercised against actual GitHub yet (only
+  mocked in tests) — worth a live smoke test before calling it fully verified
+- ~~Paperback trim-size list is incomplete~~ — ✅ Fixed 2026-08-01: `KdpTrimSize` now has all 16 of
+  KDP's published paperback trim sizes (was 10).
+- ~~Page-count range is hardcoded to one flat 24–828 band~~ — ✅ Fixed 2026-08-01: added
+  `KdpInkPaperType` (5 values) + `KdpTrimSize.pageCountRange(inkPaperType)`, resolving KDP's real
+  range by trim size and ink/paper type. `ExportScreen` gained an ink/paper dropdown for paperback
+  export. See `KDP_CRIBSHEET.md`'s new page-count matrix table for the full source data.
+- **Hardcover interior margin/bleed rules remain unconfirmed against a hardcover-specific KDP
+  source** — re-checked 2026-08-01 across three separate KDP pages (trim/bleed/margins,
+  "Format Your Hardcover", and the paperback/hardcover manuscript templates page); all three
+  dead-end at the same paperback-only table. This looks like a genuine gap in KDP's own docs, not
+  a page we haven't found yet — see `KDP_CRIBSHEET.md`'s Hardcover section for detail. Treat
+  further searching as low-yield; only reopen if KDP publishes something new.
+- ~~`<sup>` (footnote reference markers in the EPUB exporter) isn't on KDP's Kindle Format 8
+  supported-tag list~~ — ✅ Fixed 2026-08-01: `epub_exporter.dart` now emits `<a class=
+  "footnote-ref">` styled via `vertical-align: super` in `styles.css` instead of `<sup>`. See
+  `KDP_CRIBSHEET.md`'s tag-support section for detail.
 
 ## Status
 
-Planning complete for Phases 0–6.5, Phase 7 parked pending separate design work. App name decided
-(Narraity, 2026-07-24). Cross-platform roadmap confirmed 2026-07-24: v1 stays Windows + Android,
-macOS/iOS/Linux are future targets with architecture kept portable (see Cross-Platform Roadmap).
+**v1.0.1 released 2026-07-31** — github.com/anubisalpha/narraity, first real cut via
+`release.ps1` (MSIX + `.appinstaller` auto-update). **545 tests passing, `flutter analyze` clean.**
 
-**Build started 2026-07-24.** Flutter project scaffolded at `Development/Narraity` (org
-`uk.aity`). **Phases 0, 0.5, and 1 are built and verified** — running on Windows desktop, 26
-automated tests passing, `flutter analyze` clean:
+App name decided (Narraity, 2026-07-24). Cross-platform roadmap confirmed 2026-07-24: v1 stays
+Windows + Android, macOS/iOS/Linux are future targets with architecture kept portable (see
+Cross-Platform Roadmap). Build started 2026-07-24.
 
-- **Phase 0** — project scaffold, file-based data model (`project.json` + folder skeleton per the
-  Data Model section), library screen (create/open project, grid view), dark/light/system theme
-  with persistence, app shell.
-- **Phase 0.5** — Global Ideas: quick-capture dialog (available from library and inside a
-  project), `_GlobalIdeas/idea-<id>.json` storage, search + tag-filter list view, promote-to-new-
-  project and attach-to-existing-project paths (idea marked "used", not deleted, keeping the
-  origin trail — seeds a story note in the target project).
-- **Phase 1** — manuscript editor: act/chapter/scene tree with drag-reorder (scenes), add/delete
-  at every level, prologue/epilogue/dedication/author's-note front/back matter; scene editor with
-  debounced autosave to Markdown+front-matter files, formatting toolbar (bold/italic/strike/scene
-  break/quote/heading), undo/redo, Find & Replace, live word count; Focus Mode (Esc to exit);
-  editing-view font/size/line-spacing settings (persisted); per-project to-do list.
-- **Also added**: a global error logger (`lib/services/app_logger.dart`) catching Flutter
-  framework errors, async errors, and uncaught exceptions to
-  `Documents/Narraity/.logs/app.log` — not part of the original phase scope, added for easier
-  debugging during development.
-- **Environment note**: the installed Visual Studio (2026, v18) postdates Flutter 3.35.5's known
-  CMake generator list, which hardcodes a fallback to VS 2019. Patched locally in the Flutter SDK
-  copy (`packages/flutter_tools/lib/src/windows/visual_studio.dart`) to add the VS 18 → "Visual
-  Studio 18 2026" mapping — `flutter upgrade` would need this reapplied.
+**Phases 0 through 6 and Phase 8 are built and verified** (Phase 8's GitHub sign-in/posting flow
+tested via mocked HTTP only, not yet a live smoke test — see BUILD_LOG.md), running on Windows
+desktop (see the Phases table above for per-phase scope). Highlights beyond the original phase
+scope:
 
-Next: Phase 1.3 (voice-to-text dictation) or continue polishing Phase 1, per user direction.
+- A global error logger (`lib/services/app_logger.dart`) catching Flutter framework errors, async
+  errors, and uncaught exceptions to `Documents/Narraity/.logs/app.log`.
+- Manuscript importer (DOCX, plain text/Markdown, Dabble JSON) and an in-app update checker plus
+  real Windows auto-update via `.appinstaller`.
+- Series, front cover images, and drag-and-drop library reordering.
+- Four bug fixes closed out of the backlog: dangling Plot Grid/Relationship data on delete,
+  missing spell-check/thesaurus Settings toggles, and "Add to Dictionary" not persisting across
+  restarts.
+- PDF/EPUB/DOCX export overhaul (page-break handling, EPUB stylesheet/section grouping, PDF
+  typography normalization, per-section "print title in exports" toggle) — see BUILD_LOG.md for
+  full detail on each fix.
+
+Full narrative detail, root causes, and gotchas for every session are in BUILD_LOG.md; open
+design questions and known gaps (KDP export, image embedding in exports, Unicode PDF fonts, etc.)
+are tracked in CONSIDERATIONS.md.
+
+**Next: Phase 6.3 (KDP-ready print/ebook export)** is the only unbuilt phase in the core plan —
+or continue polishing/bug-fixing the shipped v1, per user direction. Phase 7 (co-authoring)
+remains parked pending its own CRDT/OT design pass.

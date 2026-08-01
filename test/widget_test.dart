@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:narraity/app.dart';
+import 'package:narraity/models/project.dart';
 import 'package:narraity/services/library_service.dart';
 import 'package:narraity/state/library_provider.dart';
 import 'package:narraity/state/manuscript_provider.dart';
@@ -252,5 +253,73 @@ void main() {
 
     expect(find.textContaining('No profile named "Nobody At All"'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Create'), findsOneWidget);
+  });
+
+  testWidgets(
+      'tapping a project inside a series list actually opens it (regression: SeriesDetailScreen '
+      'is a pushed route on top of NarraityApp\'s home; setting currentProjectProvider swaps '
+      '`home` from LibraryScreen to ProjectShellScreen underneath, invisibly, unless the pushed '
+      'route is popped back to the root first)', (tester) async {
+    final projectRoot = Directory.systemTemp.createTempSync('narraity_series_open_test_');
+    addTearDown(() => projectRoot.deleteSync(recursive: true));
+    final library = LibraryService(rootOverride: projectRoot);
+
+    final container = ProviderContainer(
+      overrides: [libraryServiceProvider.overrideWithValue(library)],
+    );
+    addTearDown(container.dispose);
+
+    late Project project;
+    await tester.runAsync(() async {
+      final series = await container.read(seriesServiceProvider).createSeries(title: 'My Series');
+      project = await library.createProject(title: 'Book One');
+      await library.saveProject(project.copyWith(seriesId: series.id));
+
+      // Warm the library screen's own lists too — otherwise a single pump()
+      // catches them mid-load and neither the series card nor the project
+      // card exists yet to tap.
+      await container.read(seriesListProvider.future);
+      final loadedProjects = await container.read(projectListProvider.future);
+
+      // `Project` has no `==`/`hashCode` override, so warming providers
+      // keyed by `project` (the instance this test created directly) would
+      // do nothing for `SeriesDetailScreen`, which gets its own, separately
+      // *deserialized* `Project` instance from `projectListProvider` —  a
+      // different object identity for the same on-disk project, and
+      // therefore a different family-provider cache key. Warm using the
+      // exact instance the screen will actually see instead.
+      final loadedProject = loadedProjects.single;
+      await container.read(manuscriptStructureProvider(loadedProject).future);
+      await container.read(characterListProvider(loadedProject).future);
+      await container.read(worldListProvider(loadedProject).future);
+      await container.read(storyNoteListProvider(loadedProject).future);
+      await container.read(noteFoldersProvider(loadedProject).future);
+      await container.read(todoListProvider(loadedProject).future);
+    });
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: const NarraityApp()),
+    );
+    await tester.pump();
+
+    // Open the series from the library grid (MaterialPageRoute's push
+    // transition needs an explicit duration to complete, same pattern as
+    // the tab-transition wait above).
+    await tester.tap(find.text('My Series'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Book One'), findsOneWidget,
+        reason: 'should now be looking at the series detail screen, showing its one project');
+
+    // Tap the project card inside the series.
+    await tester.tap(find.text('Book One'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+
+    // The project shell (its tab bar) should now be visible — not the
+    // series detail screen still sitting on top, unopened.
+    expect(find.byType(Tab), findsNWidgets(5),
+        reason: 'tapping a project inside a series list should open its project shell');
   });
 }

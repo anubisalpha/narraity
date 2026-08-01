@@ -41,14 +41,20 @@ class LibraryService {
 
     await for (final entity in root.list()) {
       if (entity is! Directory) continue;
-      if (p.basename(entity.path).startsWith('_')) continue; // reserved (e.g. _GlobalIdeas)
+      if (p.basename(entity.path).startsWith('_')) {
+        continue; // reserved (e.g. _GlobalIdeas)
+      }
 
       final projectFile = File(p.join(entity.path, 'project.json'));
       if (!await projectFile.exists()) continue;
 
       try {
-        final json = jsonDecode(await projectFile.readAsString()) as Map<String, dynamic>;
-        projects.add(Project.fromJson(json, folderName: p.basename(entity.path)));
+        final json =
+            jsonDecode(await projectFile.readAsString())
+                as Map<String, dynamic>;
+        projects.add(
+          Project.fromJson(json, folderName: p.basename(entity.path)),
+        );
       } catch (_) {
         // Skip unreadable/corrupt project.json rather than crashing the library view.
         continue;
@@ -59,7 +65,12 @@ class LibraryService {
     return projects;
   }
 
-  Future<Project> createProject({required String title, String? author, String? seriesId}) async {
+  Future<Project> createProject({
+    required String title,
+    String? author,
+    String? seriesId,
+    ProjectKind kind = ProjectKind.novel,
+  }) async {
     final root = await libraryRoot();
     final folderName = _uniqueFolderName(root, title);
     final projectDir = Directory(p.join(root.path, folderName));
@@ -92,11 +103,13 @@ class LibraryService {
       created: now,
       modified: now,
       seriesId: seriesId,
+      kind: kind,
     );
 
     await _writeProjectJson(projectDir, project);
-    await File(p.join(projectDir.path, 'todos', 'todos.json'))
-        .writeAsString(jsonEncode({'todos': []}));
+    await File(
+      p.join(projectDir.path, 'todos', 'todos.json'),
+    ).writeAsString(jsonEncode({'todos': []}));
 
     return project;
   }
@@ -118,7 +131,8 @@ class LibraryService {
     await coversDir.create(recursive: true);
 
     await for (final entity in coversDir.list()) {
-      if (entity is File && p.basenameWithoutExtension(entity.path) == 'cover') {
+      if (entity is File &&
+          p.basenameWithoutExtension(entity.path) == 'cover') {
         await entity.delete();
       }
     }
@@ -139,12 +153,17 @@ class LibraryService {
   Future<Project> removeCoverImage(Project project) async {
     if (project.coverImagePath != null) {
       final root = await libraryRoot();
-      final file = File(p.join(root.path, project.folderName, project.coverImagePath!));
+      final file = File(
+        p.join(root.path, project.folderName, project.coverImagePath!),
+      );
       if (await file.exists()) {
         await file.delete();
       }
     }
-    final updated = project.copyWith(clearCoverImagePath: true, modified: DateTime.now());
+    final updated = project.copyWith(
+      clearCoverImagePath: true,
+      modified: DateTime.now(),
+    );
     await saveProject(updated);
     return updated;
   }
@@ -158,7 +177,9 @@ class LibraryService {
 
   Future<void> _writeProjectJson(Directory projectDir, Project project) async {
     final file = File(p.join(projectDir.path, 'project.json'));
-    await file.writeAsString(const JsonEncoder.withIndent('  ').convert(project.toJson()));
+    await file.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(project.toJson()),
+    );
   }
 
   String _uniqueFolderName(Directory root, String title) {

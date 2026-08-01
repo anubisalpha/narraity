@@ -7,6 +7,7 @@ import '../models/series.dart';
 import '../state/library_provider.dart';
 import '../state/manuscript_provider.dart';
 import '../widgets/new_project_dialog.dart';
+import '../widgets/project_kind_style.dart';
 
 /// Shows every project belonging to [series] — pushed from the library's
 /// stacked series card. Renaming/deleting the series, and adding a new
@@ -36,20 +37,25 @@ class SeriesDetailScreen extends ConsumerWidget {
             },
             itemBuilder: (context) => const [
               PopupMenuItem(value: 'rename', child: Text('Rename Series')),
-              PopupMenuItem(value: 'delete', child: Text('Delete Series (keeps projects)')),
+              PopupMenuItem(
+                value: 'delete',
+                child: Text('Delete Series (keeps projects)'),
+              ),
             ],
           ),
         ],
       ),
       body: projectsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Failed to load projects: $err')),
+        error: (err, stack) =>
+            Center(child: Text('Failed to load projects: $err')),
         data: (allProjects) {
-          final projects = allProjects.where((p) => p.seriesId == series.id).toList();
-          return projects.isEmpty ? _EmptySeries(series: series) : _SeriesProjectGrid(
-            projects: projects,
-            series: series,
-          );
+          final projects = allProjects
+              .where((p) => p.seriesId == series.id)
+              .toList();
+          return projects.isEmpty
+              ? _EmptySeries(series: series)
+              : _SeriesProjectGrid(projects: projects, series: series);
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -90,8 +96,9 @@ class SeriesDetailScreen extends ConsumerWidget {
           child: TextFormField(
             controller: controller,
             autofocus: true,
-            validator: (value) =>
-                (value == null || value.trim().isEmpty) ? 'Title is required' : null,
+            validator: (value) => (value == null || value.trim().isEmpty)
+                ? 'Title is required'
+                : null,
           ),
         ),
         actions: [
@@ -115,7 +122,9 @@ class SeriesDetailScreen extends ConsumerWidget {
     await service.renameSeries(series, title);
     ref.invalidate(seriesListProvider);
     if (context.mounted) {
-      Navigator.of(context).pop(); // back to library; its title is now stale otherwise
+      Navigator.of(
+        context,
+      ).pop(); // back to library; its title is now stale otherwise
     }
   }
 
@@ -162,10 +171,16 @@ class _EmptySeries extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.collections_bookmark_outlined,
-              size: 72, color: Theme.of(context).colorScheme.primary),
+          Icon(
+            Icons.collections_bookmark_outlined,
+            size: 72,
+            color: Theme.of(context).colorScheme.primary,
+          ),
           const SizedBox(height: 16),
-          Text('No projects in "${series.title}" yet', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'No projects in "${series.title}" yet',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 8),
           const Text('Add one with the button below.'),
         ],
@@ -209,54 +224,74 @@ class _SeriesProjectGrid extends ConsumerWidget {
       itemCount: ordered.length,
       itemBuilder: (context, index) {
         final project = ordered[index];
-        final card = Card(
-          child: InkWell(
-            onTap: () {
-              ref.read(openContentIdProvider.notifier).state = null;
-              ref.read(currentProjectProvider.notifier).state = project;
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.menu_book, color: Theme.of(context).colorScheme.primary),
-                      const Spacer(),
-                      PopupMenuButton<String>(
-                        onSelected: (action) async {
-                          if (action == 'remove') {
-                            final library = ref.read(libraryServiceProvider);
-                            await library.saveProject(project.copyWith(clearSeriesId: true));
-                            ref.invalidate(projectListProvider);
-                          }
-                        },
-                        itemBuilder: (context) => const [
-                          PopupMenuItem(value: 'remove', child: Text('Remove from Series')),
-                        ],
-                      ),
-                    ],
-                  ),
-                  Text(
-                    project.title,
-                    style: Theme.of(context).textTheme.titleMedium,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (project.author != null)
+        final card = ProjectKindFrame(
+          kind: project.kind,
+          child: Card(
+            child: InkWell(
+              onTap: () {
+                ref.read(openContentIdProvider.notifier).state = null;
+                ref.read(currentProjectProvider.notifier).state = project;
+                // Setting currentProjectProvider swaps NarraityApp's `home`
+                // widget from LibraryScreen to ProjectShellScreen (see
+                // app.dart), but that swap happens underneath this screen,
+                // which is a *pushed* route sitting on top of `home` in the
+                // Navigator stack — so without popping back to the root, the
+                // rebuild is invisible and the project never appears to open.
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          ProjectKindStyle.of(project.kind).icon,
+                          color: ProjectKindStyle.of(
+                            project.kind,
+                          ).accent(Theme.of(context).colorScheme),
+                        ),
+                        const Spacer(),
+                        PopupMenuButton<String>(
+                          onSelected: (action) async {
+                            if (action == 'remove') {
+                              final library = ref.read(libraryServiceProvider);
+                              await library.saveProject(
+                                project.copyWith(clearSeriesId: true),
+                              );
+                              ref.invalidate(projectListProvider);
+                            }
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(
+                              value: 'remove',
+                              child: Text('Remove from Series'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                     Text(
-                      project.author!,
-                      style: Theme.of(context).textTheme.bodySmall,
+                      project.title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  const Spacer(),
-                  Text(
-                    'Modified ${DateFormat.yMMMd().format(project.modified)}',
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
-                ],
+                    if (project.author != null)
+                      Text(
+                        project.author!,
+                        style: Theme.of(context).textTheme.bodySmall,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    const Spacer(),
+                    Text(
+                      'Modified ${DateFormat.yMMMd().format(project.modified)}',
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -264,15 +299,22 @@ class _SeriesProjectGrid extends ConsumerWidget {
 
         return DragTarget<int>(
           onWillAcceptWithDetails: (details) => details.data != index,
-          onAcceptWithDetails: (details) => _reorder(ref, ordered, details.data, index),
+          onAcceptWithDetails: (details) =>
+              _reorder(ref, ordered, details.data, index),
           builder: (context, candidateData, rejectedData) => Draggable<int>(
             data: index,
             feedback: Opacity(
               opacity: 0.8,
-              child: SizedBox(width: 220, height: 160, child: Material(child: card)),
+              child: SizedBox(
+                width: 220,
+                height: 160,
+                child: Material(child: card),
+              ),
             ),
             childWhenDragging: Opacity(opacity: 0.3, child: card),
-            child: candidateData.isNotEmpty ? Opacity(opacity: 0.5, child: card) : card,
+            child: candidateData.isNotEmpty
+                ? Opacity(opacity: 0.5, child: card)
+                : card,
           ),
         );
       },
