@@ -84,6 +84,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/branding/
     - assets/dictionaries/en_GB/
     - assets/wordnet/
 

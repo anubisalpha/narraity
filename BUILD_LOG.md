@@ -2333,3 +2333,15 @@ corners) is the checked-in source of truth for regenerating icons later. Regener
 running app — title bar and taskbar icon both render correctly at small sizes, no artifacts.
 
 No code changed, `flutter analyze`/tests unaffected.
+
+## Library screen header: logo + styled wordmark
+
+Replaced the plain "Narraity" `AppBar` title with `widgets/app_wordmark.dart`'s `AppWordmark` —
+the new icon beside the name, styled to match the rest of the `-aity` app family's convention
+(Mosaity, Explaity, aity.uk): the "a" that starts the shared "-aity" suffix ("Narr" + **a** +
+"ity") picked out in the theme's primary color with an underline, matching
+`projects/Mosaity/design/logo/mosaity-wordmark.svg`'s own treatment rather than a hardcoded color,
+so it stays correct in both light and dark mode. Icon exported at 256px from the same
+`branding/app_icon_master.png` used for the app icon itself, added as `assets/branding/app_icon.png`.
+
+**581 tests total**, `flutter analyze` clean. Verified visually in the running app.

@@ -14,6 +14,7 @@ import '../services/manuscript_service.dart';
 import '../state/library_background_provider.dart';
 import '../state/library_provider.dart';
 import '../state/manuscript_provider.dart';
+import '../widgets/app_wordmark.dart';
 import '../widgets/project_actions.dart';
 import '../widgets/import_destination_dialog.dart';
 import '../widgets/move_to_series_dialog.dart';
@@ -42,7 +43,7 @@ class LibraryScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Narraity'),
+        title: const AppWordmark(),
         actions: [
           IconButton(
             tooltip: 'New Idea',
