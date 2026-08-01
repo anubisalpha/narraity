@@ -2197,6 +2197,49 @@ Removed `windows/build_msix.ps1`, `windows/build_appinstaller.ps1`, `windows/nar
 the `msix` pub dev-dependency, and `pubspec.yaml`'s `msix_config` block. `release.ps1` now calls
 `build_installer.ps1` and attaches `narraity-setup.exe` instead. v1.1.0 was deleted and re-cut
 (both the GitHub release and its tag) with the new installer, rather than shipping v1.1.1, since no
-app features changed — only packaging.
+app features changed — only packaging. GitHub's own repository rules then blocked *recreating*
+`v1.1.0`'s tag after the delete (immutable-release protection) — shipped as **v1.1.1** instead,
+same content, no app changes beyond the packaging switch.
 
 **575 tests total**, `flutter analyze` clean.
+
+## Edit card style after creation, plus archive/delete for projects
+
+Two gaps the user flagged after the packaging work: no way to change a project's card style
+(`ProjectKind`) once created, and no archive/delete process at all — the only way to remove a
+project from the library was deleting its folder manually outside the app.
+
+**Card style**: `showEditStyleDialog` (`widgets/edit_style_dialog.dart`) reuses the same
+`SegmentedButton<ProjectKind>` picker as the New Project dialog, minus the fields that only make
+sense at creation. Wired into a new "Card style…" entry on the project card's popup menu
+(`library_screen.dart`) — `libraryService.saveProject(project.copyWith(kind: ...))`.
+
+**Archive/delete**, per the user's own design: compress the whole project folder into a `.zip`
+under a reserved `_Archived`/`_Deleted` folder (same `_`-prefix convention as `_GlobalIdeas` —
+`listProjects()` already skips those, no extra filtering needed), stamped with a date/time, plus a
+screen to view records and restore them. Delete is explicitly **not** permanent — same mechanism
+as archive, just a different reserved folder; a user who wants a project truly gone removes the zip
+themselves from the file system, the app never does that automatically.
+
+Implementation (`LibraryService`, `archive_io.dart`'s `ZipFileEncoder`/`extractFileToDisk`):
+`archiveProject`/`deleteProject` zip the live folder into `_Archived`/`_Deleted` and delete the
+source; `listArchived`/`listDeleted` read each `.zip`'s embedded `project.json` via a *streamed*
+`ZipDecoder().decodeStream(InputFileStream(...))` (not a full in-memory decode) just to pull
+title/author for display, using the zip file's own filesystem modified-time as "archived at" rather
+than encoding a timestamp into the filename — one less thing that could get out of sync.
+`restoreArchived`/`restoreDeleted` extract back into a fresh library folder, reusing the same
+collision-avoidance naming as `createProject` (never overwrites an existing project if the original
+name is now taken), then delete the zip.
+
+New `ArchivedProjectsScreen` (two tabs, Archived/Deleted, reached from a new Library app-bar icon)
+lists records with a Restore button; `archivedProjectsProvider`/`deletedProjectsProvider` added
+alongside the existing `projectListProvider` pattern.
+
+6 new tests in `library_service_test.dart` cover the full round-trip: archive removes from the live
+list and appears under Archived; delete does the same under Deleted (and not Archived); restoring
+either brings the project back with its original id/title/author intact and clears the record;
+restoring into a now-taken folder name gets disambiguated, same as `createProject`.
+
+**581 tests total**, `flutter analyze` clean. Not yet manually smoke-tested in the running app —
+verified via the test suite and `flutter analyze` only, since this is a Windows desktop app with no
+browser-based preview available in this session.

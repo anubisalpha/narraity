@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/archived_project.dart';
 import '../models/project.dart';
 import '../models/series.dart';
 import '../services/library_service.dart';
@@ -12,6 +13,19 @@ final libraryServiceProvider = Provider<LibraryService>((ref) => LibraryService(
 final projectListProvider = FutureProvider<List<Project>>((ref) async {
   final service = ref.watch(libraryServiceProvider);
   return service.listProjects();
+});
+
+/// Archived/soft-deleted project records — see `LibraryService.archiveProject`/
+/// `deleteProject`. Call `ref.invalidate(...)` on the relevant one after
+/// archiving, deleting, or restoring.
+final archivedProjectsProvider = FutureProvider<List<ArchivedProject>>((ref) async {
+  final service = ref.watch(libraryServiceProvider);
+  return service.listArchived();
+});
+
+final deletedProjectsProvider = FutureProvider<List<ArchivedProject>>((ref) async {
+  final service = ref.watch(libraryServiceProvider);
+  return service.listDeleted();
 });
 
 /// The project currently open in the shell (null = library/home view).

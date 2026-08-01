@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
+import '../models/archived_project.dart';
 import '../models/project.dart';
 import 'filename_sanitizer.dart';
 
@@ -192,4 +194,113 @@ class LibraryService {
     }
     return candidate;
   }
+
+  /// `_Archived`/`_Deleted` are reserved folders alongside project folders,
+  /// same convention as `_GlobalIdeas` — [listProjects] already skips any
+  /// folder starting with `_`, so nothing extra is needed to keep these out
+  /// of the normal library view.
+  Future<Directory> _reservedDir(String name) async {
+    final root = await libraryRoot();
+    final dir = Directory(p.join(root.path, name));
+    if (!await dir.exists()) await dir.create(recursive: true);
+    return dir;
+  }
+
+  String _uniqueZipName(Directory dir, String title) {
+    final base = sanitizeFileName(title);
+    var candidate = '$base.zip';
+    var suffix = 1;
+    while (File(p.join(dir.path, candidate)).existsSync()) {
+      suffix++;
+      candidate = '$base ($suffix).zip';
+    }
+    return candidate;
+  }
+
+  /// Compresses [project]'s whole folder tree into a single `.zip` under
+  /// [reservedDirName] (`_Archived` or `_Deleted`) and removes the live
+  /// folder — this is a soft removal, never a permanent one: the zip stays
+  /// on disk indefinitely until restored, or the user deletes it themselves
+  /// from the filesystem (see `ArchivedProject`'s doc comment for why this
+  /// app never does that automatically). The zip's own filesystem
+  /// modified-time doubles as the "archived at" timestamp shown in the UI,
+  /// so nothing extra needs encoding into the filename.
+  Future<void> _archiveTo(Project project, String reservedDirName) async {
+    final root = await libraryRoot();
+    final projectDir = Directory(p.join(root.path, project.folderName));
+    final destDir = await _reservedDir(reservedDirName);
+    final zipName = _uniqueZipName(destDir, project.title);
+    final zipPath = p.join(destDir.path, zipName);
+
+    await ZipFileEncoder().zipDirectory(projectDir, filename: zipPath);
+    await projectDir.delete(recursive: true);
+  }
+
+  Future<void> archiveProject(Project project) => _archiveTo(project, '_Archived');
+  Future<void> deleteProject(Project project) => _archiveTo(project, '_Deleted');
+
+  /// Lists the `.zip` records under [reservedDirName], reading just enough
+  /// of each (via a streamed read, not a full in-memory decode) to pull
+  /// title/author out of the embedded `project.json` for display.
+  Future<List<ArchivedProject>> _listReserved(String reservedDirName) async {
+    final dir = await _reservedDir(reservedDirName);
+    final records = <ArchivedProject>[];
+
+    await for (final entity in dir.list()) {
+      if (entity is! File || !entity.path.endsWith('.zip')) continue;
+
+      try {
+        final input = InputFileStream(entity.path);
+        final archive = ZipDecoder().decodeStream(input);
+        final projectJsonFile = archive.findFile('project.json');
+        if (projectJsonFile == null) continue;
+
+        final json =
+            jsonDecode(utf8.decode(projectJsonFile.content)) as Map<String, dynamic>;
+        records.add(
+          ArchivedProject(
+            fileName: p.basename(entity.path),
+            title: json['title'] as String? ?? p.basenameWithoutExtension(entity.path),
+            author: json['author'] as String?,
+            archivedAt: (await entity.stat()).modified,
+          ),
+        );
+        await input.close();
+      } catch (_) {
+        // Skip an unreadable/corrupt zip rather than crashing the whole list.
+        continue;
+      }
+    }
+
+    records.sort((a, b) => b.archivedAt.compareTo(a.archivedAt));
+    return records;
+  }
+
+  Future<List<ArchivedProject>> listArchived() => _listReserved('_Archived');
+  Future<List<ArchivedProject>> listDeleted() => _listReserved('_Deleted');
+
+  /// Extracts [record]'s zip back into a fresh, live project folder (a new
+  /// unique folder name, same collision-avoidance as [createProject] —
+  /// never overwrites an existing project) and removes the zip. The
+  /// restored project keeps its original id/title/history; only its
+  /// on-disk folder name may differ from before if something now occupies
+  /// its old name.
+  Future<Project> _restoreFrom(ArchivedProject record, String reservedDirName) async {
+    final root = await libraryRoot();
+    final srcDir = await _reservedDir(reservedDirName);
+    final zipPath = p.join(srcDir.path, record.fileName);
+
+    final folderName = _uniqueFolderName(root, record.title);
+    final destDir = Directory(p.join(root.path, folderName));
+    await destDir.create(recursive: true);
+    await extractFileToDisk(zipPath, destDir.path);
+    await File(zipPath).delete();
+
+    final projectFile = File(p.join(destDir.path, 'project.json'));
+    final json = jsonDecode(await projectFile.readAsString()) as Map<String, dynamic>;
+    return Project.fromJson(json, folderName: folderName);
+  }
+
+  Future<Project> restoreArchived(ArchivedProject record) => _restoreFrom(record, '_Archived');
+  Future<Project> restoreDeleted(ArchivedProject record) => _restoreFrom(record, '_Deleted');
 }

@@ -14,6 +14,7 @@ import '../services/manuscript_service.dart';
 import '../state/library_background_provider.dart';
 import '../state/library_provider.dart';
 import '../state/manuscript_provider.dart';
+import '../widgets/edit_style_dialog.dart';
 import '../widgets/import_destination_dialog.dart';
 import '../widgets/move_to_series_dialog.dart';
 import '../widgets/new_project_dialog.dart';
@@ -23,6 +24,7 @@ import '../widgets/quick_capture_dialog.dart';
 import '../widgets/update_available_banner.dart';
 import '../widgets/whats_new_dialog.dart';
 import 'app_goals_screen.dart';
+import 'archived_projects_screen.dart';
 import 'ideas_screen.dart';
 import 'news_screen.dart';
 import 'review_sessions_screen.dart';
@@ -79,6 +81,13 @@ class LibraryScreen extends ConsumerWidget {
             onPressed: () => Navigator.of(
               context,
             ).push(MaterialPageRoute(builder: (_) => const NewsScreen())),
+          ),
+          IconButton(
+            tooltip: 'Archived & Deleted Projects',
+            icon: const Icon(Icons.inventory_2_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ArchivedProjectsScreen()),
+            ),
           ),
           IconButton(
             tooltip: 'Settings',
@@ -527,13 +536,37 @@ class _ProjectCard extends ConsumerWidget {
                             ),
                           const Spacer(),
                           PopupMenuButton<String>(
-                            tooltip: 'Add to Series',
+                            tooltip: 'Project options',
                             icon: const Icon(Icons.more_vert, size: 18),
-                            onSelected: (_) => _addToSeries(context, ref),
+                            onSelected: (value) {
+                              switch (value) {
+                                case 'series':
+                                  _addToSeries(context, ref);
+                                case 'style':
+                                  _editStyle(context, ref);
+                                case 'archive':
+                                  _archive(context, ref);
+                                case 'delete':
+                                  _delete(context, ref);
+                              }
+                            },
                             itemBuilder: (context) => const [
                               PopupMenuItem(
                                 value: 'series',
                                 child: Text('Add to Series…'),
+                              ),
+                              PopupMenuItem(
+                                value: 'style',
+                                child: Text('Card style…'),
+                              ),
+                              PopupMenuDivider(),
+                              PopupMenuItem(
+                                value: 'archive',
+                                child: Text('Archive'),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Delete'),
                               ),
                             ],
                           ),
@@ -589,6 +622,75 @@ class _ProjectCard extends ConsumerWidget {
       );
       ref.invalidate(seriesListProvider);
     }
+    ref.invalidate(projectListProvider);
+  }
+
+  Future<void> _editStyle(BuildContext context, WidgetRef ref) async {
+    final newKind = await showEditStyleDialog(context, project.kind);
+    if (newKind == null || newKind == project.kind) return;
+
+    final libraryService = ref.read(libraryServiceProvider);
+    await libraryService.saveProject(
+      project.copyWith(kind: newKind, modified: DateTime.now()),
+    );
+    ref.invalidate(projectListProvider);
+  }
+
+  Future<void> _archive(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Archive this project?'),
+        content: Text(
+          '"${project.title}" will be compressed and moved out of your library. You can restore '
+          'it any time from Archived Projects.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Archive'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final libraryService = ref.read(libraryServiceProvider);
+    await libraryService.archiveProject(project);
+    ref.invalidate(projectListProvider);
+  }
+
+  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete this project?'),
+        content: Text(
+          '"${project.title}" will be compressed and moved out of your library, the same as '
+          'archiving. You can restore it any time from Deleted Projects — Narraity never '
+          'permanently deletes anything on its own. If you want it gone for good, remove it '
+          'from there via your file system.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final libraryService = ref.read(libraryServiceProvider);
+    await libraryService.deleteProject(project);
     ref.invalidate(projectListProvider);
   }
 }

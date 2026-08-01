@@ -167,4 +167,76 @@ void main() {
     final reloaded = await service.listProjects();
     expect(reloaded.single.sortOrder, 0);
   });
+
+  group('archive/delete/restore', () {
+    test('archiveProject removes the live project and lists it under Archived', () async {
+      final project = await service.createProject(title: 'To Archive', author: 'Marc');
+      await service.archiveProject(project);
+
+      expect(await service.listProjects(), isEmpty);
+      final archived = await service.listArchived();
+      expect(archived, hasLength(1));
+      expect(archived.single.title, 'To Archive');
+      expect(archived.single.author, 'Marc');
+    });
+
+    test('deleteProject removes the live project and lists it under Deleted, not Archived',
+        () async {
+      final project = await service.createProject(title: 'To Delete');
+      await service.deleteProject(project);
+
+      expect(await service.listProjects(), isEmpty);
+      expect(await service.listArchived(), isEmpty);
+      final deleted = await service.listDeleted();
+      expect(deleted, hasLength(1));
+      expect(deleted.single.title, 'To Delete');
+    });
+
+    test('restoreArchived brings the project back with its original content intact', () async {
+      final project = await service.createProject(title: 'Round Trip', author: 'Marc');
+      await service.archiveProject(project);
+
+      final archived = await service.listArchived();
+      final restored = await service.restoreArchived(archived.single);
+
+      expect(restored.id, project.id);
+      expect(restored.title, 'Round Trip');
+      expect(restored.author, 'Marc');
+      expect(await service.listArchived(), isEmpty);
+      final projects = await service.listProjects();
+      expect(projects, hasLength(1));
+      expect(projects.single.id, project.id);
+    });
+
+    test('restoreDeleted works the same way as restoreArchived', () async {
+      final project = await service.createProject(title: 'Deleted Round Trip');
+      await service.deleteProject(project);
+
+      final deleted = await service.listDeleted();
+      final restored = await service.restoreDeleted(deleted.single);
+
+      expect(restored.title, 'Deleted Round Trip');
+      expect(await service.listDeleted(), isEmpty);
+      expect(await service.listProjects(), hasLength(1));
+    });
+
+    test('restoring a project whose original folder name is now taken gets a disambiguated name',
+        () async {
+      final project = await service.createProject(title: 'Name Clash');
+      await service.archiveProject(project);
+      await service.createProject(title: 'Name Clash'); // occupies the original folder name
+
+      final archived = await service.listArchived();
+      final restored = await service.restoreArchived(archived.single);
+
+      expect(await service.listProjects(), hasLength(2));
+      expect(restored.folderName, isNot('Name Clash'));
+    });
+
+    test('archived/deleted zips never appear in listProjects', () async {
+      final project = await service.createProject(title: 'Hidden From Library');
+      await service.archiveProject(project);
+      expect(await service.listProjects(), isEmpty);
+    });
+  });
 }

@@ -44,6 +44,12 @@ full breakdown and what changes per platform when that day comes.
   as a thumbnail on that project's (or its series') library card
 - **Drag-and-drop reordering** on the library screen and inside a series, independent of each
   project's own recency-based default ordering
+- **Card style** — Novel / Comic / Script, purely a visual frame/icon choice; set at creation and
+  editable any time from a project card's menu
+- **Archive & Delete** — either compresses a project's whole folder into a dated `.zip` and moves
+  it out of the library; both are restorable any time from **Archived & Deleted Projects**.
+  Delete works exactly like Archive (just a different folder) — nothing is ever permanently
+  removed by the app itself; if you want a project truly gone, delete its `.zip` yourself
 - Dark / light / system theme
 - Settings screen with a side-nav structure ready to grow (Appearance, Editor, Dictation, Read
   Aloud, Backup & Vault, Google Drive Sync now; Spell Check's language picker and Export slotted
