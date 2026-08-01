@@ -7,6 +7,7 @@ import '../models/series.dart';
 import '../state/library_provider.dart';
 import '../state/manuscript_provider.dart';
 import '../widgets/new_project_dialog.dart';
+import '../widgets/project_actions.dart';
 import '../widgets/project_kind_style.dart';
 
 /// Shows every project belonging to [series] — pushed from the library's
@@ -255,19 +256,40 @@ class _SeriesProjectGrid extends ConsumerWidget {
                         ),
                         const Spacer(),
                         PopupMenuButton<String>(
+                          tooltip: 'Project options',
                           onSelected: (action) async {
-                            if (action == 'remove') {
-                              final library = ref.read(libraryServiceProvider);
-                              await library.saveProject(
-                                project.copyWith(clearSeriesId: true),
-                              );
-                              ref.invalidate(projectListProvider);
+                            switch (action) {
+                              case 'remove':
+                                final library = ref.read(libraryServiceProvider);
+                                await library.saveProject(
+                                  project.copyWith(clearSeriesId: true),
+                                );
+                                ref.invalidate(projectListProvider);
+                              case 'style':
+                                await editProjectCardStyle(context, ref, project);
+                              case 'archive':
+                                await archiveProjectWithConfirmation(context, ref, project);
+                              case 'delete':
+                                await deleteProjectWithConfirmation(context, ref, project);
                             }
                           },
                           itemBuilder: (context) => const [
                             PopupMenuItem(
                               value: 'remove',
                               child: Text('Remove from Series'),
+                            ),
+                            PopupMenuItem(
+                              value: 'style',
+                              child: Text('Card style…'),
+                            ),
+                            PopupMenuDivider(),
+                            PopupMenuItem(
+                              value: 'archive',
+                              child: Text('Archive'),
+                            ),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Delete'),
                             ),
                           ],
                         ),

@@ -14,7 +14,7 @@ import '../services/manuscript_service.dart';
 import '../state/library_background_provider.dart';
 import '../state/library_provider.dart';
 import '../state/manuscript_provider.dart';
-import '../widgets/edit_style_dialog.dart';
+import '../widgets/project_actions.dart';
 import '../widgets/import_destination_dialog.dart';
 import '../widgets/move_to_series_dialog.dart';
 import '../widgets/new_project_dialog.dart';
@@ -543,11 +543,11 @@ class _ProjectCard extends ConsumerWidget {
                                 case 'series':
                                   _addToSeries(context, ref);
                                 case 'style':
-                                  _editStyle(context, ref);
+                                  editProjectCardStyle(context, ref, project);
                                 case 'archive':
-                                  _archive(context, ref);
+                                  archiveProjectWithConfirmation(context, ref, project);
                                 case 'delete':
-                                  _delete(context, ref);
+                                  deleteProjectWithConfirmation(context, ref, project);
                               }
                             },
                             itemBuilder: (context) => const [
@@ -625,100 +625,6 @@ class _ProjectCard extends ConsumerWidget {
     ref.invalidate(projectListProvider);
   }
 
-  Future<void> _editStyle(BuildContext context, WidgetRef ref) async {
-    final newKind = await showEditStyleDialog(context, project.kind);
-    if (newKind == null || newKind == project.kind) return;
-
-    final libraryService = ref.read(libraryServiceProvider);
-    await libraryService.saveProject(
-      project.copyWith(kind: newKind, modified: DateTime.now()),
-    );
-    ref.invalidate(projectListProvider);
-  }
-
-  Future<void> _archive(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Archive this project?'),
-        content: Text(
-          '"${project.title}" will be compressed and moved out of your library. You can restore '
-          'it any time from Archived Projects.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Archive'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-
-    final libraryService = ref.read(libraryServiceProvider);
-    await _runWithLoadingDialog(context, 'Archiving…', libraryService.archiveProject(project));
-    ref.invalidate(projectListProvider);
-  }
-
-  Future<void> _delete(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete this project?'),
-        content: Text(
-          '"${project.title}" will be compressed and moved out of your library, the same as '
-          'archiving. You can restore it any time from Deleted Projects — Narraity never '
-          'permanently deletes anything on its own. If you want it gone for good, remove it '
-          'from there via your file system.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-
-    final libraryService = ref.read(libraryServiceProvider);
-    await _runWithLoadingDialog(context, 'Deleting…', libraryService.deleteProject(project));
-    ref.invalidate(projectListProvider);
-  }
-
-  /// Shows a non-dismissible "working" dialog while [future] runs, then
-  /// closes it — archiving/deleting zips the whole project folder and can
-  /// occasionally take a while to finish deleting the source folder on
-  /// Windows (see `LibraryService._deleteWithRetry`'s doc comment for why),
-  /// so a silent multi-second wait would otherwise look like the app hung.
-  Future<void> _runWithLoadingDialog(BuildContext context, String message, Future<void> future) async {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        content: Row(
-          children: [
-            const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-            const SizedBox(width: 16),
-            Text(message),
-          ],
-        ),
-      ),
-    );
-    try {
-      await future;
-    } finally {
-      if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
-    }
-  }
 }
 
 /// A series' library card: three faux "cards" stacked with a slight offset

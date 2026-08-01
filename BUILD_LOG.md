@@ -2297,3 +2297,25 @@ in the Recycle Bin, not permanently deleted.
 **581 tests total** (test suite itself now also exercises the real Windows Recycle Bin on every
 run, since `_recycleBin` isn't mocked out for tests — a minor known side effect, harmless but
 worth knowing if the Recycle Bin looks unexpectedly busy), `flutter analyze` clean.
+
+## Fixed: series member cards were missing Card style/Archive/Delete
+
+The user caught a real gap: the Card style/Archive/Delete menu items added earlier only existed on
+the library screen's own project cards (`_ProjectCard`). A project's card *inside* an open series
+(`series_detail_screen.dart`) is a separate, independently-built widget with its own popup menu
+that only ever had "Remove from Series" — so a project living in a series had no way to change its
+style, or be archived/deleted, at all.
+
+Rather than duplicate the confirmation dialogs, loading-dialog wrapper, and service calls a second
+time, extracted them into `widgets/project_actions.dart` (`editProjectCardStyle`,
+`archiveProjectWithConfirmation`, `deleteProjectWithConfirmation`) and pointed both
+`library_screen.dart`'s `_ProjectCard` and `series_detail_screen.dart`'s member-card menu at the
+same three functions — one place to keep both consistent instead of two copies to keep in sync.
+Series member counts (`"N projects"` on the stack card) already derive from `projectListProvider`
+at render time rather than a stored count, so no extra invalidation was needed for that to update
+correctly after an archive/delete from inside a series.
+
+Verified visually (real UI, not just the test suite): opened the series, confirmed all four items
+render on a member card's menu, matching the standalone card exactly.
+
+**581 tests total**, `flutter analyze` clean.
