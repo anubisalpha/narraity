@@ -2534,3 +2534,123 @@ correctly narrows to genuine matches (confirmed against a query that happened to
 than one topic's text, to be sure it wasn't just showing everything).
 
 **587 tests total**, `flutter analyze` clean.
+
+## Phase 8 live smoke test, and a real bug: the device code vanished before it could be read
+
+Ran the Phase 8 features against the real GitHub API for the first time (previously only exercised
+via mocked HTTP in tests). Release Notes and the News Feed both confirmed working live — real
+release history and real `NEWS.md` content rendered in-app, plus the existing update-check banner
+independently confirmed live too.
+
+The Feedback screen's Device Flow sign-in surfaced a genuine bug. `_startSignIn` in
+`feedback_screen.dart` requested a device code, displayed it, then immediately called `launchUrl`
+to open the GitHub verification page — but launching the browser steals window focus, burying the
+Narraity window (and the code on it) behind the browser before there was any real chance to read
+or copy it. The underlying Device Flow mechanics were fine (GitHub returned a valid code and the
+app correctly began polling); this was purely a UI sequencing problem.
+
+Fixed by copying `request.userCode` to the clipboard (`Clipboard.setData`) right after it's
+requested, before `launchUrl` runs — so the code is already pasteable regardless of which window
+ends up on top. Added a line under the code explaining it's already on the clipboard, so a user
+who does see the window doesn't go looking for a copy button that isn't there.
+
+**587 tests total**, `flutter analyze` clean. Not yet a full round trip: the token-exchange/posting
+half (approving the code in a browser, confirming a Discussion actually gets created) still needs
+to be run to completion.
+
+## Phase 8 follow-up: pollForToken died on the first unexpected error, not just focus-stealing
+
+Continuing the live smoke test, the "code vanishes too fast" symptom kept recurring even after the
+clipboard-copy and pre-launch delay fixes above. Root-caused with direct `curl` calls against
+GitHub's real API, bypassing the app entirely:
+
+- `POST /login/device/code` with the app's real `client_id` — succeeds, returns a valid code.
+- `POST /login/oauth/access_token` polling that same code, same `client_id`, immediately —
+  fails with `incorrect_client_credentials`.
+
+Checked everything on the GitHub side that could explain this: Device Flow is enabled on the OAuth
+App (confirmed via screenshot), it's genuinely an OAuth App not a GitHub App, and the `client_id`
+hardcoded in `github_feedback_provider.dart` matches the one GitHub shows byte-for-byte (diffed
+directly, not eyeballed — `O`/`0` look identical in most UI fonts). Config is correct. The most
+likely explanation is GitHub throttling the token-exchange step specifically for this `client_id`
+after the burst of device-code requests generated during this same testing session (in-app plus
+several direct `curl` checks) — a real but easy-to-trigger-while-testing condition, not a
+production bug in the usual sense.
+
+That said, `GitHubAuthService.pollForToken` in `github_auth_service.dart` had a real bug of its
+own that made this far worse than it needed to be: any error other than exactly
+`authorization_pending`/`slow_down` aborted the entire sign-in attempt on the very first poll —
+about 5 seconds after the code first appears. The user pointed out the real-world failure mode
+this causes: if the browser has to show an account picker (multiple GitHub accounts signed in) or
+there's any other few-second delay before actually entering the code, a single transient hiccup
+kills the flow before there was ever a realistic chance to complete it. Per GitHub's own device
+flow spec, only `expired_token` (the real 15-minute code lifetime is up) and `access_denied` (user
+explicitly declined) are genuinely terminal — everything else deserved tolerance, not an instant
+abort.
+
+Fixed: `pollForToken` now tolerates up to 5 consecutive unexpected-error responses (resetting the
+counter on any `authorization_pending`/`slow_down`) before finally giving up, rather than dying on
+the first one. Three new tests in `github_auth_service_test.dart` cover recovery from a transient
+error, giving up after sustained failures, and the counter resetting correctly on a normal pending
+response in between.
+
+**590 tests total**, `flutter analyze` clean.
+
+## Phase 8 root cause found: a malformed grant_type, not throttling
+
+The "client_id and/or client_secret passed are incorrect" error from the previous two entries
+turned out to have nothing to do with rate-limiting, throttling, or account configuration — all of
+which were reasonable hypotheses given how consistently it reproduced, but wrong. The user pointed
+at GitHub's own Device Flow documentation
+(https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow),
+and fetching it directly turned up the actual bug: `github_auth_service.dart`'s `pollForToken` was
+sending `grant_type: 'urn:ietf:params:oauth:device_code'`, but GitHub's documented value is
+`urn:ietf:params:oauth:grant-type:device_code` — missing the `grant-type:` segment entirely. A
+structurally malformed `grant_type` on every single poll, which is exactly why it failed 100% of
+the time regardless of whether the code was ever actually approved in a browser (confirmed via
+direct `curl` against GitHub's real API both before and after the fix — before: immediate
+`incorrect_client_credentials` on a freshly-requested, untouched code; after: correct
+`authorization_pending`).
+
+Fixed the string in `github_auth_service.dart`. Also set up
+`tool/github_docs_watch/check_github_docs_pages.ps1` — a sibling to the existing
+`tool/kdp_watch/check_kdp_pages.ps1` (same fetch/diff/file-an-issue design, deliberately kept
+separate rather than merged in, since that script's issue title/label/doc comments are specifically
+about KDP formatting rules) — watching the Device Flow docs page GitHub itself, registered as a
+monthly scheduled task (`github-docs-watch`, mirroring `kdp-page-watch`'s cadence) so a future
+silent change to this API doesn't cause the same kind of failure again undetected. Baseline
+snapshot saved 2026-08-02; `github-docs-watch` label created on the repo to match.
+
+**590 tests total**, `flutter analyze` clean. This closes out the client_id/grant_type mystery from
+the two previous entries — the actual end-to-end round trip (real browser approval → a Discussion
+landing) still needs one clean confirmation run now that the real bug is fixed.
+
+## Phase 8: sign-in succeeded, but posting a Discussion needed one more scope
+
+With the grant_type fix above, sign-in now completes for real — confirmed live: device code,
+browser approval through an actual account picker, token exchange, signed-in form all worked.
+Clicking "Post Feedback" for real surfaced the next real issue: GitHub's GraphQL API rejected the
+`createDiscussion` mutation with `"createDiscussion requires one of the following scopes:
+['public_repo']"`, even though the token had the `read:discussion`/`write:discussion` scopes that
+looked like the obviously relevant ones. Not something either the docs fetch or code reading would
+have caught — this only surfaces from GitHub's live GraphQL schema validation.
+
+Fixed: `GitHubAuthService._scope` now requests `public_repo read:discussion write:discussion`
+(`public_repo` rather than full `repo`, since the target repo is public). Anyone who already
+signed in under the old scope needs to sign out and back in — GitHub doesn't retroactively widen
+an existing token's scopes.
+
+**590 tests total**, `flutter analyze` clean. Still pending: a fresh sign-in under the new scope,
+followed by an actual successful `createDiscussion` post.
+
+## Phase 8 fully closed out: a real Discussion landed
+
+Confirmed via a direct GraphQL query against the real repo (not just trusting the app's own UI
+state): the post genuinely landed —
+[discussions/5](https://github.com/anubisalpha/narraity/discussions/5), "App Feedback" category,
+authored by the real signed-in account, timestamped 2026-08-02T20:51:25Z. Phase 8's entire round
+trip — Release Notes, News Feed, and Feedback's Device Flow sign-in through to an actual
+`createDiscussion` post — is now verified against real GitHub, not mocked HTTP. Four real bugs
+found and fixed along the way (code-visibility UX, premature poll abort, the `grant_type` string,
+and the missing `public_repo` scope) — see the entries above for each. This closes out the last
+"built but unverified" item tracked in PLAN.md's open questions.

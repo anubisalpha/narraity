@@ -9,8 +9,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:win32/win32.dart';
 
 /// Persists the GitHub OAuth access token used by the Feedback feature
-/// (Device Flow sign-in, `read:discussion`/`write:discussion` scopes),
-/// device-locally — same storage strategy as `DriveTokenStore`, just a
+/// (Device Flow sign-in, `public_repo`/`read:discussion`/`write:discussion`
+/// scopes), device-locally — same storage strategy as `DriveTokenStore`, just a
 /// separate file/subdirectory since this is a second, independent OAuth
 /// provider. See `DriveTokenStore`'s doc comment for why
 /// `flutter_secure_storage` is avoided and DPAPI/sandboxed-storage is used

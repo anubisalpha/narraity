@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -59,6 +60,17 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
       final request = await auth.requestDeviceCode();
       if (!mounted) return;
       setState(() => _deviceCode = request);
+
+      // Copy the code before opening the browser: launching immediately steals
+      // window focus and buries this screen (and the code) behind the browser,
+      // often before there's time to read or copy it by hand.
+      await Clipboard.setData(ClipboardData(text: request.userCode));
+
+      // Give the code a moment on screen before the browser steals focus —
+      // the clipboard copy above already makes this non-essential, but a
+      // window that vanishes the instant it appears still reads as broken.
+      await Future.delayed(const Duration(milliseconds: 1500));
+      if (!mounted) return;
 
       // Open the browser immediately so the user isn't hunting for the button.
       await launchUrl(Uri.parse(request.verificationUri));
@@ -237,6 +249,12 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                           .textTheme
                           .headlineMedium
                           ?.copyWith(fontFeatures: [const FontFeature.tabularFigures()]),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Already copied to your clipboard — just paste it in, even if this '
+                      'window ends up behind the browser.',
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(height: 8),
                     TextButton(

@@ -105,6 +105,61 @@ void main() {
       expect(() => service.pollForToken(request), throwsA(isA<GitHubAuthException>()));
     });
 
+    test('recovers from a transient unexpected error and still succeeds', () async {
+      var callCount = 0;
+      final service = await serviceWith((r) async {
+        callCount++;
+        if (callCount < 3) {
+          return http.Response(
+            '{"error":"incorrect_client_credentials","error_description":"bad creds"}',
+            200,
+          );
+        }
+        return http.Response('{"access_token":"tok_after_hiccup"}', 200);
+      });
+
+      final token = await service.pollForToken(request);
+      expect(token, 'tok_after_hiccup');
+      expect(callCount, 3);
+    });
+
+    test('gives up after enough consecutive unexpected errors', () async {
+      var callCount = 0;
+      final service = await serviceWith((r) async {
+        callCount++;
+        return http.Response(
+          '{"error":"incorrect_client_credentials","error_description":"bad creds"}',
+          200,
+        );
+      });
+
+      await expectLater(
+        service.pollForToken(request),
+        throwsA(isA<GitHubAuthException>()),
+      );
+      expect(callCount, 5);
+    });
+
+    test('an unexpected error followed by authorization_pending resets the retry budget', () async {
+      var callCount = 0;
+      final service = await serviceWith((r) async {
+        callCount++;
+        // Four unexpected errors, then a normal pending response, then four
+        // more unexpected errors, then success — never five unexpected
+        // errors in a row, so this should still eventually succeed.
+        if (callCount == 5) return http.Response('{"error":"authorization_pending"}', 200);
+        if (callCount == 10) return http.Response('{"access_token":"tok_reset"}', 200);
+        return http.Response(
+          '{"error":"incorrect_client_credentials","error_description":"bad creds"}',
+          200,
+        );
+      });
+
+      final token = await service.pollForToken(request);
+      expect(token, 'tok_reset');
+      expect(callCount, 10);
+    });
+
     test('stops polling and throws when cancelled', () async {
       var callCount = 0;
       final service = await serviceWith((r) async {

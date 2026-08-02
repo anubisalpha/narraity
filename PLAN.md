@@ -775,8 +775,20 @@ when that platform is scoped.
   phase in the core plan. Paperback specs are now sourced from KDP's own docs (see the Export
   feature section); hardcover bleed/margin/jacket mechanics and the spine-width formula still need
   a research pass before build
-- Phase 8's real-world sign-in/posting flow hasn't been exercised against actual GitHub yet (only
-  mocked in tests) — worth a live smoke test before calling it fully verified
+- ~~Phase 8 live smoke test~~ — ✅ Done 2026-08-02, all three features now verified against real
+  GitHub, not just mocked tests. Release Notes and News Feed both confirmed pulling real data.
+  Feedback's Device Flow sign-in + posting confirmed **fully end-to-end**: device code → browser
+  approval (account picker included) → token exchange → signed-in state → a real Discussion
+  landed (github.com/anubisalpha/narraity/discussions/5, "App Feedback" category). Found and fixed
+  four real bugs along the way, see BUILD_LOG.md: the code display got buried behind the
+  auto-opened browser before it could be read (clipboard copy + short delay); `pollForToken`
+  aborted the whole flow on the very first unexpected poll response (now tolerates several before
+  giving up); the actual root cause of every sign-in failure — `grant_type` was sent as
+  `urn:ietf:params:oauth:device_code` instead of GitHub's documented
+  `urn:ietf:params:oauth:grant-type:device_code`; and `createDiscussion` needed a `public_repo`
+  scope the original OAuth scope list never requested. A new monthly watcher
+  (`tool/github_docs_watch/`) tracks GitHub's Device Flow docs page so a future silent API change
+  doesn't cause the same kind of failure again undetected.
 - ~~Paperback trim-size list is incomplete~~ — ✅ Fixed 2026-08-01: `KdpTrimSize` now has all 16 of
   KDP's published paperback trim sizes (was 10).
 - ~~Page-count range is hardcoded to one flat 24–828 band~~ — ✅ Fixed 2026-08-01: added
@@ -805,10 +817,10 @@ App name decided (Narraity, 2026-07-24). Cross-platform roadmap confirmed 2026-0
 Windows + Android, macOS/iOS/Linux are future targets with architecture kept portable (see
 Cross-Platform Roadmap). Build started 2026-07-24.
 
-**Phases 0 through 6, 6.3 (KDP export), and 8 are built and verified** (Phase 8's GitHub sign-in/
-posting flow tested via mocked HTTP only, not yet a live smoke test — see BUILD_LOG.md), running
-on Windows desktop (see the Phases table above for per-phase scope). Phase 6.3 is the only phase
-in the core plan that's now fully built, closing out what was previously the last unbuilt phase.
+**Phases 0 through 6, 6.3 (KDP export), and 8 are built and verified** — Phase 8's GitHub sign-in/
+posting flow got a real live smoke test 2026-08-02 (see BUILD_LOG.md), not just mocked HTTP,
+running on Windows desktop (see the Phases table above for per-phase scope). Phase 6.3 is the only
+phase in the core plan that's now fully built, closing out what was previously the last unbuilt phase.
 Highlights beyond the original phase scope, since v1.0.1:
 
 - **KDP Paperback/Hardcover print export** — trim size (all 16 paperback sizes, 5 hardcover),
@@ -842,6 +854,6 @@ design questions and known gaps (image embedding in exports, Unicode PDF fonts, 
 margin confirmation, mirrored margins/half-title placement, etc.) are tracked in CONSIDERATIONS.md.
 
 **Next**: no unbuilt phase remains in the core plan. Continue polishing/bug-fixing the shipped v1,
-per user direction — Play Store readiness and a live Phase 8 GitHub smoke test are the two
-concrete open items (see "Open questions" above). Phase 7 (co-authoring) remains parked pending
-its own CRDT/OT design pass.
+per user direction — Play Store readiness is the remaining concrete open item (see "Open
+questions" above; the Phase 8 GitHub smoke test is now done). Phase 7 (co-authoring) remains
+parked pending its own CRDT/OT design pass.

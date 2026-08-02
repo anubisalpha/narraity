@@ -311,6 +311,18 @@ Two sync targets beyond your projects, always present once connected (no extra t
 - The EPUB export above is already KDP-eBook-compliant (2-level ToC cap, footnote round-trip, size
   limits) — no separate KDP eBook option needed
 
+### In-app help, release notes & feedback
+- **Help** — every major screen has a "?" icon opening a slide-out panel for just that screen, plus
+  a full searchable Help page (Settings → Help) covering the whole app
+- **Release Notes** (Settings → About) — full version history pulled from GitHub releases, with a
+  one-time "What's New" popup after an update
+- **News** — a lighter, more frequent feed for updates that don't need a full release (Library
+  screen's News icon)
+- **Send Feedback** (Settings → Feedback) — sign in with your own GitHub account (device flow, no
+  password ever touches Narraity) and post a bug report or suggestion straight to the project's
+  GitHub Discussions; attributed to your real username, never anonymous or routed through a shared
+  inbox
+
 ## Tech stack
 
 - **Flutter** + **Riverpod** for state
