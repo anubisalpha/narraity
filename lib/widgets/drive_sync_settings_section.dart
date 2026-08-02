@@ -31,11 +31,24 @@ final _lastSyncFormat = DateFormat('d MMM yyyy, HH:mm');
 /// deliberately simple for v1: no automatic background sync loop, just the
 /// manual action plus an on-foreground check (wired from the shell, not
 /// this widget).
-class DriveSyncSettingsSection extends ConsumerWidget {
+class DriveSyncSettingsSection extends ConsumerStatefulWidget {
   const DriveSyncSettingsSection({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DriveSyncSettingsSection> createState() =>
+      _DriveSyncSettingsSectionState();
+}
+
+class _DriveSyncSettingsSectionState
+    extends ConsumerState<DriveSyncSettingsSection> {
+  // Bumped after "Sync All Now" completes, and used as a Key on the
+  // per-target tiles below so they remount (re-running their own
+  // initState → _loadLastSyncTime) instead of showing a stale "last synced"
+  // time until the user next opens Settings.
+  int _syncAllGeneration = 0;
+
+  @override
+  Widget build(BuildContext context) {
     if (!DriveOAuthConfig.isConfigured) {
       return const Card(
         child: Padding(
@@ -91,7 +104,13 @@ class DriveSyncSettingsSection extends ConsumerWidget {
           Row(
             children: [
               Expanded(
-                child: Text('Automatic Sync', style: Theme.of(context).textTheme.titleSmall),
+                child: Text(
+                  'Automatic Sync',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              _SyncAllNowButton(
+                onDone: () => setState(() => _syncAllGeneration++),
               ),
               TextButton.icon(
                 onPressed: () => Navigator.of(context).push(
@@ -105,6 +124,7 @@ class DriveSyncSettingsSection extends ConsumerWidget {
           const _AutoSyncSettingsCard(),
           const SizedBox(height: 24),
           Card(
+            key: ValueKey('driveTargets-$_syncAllGeneration'),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -152,9 +172,69 @@ class DriveSyncSettingsSection extends ConsumerWidget {
           const SizedBox(height: 24),
           Text('Projects', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
-          const _ProjectSyncList(),
+          _ProjectSyncList(key: ValueKey('projectSync-$_syncAllGeneration')),
         ],
       ],
+    );
+  }
+}
+
+/// One button that runs [runFullSyncAcrossAllTargets] — every project, the
+/// Vault, and App Settings in one go — rather than making the user click
+/// "Sync now" on each [_SyncTargetTile] individually. Reuses the exact same
+/// function the daily/frequent timers call, just with [SyncTrigger.manual]
+/// instead of `.periodic`, so its Sync Log entries are distinguishable from
+/// an automatic run.
+class _SyncAllNowButton extends ConsumerStatefulWidget {
+  const _SyncAllNowButton({required this.onDone});
+
+  /// Called after the sync finishes (success or failure) — the parent uses
+  /// this to remount the per-target tiles so their "last synced" times
+  /// reflect what just happened.
+  final VoidCallback onDone;
+
+  @override
+  ConsumerState<_SyncAllNowButton> createState() => _SyncAllNowButtonState();
+}
+
+class _SyncAllNowButtonState extends ConsumerState<_SyncAllNowButton> {
+  bool _syncing = false;
+
+  Future<void> _syncAll() async {
+    setState(() => _syncing = true);
+    try {
+      await ref.read(manualSyncAllProvider)();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Synced everything.')));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Sync failed: $error')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _syncing = false);
+        widget.onDone();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: _syncing ? null : _syncAll,
+      icon: _syncing
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.sync, size: 18),
+      label: const Text('Sync All Now'),
     );
   }
 }
@@ -192,14 +272,19 @@ class _AutoSyncSettingsCard extends ConsumerWidget {
           const Divider(height: 1),
           SwitchListTile(
             title: const Text('Daily sync'),
-            subtitle: const Text('A full sync + reconciliation check at least once a day.'),
+            subtitle: const Text(
+              'A full sync + reconciliation check at least once a day.',
+            ),
             value: daily,
-            onChanged: (value) => ref.read(driveDailySyncEnabledProvider.notifier).set(value),
+            onChanged: (value) =>
+                ref.read(driveDailySyncEnabledProvider.notifier).set(value),
           ),
           const Divider(height: 1),
           ListTile(
             title: const Text('More frequent sync'),
-            subtitle: const Text('An additional full sync on a shorter interval.'),
+            subtitle: const Text(
+              'An additional full sync on a shorter interval.',
+            ),
             trailing: DropdownButton<int>(
               value: frequentMinutes,
               items: [
@@ -211,7 +296,9 @@ class _AutoSyncSettingsCard extends ConsumerWidget {
               ],
               onChanged: (value) {
                 if (value != null) {
-                  ref.read(driveFrequentSyncIntervalProvider.notifier).set(value);
+                  ref
+                      .read(driveFrequentSyncIntervalProvider.notifier)
+                      .set(value);
                 }
               },
             ),
@@ -239,7 +326,8 @@ class _ConnectionRowState extends ConsumerState<_ConnectionRow> {
     if (mounted) setState(() => _error = error);
   }
 
-  Future<void> _disconnect() => ref.read(driveConnectionProvider.notifier).disconnect();
+  Future<void> _disconnect() =>
+      ref.read(driveConnectionProvider.notifier).disconnect();
 
   void _cancel() => ref.read(driveConnectionProvider.notifier).cancelConnect();
 
@@ -254,7 +342,9 @@ class _ConnectionRowState extends ConsumerState<_ConnectionRow> {
               widget.status == DriveConnectionStatus.signedIn
                   ? Icons.cloud_done_outlined
                   : Icons.cloud_off_outlined,
-              color: widget.status == DriveConnectionStatus.signedIn ? Colors.green : null,
+              color: widget.status == DriveConnectionStatus.signedIn
+                  ? Colors.green
+                  : null,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -267,18 +357,28 @@ class _ConnectionRowState extends ConsumerState<_ConnectionRow> {
               }),
             ),
             if (widget.status == DriveConnectionStatus.signingIn) ...[
-              const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
               const SizedBox(width: 12),
               TextButton(onPressed: _cancel, child: const Text('Cancel')),
             ] else if (widget.status == DriveConnectionStatus.signedIn)
-              OutlinedButton(onPressed: _disconnect, child: const Text('Disconnect'))
+              OutlinedButton(
+                onPressed: _disconnect,
+                child: const Text('Disconnect'),
+              )
             else
               FilledButton(onPressed: _connect, child: const Text('Connect')),
           ],
         ),
         if (_error != null) ...[
           const SizedBox(height: 8),
-          Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          Text(
+            _error!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
         ],
       ],
     );
@@ -286,7 +386,7 @@ class _ConnectionRowState extends ConsumerState<_ConnectionRow> {
 }
 
 class _ProjectSyncList extends ConsumerWidget {
-  const _ProjectSyncList();
+  const _ProjectSyncList({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -310,8 +410,10 @@ class _ProjectSyncList extends ConsumerWidget {
                       title: project.title,
                       icon: Icons.book_outlined,
                       folderName: project.folderName,
-                      resolveDirectory: (ref) =>
-                          projectDirectory(ref.read(libraryServiceProvider), project),
+                      resolveDirectory: (ref) => projectDirectory(
+                        ref.read(libraryServiceProvider),
+                        project,
+                      ),
                     ),
                 ],
               ),
@@ -417,10 +519,16 @@ class _SyncTargetTileState extends ConsumerState<_SyncTargetTile> {
             (_lastSyncTime == null
                 ? 'Never synced'
                 : 'Last synced ${_lastSyncFormat.format(_lastSyncTime!)}'),
-        style: _error != null ? TextStyle(color: Theme.of(context).colorScheme.error) : null,
+        style: _error != null
+            ? TextStyle(color: Theme.of(context).colorScheme.error)
+            : null,
       ),
       trailing: _syncing
-          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
           : TextButton(onPressed: _sync, child: const Text('Sync now')),
     );
   }

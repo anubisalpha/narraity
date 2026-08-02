@@ -232,6 +232,16 @@ Future<void> runFullSyncAcrossAllTargets(Ref ref, SyncTrigger trigger) async {
   }
 }
 
+/// Callable wrapper around [runFullSyncAcrossAllTargets] for widget
+/// contexts (e.g. a "Sync All Now" button) — `WidgetRef` isn't assignable to
+/// the `Ref` that function needs (unrelated interfaces in Riverpod 2.x, not
+/// a subtype relationship), so a widget reads this provider instead to get
+/// a zero-argument function bound to the container's own `Ref`.
+final manualSyncAllProvider = Provider<Future<void> Function()>(
+  (ref) =>
+      () => runFullSyncAcrossAllTargets(ref, SyncTrigger.manual),
+);
+
 /// Owns the two independent timers (daily / "frequent") and re-schedules
 /// them whenever the relevant settings or the connection status change.
 class DriveAutoSyncScheduler {

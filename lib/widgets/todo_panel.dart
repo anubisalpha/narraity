@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/project.dart';
+import '../models/content_owner.dart';
 import '../models/todo_item.dart';
 import '../state/manuscript_provider.dart';
 
-/// Per-project to-do list — sidebar tab in the project shell.
+/// To-do list — sidebar tab in the project shell, and (shared, unlike most
+/// of this app's content) in a series screen too, via [ContentOwner].
 class TodoPanel extends ConsumerWidget {
-  const TodoPanel({super.key, required this.project});
+  const TodoPanel({super.key, required this.owner});
 
-  final Project project;
+  final ContentOwner owner;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final todosAsync = ref.watch(todoListProvider(project));
+    final todosAsync = ref.watch(todoListProvider(owner));
 
     return todosAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -26,7 +27,7 @@ class TodoPanel extends ConsumerWidget {
           children: [
             Padding(
               padding: const EdgeInsets.all(8),
-              child: _AddTodoField(project: project),
+              child: _AddTodoField(owner: owner),
             ),
             Expanded(
               child: ListView(
@@ -48,16 +49,16 @@ class TodoPanel extends ConsumerWidget {
                               icon: const Icon(Icons.close, size: 16),
                               onPressed: () async {
                                 final service =
-                                    await ref.read(todoServiceProvider(project).future);
+                                    await ref.read(todoServiceProvider(owner).future);
                                 await service.deleteTodo(todo.id);
-                                ref.invalidate(todoListProvider(project));
+                                ref.invalidate(todoListProvider(owner));
                               },
                             ),
                       onChanged: (checked) async {
                         final service =
-                            await ref.read(todoServiceProvider(project).future);
+                            await ref.read(todoServiceProvider(owner).future);
                         await service.updateTodo(todo.copyWith(done: checked ?? false));
-                        ref.invalidate(todoListProvider(project));
+                        ref.invalidate(todoListProvider(owner));
                       },
                     ),
                   if (todos.isEmpty)
@@ -76,9 +77,9 @@ class TodoPanel extends ConsumerWidget {
 }
 
 class _AddTodoField extends ConsumerStatefulWidget {
-  const _AddTodoField({required this.project});
+  const _AddTodoField({required this.owner});
 
-  final Project project;
+  final ContentOwner owner;
 
   @override
   ConsumerState<_AddTodoField> createState() => _AddTodoFieldState();
@@ -96,10 +97,10 @@ class _AddTodoFieldState extends ConsumerState<_AddTodoField> {
   Future<void> _submit() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-    final service = await ref.read(todoServiceProvider(widget.project).future);
+    final service = await ref.read(todoServiceProvider(widget.owner).future);
     await service.addTodo(text);
     _controller.clear();
-    ref.invalidate(todoListProvider(widget.project));
+    ref.invalidate(todoListProvider(widget.owner));
   }
 
   @override

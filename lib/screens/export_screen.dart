@@ -13,6 +13,7 @@ import '../services/filename_sanitizer.dart';
 import '../services/manuscript_service.dart';
 import '../state/drive_provider.dart' show projectDirectory;
 import '../state/library_provider.dart';
+import '../widgets/help_drawer.dart';
 
 enum ExportFormat { pdf, docx, epub, txt, kdpPaperback, kdpHardcover }
 
@@ -187,7 +188,10 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Export')),
+      appBar: AppBar(
+        title: const Text('Export'),
+        actions: const [HelpIconButton(topicId: 'export'), SizedBox(width: 8)],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: ConstrainedBox(

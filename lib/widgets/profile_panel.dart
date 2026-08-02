@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/content_owner.dart';
 import '../models/profile_entry.dart';
 import '../models/project.dart';
 import '../services/profile_service.dart';
+import '../state/library_provider.dart';
 import '../state/reference_panel_provider.dart';
 import '../state/reference_provider.dart';
 
@@ -11,11 +13,15 @@ import '../state/reference_provider.dart';
 ///
 /// One widget serves both: characters are a flat alphabetical list, world
 /// entries are grouped under their category (uncategorised first). Everything
-/// else — tiles, add, rename-by-opening, delete — is identical.
+/// else — tiles, add, rename-by-opening, delete, pin-to-Reference-Panel,
+/// move-to-series/-project — is identical. Shared between a project and a
+/// series (see [ContentOwner]): a series entry pins into every member
+/// project's Reference Panel at once (see
+/// `pinnedSeriesReferencesProvider`), rather than being project-only.
 class ProfilePanel extends ConsumerWidget {
-  const ProfilePanel({super.key, required this.project, required this.kind});
+  const ProfilePanel({super.key, required this.owner, required this.kind});
 
-  final Project project;
+  final ContentOwner owner;
   final ProfileKind kind;
 
   bool get _isCharacter => kind == ProfileKind.character;
@@ -23,9 +29,9 @@ class ProfilePanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final listProvider =
-        _isCharacter ? characterListProvider(project) : worldListProvider(project);
+        _isCharacter ? characterListProvider(owner) : worldListProvider(owner);
     final serviceProvider =
-        _isCharacter ? characterServiceProvider(project) : worldServiceProvider(project);
+        _isCharacter ? characterServiceProvider(owner) : worldServiceProvider(owner);
 
     final entriesAsync = ref.watch(listProvider);
     final service = ref.watch(serviceProvider).valueOrNull;
@@ -63,7 +69,7 @@ class ProfilePanel extends ConsumerWidget {
                     ? [
                         for (final entry in entries)
                           _EntryTile(
-                            project: project,
+                            owner: owner,
                             kind: kind,
                             entry: entry,
                             service: service,
@@ -94,7 +100,7 @@ class ProfilePanel extends ConsumerWidget {
       // Uncategorised entries sit at the top rather than under an "Other"
       // heading — they're usually the ones still being sorted out.
       for (final entry in uncategorised)
-        _EntryTile(project: project, kind: kind, entry: entry, service: service),
+        _EntryTile(owner: owner, kind: kind, entry: entry, service: service),
       for (final category in categories)
         ExpansionTile(
           initiallyExpanded: true,
@@ -102,7 +108,7 @@ class ProfilePanel extends ConsumerWidget {
           title: Text(category, style: const TextStyle(fontWeight: FontWeight.w600)),
           children: [
             for (final entry in entries.where((e) => e.category == category))
-              _EntryTile(project: project, kind: kind, entry: entry, service: service),
+              _EntryTile(owner: owner, kind: kind, entry: entry, service: service),
           ],
         ),
     ];
@@ -111,7 +117,7 @@ class ProfilePanel extends ConsumerWidget {
   Future<void> _create(BuildContext context, WidgetRef ref, ProfileService service) async {
     final existingCategories = _isCharacter
         ? const <String>[]
-        : (ref.read(worldCategoriesProvider(project)).valueOrNull ?? const <String>[]);
+        : (ref.read(worldCategoriesProvider(owner)).valueOrNull ?? const <String>[]);
 
     final result = await showDialog<(String name, String? category)>(
       context: context,
@@ -124,7 +130,7 @@ class ProfilePanel extends ConsumerWidget {
     if (result == null) return;
 
     final created = await service.create(name: result.$1, category: result.$2);
-    invalidateReferences(ref, project);
+    invalidateReferences(ref, owner);
     ref.read(openReferenceProvider.notifier).state = ReferenceSelection(
       _isCharacter ? ReferenceKind.character : ReferenceKind.world,
       created.id,
@@ -134,13 +140,13 @@ class ProfilePanel extends ConsumerWidget {
 
 class _EntryTile extends ConsumerWidget {
   const _EntryTile({
-    required this.project,
+    required this.owner,
     required this.kind,
     required this.entry,
     required this.service,
   });
 
-  final Project project;
+  final ContentOwner owner;
   final ProfileKind kind;
   final ProfileEntry entry;
   final ProfileService? service;
@@ -154,7 +160,14 @@ class _EntryTile extends ConsumerWidget {
 
     final imageFile = service?.imageFile(entry);
     final hasImage = imageFile != null && imageFile.existsSync();
-    final isPinned = ref.watch(pinnedReferencesProvider(project)).contains(entry.id);
+    final isPinned = isReferencePinned(ref, owner, entry.id);
+
+    // A project inside a series can move an entry up to the series; a
+    // series can move an entry back down into one of its own projects.
+    // A standalone project (no series) has nowhere to move to.
+    final project = owner.projectOrNull;
+    final canMoveToSeries = project != null && project.seriesId != null;
+    final canMoveToProject = owner.seriesOrNull != null;
 
     return ListTile(
       dense: true,
@@ -177,10 +190,18 @@ class _EntryTile extends ConsumerWidget {
             icon: const Icon(Icons.more_vert, size: 18),
             tooltip: 'Options',
             onSelected: (action) {
-              if (action == 'pin') {
-                ref.read(pinnedReferencesProvider(project).notifier).toggle(entry.id);
-              } else {
-                _confirmDelete(context, ref);
+              switch (action) {
+                case 'pin':
+                  toggleReferencePin(ref, owner, entry.id);
+                  break;
+                case 'move-to-series':
+                  _moveToSeries(context, ref);
+                  break;
+                case 'move-to-project':
+                  _moveToProject(context, ref);
+                  break;
+                default:
+                  _confirmDelete(context, ref);
               }
             },
             itemBuilder: (_) => [
@@ -188,6 +209,16 @@ class _EntryTile extends ConsumerWidget {
                 value: 'pin',
                 child: Text(isPinned ? 'Unpin from panel' : 'Pin to Reference Panel'),
               ),
+              if (canMoveToSeries)
+                const PopupMenuItem(
+                  value: 'move-to-series',
+                  child: Text('Move to series'),
+                ),
+              if (canMoveToProject)
+                const PopupMenuItem(
+                  value: 'move-to-project',
+                  child: Text('Move to project…'),
+                ),
               const PopupMenuItem(value: 'delete', child: Text('Delete')),
             ],
           ),
@@ -196,6 +227,81 @@ class _EntryTile extends ConsumerWidget {
       onTap: () => ref.read(openReferenceProvider.notifier).state =
           ReferenceSelection(referenceKind, entry.id),
     );
+  }
+
+  Future<void> _moveToSeries(BuildContext context, WidgetRef ref) async {
+    final project = owner.projectOrNull;
+    if (project == null) return;
+    final series = await ref.read(projectSeriesProvider(project).future);
+    if (series == null || !context.mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Move "${entry.name}" to "${series.title}"?'),
+        content: Text(
+          'It will be removed from this project and appear in the series '
+          'instead, visible from every book in "${series.title}".'
+          '${kind == ProfileKind.character ? ' Its Relationship Diagram links in this project will be dropped.' : ''}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Move'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    await _performMove(ref, ContentOwner.series(series));
+  }
+
+  Future<void> _moveToProject(BuildContext context, WidgetRef ref) async {
+    final series = owner.seriesOrNull;
+    if (series == null) return;
+    final projects = await ref.read(seriesProjectsProvider(series).future);
+    if (!context.mounted) return;
+    if (projects.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This series has no projects to move into.')),
+      );
+      return;
+    }
+
+    final target = await showDialog<Project>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text('Move "${entry.name}" to which project?'),
+        children: [
+          for (final candidate in projects)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(context).pop(candidate),
+              child: Text(candidate.title),
+            ),
+        ],
+      ),
+    );
+    if (target == null) return;
+
+    await _performMove(ref, ContentOwner.project(target));
+  }
+
+  Future<void> _performMove(WidgetRef ref, ContentOwner destination) async {
+    await moveProfileEntry(
+      ref,
+      from: owner,
+      to: destination,
+      kind: kind,
+      entry: entry,
+    );
+    if (ref.read(openReferenceProvider)?.id == entry.id) {
+      ref.read(openReferenceProvider.notifier).state = null;
+    }
   }
 
   String _initials(String name) {
@@ -210,9 +316,9 @@ class _EntryTile extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Delete "${entry.name}"?'),
-        content: const Text(
-          'The profile and its image are removed from this project. This cannot be '
-          'undone from within the app — an earlier vault backup would still have it.',
+        content: Text(
+          'The profile and its image are removed from this ${owner is ProjectOwner ? 'project' : 'series'}. '
+          'This cannot be undone from within the app — an earlier vault backup would still have it.',
         ),
         actions: [
           TextButton(
@@ -233,7 +339,7 @@ class _EntryTile extends ConsumerWidget {
     if (selection?.id == entry.id) {
       ref.read(openReferenceProvider.notifier).state = null;
     }
-    invalidateReferences(ref, project);
+    invalidateReferences(ref, owner);
   }
 }
 

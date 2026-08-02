@@ -8,6 +8,7 @@ import 'package:flutter/services.dart' hide SpellCheckService;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/annotation.dart';
+import '../models/content_owner.dart';
 import '../models/manuscript.dart';
 import '../models/profile_entry.dart';
 import '../models/project.dart';
@@ -585,10 +586,9 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
       return;
     }
 
-    final characters =
-        ref.read(characterListProvider(widget.project)).valueOrNull ?? const [];
-    final world =
-        ref.read(worldListProvider(widget.project)).valueOrNull ?? const [];
+    final owner = ContentOwner.project(widget.project);
+    final characters = ref.read(characterListProvider(owner)).valueOrNull ?? const [];
+    final world = ref.read(worldListProvider(owner)).valueOrNull ?? const [];
     final lower = query.query.trim().toLowerCase();
 
     final candidates = [

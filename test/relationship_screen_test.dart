@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:narraity/models/content_owner.dart';
 import 'package:narraity/screens/relationship_screen.dart';
 import 'package:narraity/services/library_service.dart';
 import 'package:narraity/state/library_provider.dart';
@@ -34,11 +35,12 @@ void main() {
 
     final project = (await tester.runAsync(() => library.createProject(title: 'Test Novel')))!;
     await tester.runAsync(() async {
-      final characters = await container.read(characterServiceProvider(project).future);
+      final characters =
+          await container.read(characterServiceProvider(ContentOwner.project(project)).future);
       await characters.create(name: 'Elena');
       await characters.create(name: 'Marcus');
 
-      await container.read(characterListProvider(project).future);
+      await container.read(characterListProvider(ContentOwner.project(project)).future);
       await container.read(relationshipListProvider(project).future);
       await container.read(relationshipLayoutProvider(project).future);
     });
@@ -99,7 +101,7 @@ void main() {
 
     final project = (await tester.runAsync(() => library.createProject(title: 'Test Novel')))!;
     await tester.runAsync(() async {
-      await container.read(characterListProvider(project).future);
+      await container.read(characterListProvider(ContentOwner.project(project)).future);
       await container.read(relationshipListProvider(project).future);
       await container.read(relationshipLayoutProvider(project).future);
     });

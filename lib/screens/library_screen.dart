@@ -14,7 +14,9 @@ import '../services/manuscript_service.dart';
 import '../state/library_background_provider.dart';
 import '../state/library_provider.dart';
 import '../state/manuscript_provider.dart';
+import '../state/reference_provider.dart';
 import '../widgets/app_wordmark.dart';
+import '../widgets/help_drawer.dart';
 import '../widgets/project_actions.dart';
 import '../widgets/import_destination_dialog.dart';
 import '../widgets/move_to_series_dialog.dart';
@@ -97,6 +99,7 @@ class LibraryScreen extends ConsumerWidget {
               context,
             ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
           ),
+          const HelpIconButton(topicId: 'library'),
           const SizedBox(width: 8),
         ],
       ),
@@ -185,6 +188,8 @@ class LibraryScreen extends ConsumerWidget {
 
     ref.invalidate(projectListProvider);
     ref.read(openContentIdProvider.notifier).state = null;
+    ref.read(currentSeriesProvider.notifier).state = null;
+    ref.read(openReferenceProvider.notifier).state = null;
     ref.read(currentProjectProvider.notifier).state = project;
   }
 
@@ -246,6 +251,8 @@ class LibraryScreen extends ConsumerWidget {
 
         ref.invalidate(projectListProvider);
         ref.read(openContentIdProvider.notifier).state = null;
+        ref.read(currentSeriesProvider.notifier).state = null;
+        ref.read(openReferenceProvider.notifier).state = null;
         ref.read(currentProjectProvider.notifier).state = project;
 
       case ImportReplacingProject(:final project):
@@ -510,6 +517,8 @@ class _ProjectCard extends ConsumerWidget {
         child: InkWell(
           onTap: () {
             ref.read(openContentIdProvider.notifier).state = null;
+            ref.read(currentSeriesProvider.notifier).state = null;
+            ref.read(openReferenceProvider.notifier).state = null;
             ref.read(currentProjectProvider.notifier).state = project;
           },
           borderRadius: BorderRadius.circular(12),
@@ -546,9 +555,17 @@ class _ProjectCard extends ConsumerWidget {
                                 case 'style':
                                   editProjectCardStyle(context, ref, project);
                                 case 'archive':
-                                  archiveProjectWithConfirmation(context, ref, project);
+                                  archiveProjectWithConfirmation(
+                                    context,
+                                    ref,
+                                    project,
+                                  );
                                 case 'delete':
-                                  deleteProjectWithConfirmation(context, ref, project);
+                                  deleteProjectWithConfirmation(
+                                    context,
+                                    ref,
+                                    project,
+                                  );
                               }
                             },
                             itemBuilder: (context) => const [
@@ -625,13 +642,12 @@ class _ProjectCard extends ConsumerWidget {
     }
     ref.invalidate(projectListProvider);
   }
-
 }
 
 /// A series' library card: three faux "cards" stacked with a slight offset
 /// so it visually reads as a group before the user even opens it, distinct
 /// from a normal single project card.
-class _SeriesStackCard extends StatelessWidget {
+class _SeriesStackCard extends ConsumerWidget {
   const _SeriesStackCard({required this.series, required this.projects});
 
   final Series series;
@@ -647,7 +663,7 @@ class _SeriesStackCard extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final coverProject = _coverSourceProject;
     return Padding(
@@ -678,11 +694,19 @@ class _SeriesStackCard extends StatelessWidget {
           ),
           Card(
             child: InkWell(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => SeriesDetailScreen(series: series),
-                ),
-              ),
+              onTap: () {
+                // A stale reference (a character/note left open from
+                // whatever series or project was viewed last) shouldn't
+                // silently carry into this series' own sidebar/main pane —
+                // see openReferenceProvider's doc for why it's a single
+                // provider shared across every screen that uses it.
+                ref.read(openReferenceProvider.notifier).state = null;
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SeriesDetailScreen(series: series),
+                  ),
+                );
+              },
               borderRadius: BorderRadius.circular(12),
               child: Padding(
                 padding: const EdgeInsets.all(16),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/content_owner.dart';
 import '../models/manuscript.dart';
 import '../models/profile_entry.dart';
 import '../models/project.dart';
@@ -16,6 +17,7 @@ import '../state/reference_panel_provider.dart';
 import '../state/reference_provider.dart';
 import '../state/vault_provider.dart';
 import '../widgets/editor_settings_dialog.dart';
+import '../widgets/help_drawer.dart';
 import '../widgets/manuscript_tree.dart';
 import '../widgets/note_editor.dart';
 import '../widgets/notes_panel.dart';
@@ -23,6 +25,7 @@ import '../widgets/profile_editor.dart';
 import '../widgets/profile_panel.dart';
 import '../widgets/quick_capture_dialog.dart';
 import '../widgets/reference_panel.dart';
+import '../widgets/resize_handle.dart';
 import '../widgets/scene_editor.dart';
 import '../widgets/todo_panel.dart';
 import '../widgets/vault_unlock_dialog.dart';
@@ -31,6 +34,7 @@ import 'goals_screen.dart';
 import 'plot_grid_screen.dart';
 import 'relationship_screen.dart';
 import 'review_export_screen.dart';
+import 'series_detail_screen.dart';
 import 'timeline_screen.dart';
 
 /// How often the open project's vault is refreshed while writing. Frequent
@@ -141,6 +145,26 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
     }
   }
 
+  /// Returns to the library, or — if this project was opened from inside a
+  /// series (see `currentSeriesProvider`'s doc) — back to that series'
+  /// screen instead. Clearing `currentProjectProvider` swaps `NarraityApp`'s
+  /// `home` back to `LibraryScreen`; pushing `SeriesDetailScreen` on top of
+  /// that (rather than skipping the swap) keeps the same pushed-route
+  /// pattern `SeriesDetailScreen`'s own project-open handler relies on.
+  void _goBack(BuildContext context, WidgetRef ref) {
+    final series = ref.read(currentSeriesProvider);
+    ref.read(currentSeriesProvider.notifier).state = null;
+    // A project-level character/note left open here shouldn't carry into
+    // the series screen, where that id wouldn't resolve to anything.
+    ref.read(openReferenceProvider.notifier).state = null;
+    ref.read(currentProjectProvider.notifier).state = null;
+    if (series != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => SeriesDetailScreen(series: series)),
+      );
+    }
+  }
+
   Future<void> _autoBackup() async {
     if (!_autoBackupEnabled) return;
     try {
@@ -160,6 +184,7 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
     // with this screen rather than needing its own always-mounted widget.
     ref.watch(projectFileWatcherProvider);
     final focusMode = ref.watch(focusModeProvider);
+    final series = ref.watch(currentSeriesProvider);
     final reference = ref.watch(openReferenceProvider);
     final referenceVisible = ref.watch(referencePanelVisibleProvider);
     final serviceAsync = ref.watch(manuscriptServiceProvider(project));
@@ -171,9 +196,10 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
           : AppBar(
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back),
-                tooltip: 'Back to Library',
-                onPressed: () =>
-                    ref.read(currentProjectProvider.notifier).state = null,
+                tooltip: series == null
+                    ? 'Back to Library'
+                    : 'Back to "${series.title}"',
+                onPressed: () => _goBack(context, ref),
               ),
               title: InkWell(
                 onTap: _renameProject,
@@ -271,6 +297,7 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                   onPressed: () =>
                       ref.read(focusModeProvider.notifier).state = true,
                 ),
+                const HelpIconButton(topicId: 'projectToolbar'),
                 const SizedBox(width: 8),
               ],
             ),
@@ -335,15 +362,19 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                                       structure: structure,
                                     ),
                                     ProfilePanel(
-                                      project: project,
+                                      owner: ContentOwner.project(project),
                                       kind: ProfileKind.character,
                                     ),
                                     ProfilePanel(
-                                      project: project,
+                                      owner: ContentOwner.project(project),
                                       kind: ProfileKind.world,
                                     ),
-                                    NotesPanel(project: project),
-                                    TodoPanel(project: project),
+                                    NotesPanel(
+                                      owner: ContentOwner.project(project),
+                                    ),
+                                    TodoPanel(
+                                      owner: ContentOwner.project(project),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -352,7 +383,7 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                         ),
                       ),
                     if (!focusMode)
-                      _ResizeHandle(
+                      ResizeHandle(
                         onDrag: (delta) => ref
                             .read(manuscriptSidebarWidthProvider.notifier)
                             .set(
@@ -374,7 +405,7 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                     // Focus Mode hides the panel too — the point of Focus Mode is
                     // nothing but prose on screen.
                     if (!focusMode && referenceVisible) ...[
-                      _ResizeHandle(
+                      ResizeHandle(
                         onDrag: (delta) => ref
                             .read(referencePanelWidthProvider.notifier)
                             .set(ref.read(referencePanelWidthProvider) - delta),
@@ -409,21 +440,19 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
     final project = widget.project;
 
     if (reference != null) {
+      final owner = ContentOwner.project(project);
       return switch (reference.kind) {
         ReferenceKind.character => ProfileEditor(
-          project: project,
+          owner: owner,
           kind: ProfileKind.character,
           entryId: reference.id,
         ),
         ReferenceKind.world => ProfileEditor(
-          project: project,
+          owner: owner,
           kind: ProfileKind.world,
           entryId: reference.id,
         ),
-        ReferenceKind.note => NoteEditor(
-          project: project,
-          noteId: reference.id,
-        ),
+        ReferenceKind.note => NoteEditor(owner: owner, noteId: reference.id),
       };
     }
 
@@ -455,35 +484,8 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
   }
 }
 
-/// Thin draggable divider that resizes an adjacent panel — the manuscript
-/// sidebar on the left and the Reference Panel on the right both use this,
-/// each translating the raw drag delta to its own width/fraction change
-/// (and sign: the Reference Panel widens when dragged left, so its caller
-/// inverts the delta).
-class _ResizeHandle extends StatelessWidget {
-  const _ResizeHandle({required this.onDrag, required this.onDragEnd});
-
-  final ValueChanged<double> onDrag;
-  final VoidCallback onDragEnd;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.resizeLeftRight,
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onHorizontalDragUpdate: (details) => onDrag(details.delta.dx),
-        onHorizontalDragEnd: (_) => onDragEnd(),
-        // The visible divider is 1px, but the grab area is padded out to 8px:
-        // a 1px drag target is painful to hit.
-        child: const SizedBox(
-          width: 8,
-          child: Center(child: VerticalDivider(width: 1)),
-        ),
-      ),
-    );
-  }
-}
+// _ResizeHandle moved to widgets/resize_handle.dart (as public `ResizeHandle`)
+// so series_detail_screen.dart's own sidebar could reuse it too.
 
 /// Esc exits Focus Mode from anywhere in the shell. An ancestor [Focus] sees
 /// key events bubbling up from whatever descendant (e.g. the editor's

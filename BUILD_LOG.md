@@ -2395,3 +2395,142 @@ test sessions caused by `open_application("Narraity")` launching the pre-install
 Program Files alongside the dev build, rather than actually reaching the code under test.
 
 **582 tests total**, `flutter analyze` clean.
+
+## Series breadcrumb, Sync All Now, vault-without-password, persistent status bar
+
+Four smaller fixes/features from the same conversation, each a direct user request:
+
+- **Breadcrumb fix.** Opening a project from inside a series and pressing Back always landed on
+  the top-level Library, losing the series context. Added `currentSeriesProvider` (`library_
+  provider.dart`) — set alongside `currentProjectProvider` wherever a project is opened (the
+  series grid vs. the plain library grid decide whether this is a series or null) — and a
+  `_goBack` in `project_shell_screen.dart` that pushes `SeriesDetailScreen` instead of popping to
+  root when it's set, clearing itself afterward.
+- **Sync All Now.** `driveSyncActiveProvider`'s existing "syncing right now" flag already covered
+  the auto-sync path; added `manualSyncAllProvider` — a `Provider<Future<void> Function()>`
+  bridging `runFullSyncAcrossAllTargets(Ref, ...)` to widget call sites, since `WidgetRef` isn't
+  assignable to `Ref` — and a button in `drive_sync_settings_section.dart` that remounts every
+  per-target tile afterward via a generation-keyed `ValueKey` so their state visibly refreshes.
+- **Vault without a password.** A `vaultAllowUnencryptedProvider` toggle in Settings > Backup &
+  Vault; when on and no session password is unlocked, `VaultActions.refreshProject` falls back to
+  a new `VaultService.buildPlainVault`/`refreshPlainVault` pair (`_formatIdPlain =
+  'narraity-vault-plain-v1'`, sharing a `_buildZipBytes` helper with the encrypted path) instead
+  of skipping the backup outright. `restoreVault`/`verifyVault` peek the header via a new
+  `isEncryptedVault` before deciding which path to decode, and the restore dialog hides the
+  password field for a plain generation. Deliberately a genuinely unencrypted plain zip, not a
+  weaker cipher — confirmed with the user rather than assumed, since "no password" could otherwise
+  read as "trust us, it's still secure."
+- **Persistent status bar.** Went through three failed approaches before landing on the fix:
+  wrapping `bottomNavigationBar` in a `Scaffold` from `MaterialApp.builder` broke the status bar's
+  `Tooltip`s (no `Overlay` ancestor reachable from that slot); wrapping the whole builder output in
+  an `Overlay` froze route changes (`initialEntries` is consumed once at first mount, not
+  reactively, so `home` swapping from Library to a project silently stopped taking effect); scoping
+  the `Overlay` to just the status bar fixed the freeze but broke hit-testing above it (`Overlay`'s
+  `_RenderTheater` doesn't respect its parent slot's height constraint, swallowing pointer events
+  meant for the app bar above). Final fix: drop `Tooltip` entirely in `status_bar.dart` in favour
+  of `GestureDetector` + `ScaffoldMessenger.of(context).showSnackBar` (reachable without an
+  `Overlay`), and go back to the plain `Scaffold(body: child, bottomNavigationBar: StatusBar())`
+  wrapper — also removing the Focus-Mode-based hiding the user explicitly didn't want.
+
+**587 tests total**, `flutter analyze` clean.
+
+## Series-level Characters, World, Notes, and To-dos
+
+The `ContentOwner` refactor (PLAN.md "Multi-Novel Series Support"): a sealed class
+(`models/content_owner.dart`) — `ContentOwner.project(Project)` or `ContentOwner.series(Series)` —
+that every reference-material provider and panel widget takes instead of a bare `Project`, so the
+same code serves a series' own shared storage without duplicating it. `SeriesOwner.relativePath`
+resolves to a reserved `_Series/series-<id>/` folder alongside project folders, following the same
+`_`-prefix convention `LibraryService.listProjects()` already skips (`_Vault`, `_GlobalIdeas`).
+
+Rewired: every family provider in `reference_provider.dart` (`characterServiceProvider`,
+`worldServiceProvider`, `storyNotesServiceProvider`, and their derived list/category/search
+providers) and `manuscript_provider.dart`'s to-do providers, from `.family<X, Project>` to
+`.family<X, ContentOwner>`. `NotesPanel`, `ProfilePanel`, `TodoPanel`, `ProfileEditor`,
+`NoteEditor` all take `required ContentOwner owner` now. `SeriesDetailScreen` got a full rebuild:
+a resizable sidebar (`ResizeHandle`, extracted from the project shell's former private
+`_ResizeHandle` so both screens share it) with the same four-tab layout as a project's own —
+Characters/World/Notes/To-dos — reading and writing the series' own storage.
+
+Two real bugs fixed along the way, both requiring value equality Dart's default identity check
+doesn't provide: `Project` already had `==`/`hashCode` by `id` (see the rename-crash entry above);
+`Series` needed the matching fix for the same reason, once it also became a family-provider key.
+
+Verified via a real integration test (`test/series_detail_screen_test.dart`) doing actual file I/O
+end to end — creates a series and a member project, creates a character through
+`characterServiceProvider(ContentOwner.series(series))`, pumps `SeriesDetailScreen`, and asserts
+the *project's own* `characterListProvider` is empty — proving the isolation is real storage
+separation, not a UI label on shared data. Also confirmed live: a character created at series level
+does not appear in a member project's own Characters tab, and vice versa.
+
+## Reference Panel Project/Series tabs, and moving content between project and series
+
+Two related requests: pin a series-level character/world entry so it shows in every project's
+Reference Panel inside that series (kept separate from that project's own pins), and move a
+character/world entry between a project and its series.
+
+**Pins**: `pinnedReferencesProvider` (existing, project-keyed) stayed as-is; added
+`pinnedSeriesReferencesProvider` — `NotifierProvider.family<..., Series>`, deliberately keyed by
+*series* rather than by project, so a pin made once from the series' own Characters tab is visible
+identically from every book in it, matching the way series-level content itself works. Two owner-
+dispatching helpers (`isReferencePinned`/`toggleReferencePin` in `reference_panel_provider.dart`)
+pick the right provider by owner type, letting `ProfilePanel`'s pin toggle work unmodified for both
+a project and a series owner — previously that affordance was hidden outright for a series owner.
+`ReferencePanel` now watches `projectSeriesProvider(project)` (new, `library_provider.dart` —
+resolves a project's `seriesId` against `seriesListProvider`) and only shows a `TabBar` (Project /
+Series) when the project actually belongs to one; a standalone project's panel is unchanged. Both
+`_ReferenceCard`/`_QuickRefField`/`_UnresolvedMentionCard` were generalized from `Project` to
+`ContentOwner` to serve either tab from the same widgets.
+
+**Move**: `moveProfileEntry` (`reference_provider.dart`) copies the entry's image file (if any)
+into the destination owner's `assets/images/` — no re-attach needed, since the `assets/images/
+<id>.ext` naming is identical under any owner — saves the entry there, then deletes it from the
+source, which also drops a moved character's Relationship Diagram edges/node position (the
+diagram is project-scoped; a series has none to carry them into), same as an ordinary delete. UI:
+`ProfilePanel`'s entry menu gains "Move to series" (project owner, only if `project.seriesId !=
+null`) or "Move to project…" (series owner — a picker dialog via the new `seriesProjectsProvider`
+when the series has more than one member project).
+
+Verified live end to end: pinned a series-level character, confirmed it appeared in a member
+project's Reference Panel "Series" tab while its own "Project" tab stayed empty and its own
+Characters tab still didn't list it; moved it into the project via "Move to project…", confirmed
+it left the series' own list and the project's menu correctly flipped to "Move to series".
+
+**587 tests total**, `flutter analyze` clean.
+
+## In-app Help system, and contextual per-page help icons
+
+A comprehensive Help page (Settings > Help) plus a per-screen "?" icon, built as one seam so the
+per-screen icons never fall out of sync with the full page's content.
+
+Data model (`models/help_topic.dart`): `HelpTopic` (a stable `id`, title, icon, intro, list of
+`HelpEntry`) and `HelpEntry` (icon, title, description) — deliberately just data, no navigation or
+markup, so a topic can drive both a full page and a small slide-out panel without two content
+sources. `data/help_content.dart` holds every topic as a `const` list — 17 topics covering Library,
+a Series, the Manuscript tab, the Scene Editor toolbar, Characters & World, Notes, To-dos, the
+Reference Panel, the project toolbar, Goals, Plot Grid, Timeline, the Relationship Diagram, Export,
+Export/Import for Review, the status bar, and a one-line pointer per Settings category — written
+against the real tooltips/icons in each screen's source rather than guessed.
+
+`widgets/help_page.dart`'s `HelpPageContent` renders every topic as a collapsible `ExpansionTile`
+with a search box (matches topic title/intro/entry title/entry description, forcing every match
+open while searching) — added to `SettingsScreen` as a new nav category. `SettingsScreen` also
+gained an `initialHelpTopicId` param and a free `openHelpTopic(context, id)` function that opens
+Settings straight into Help with that segment expanded and scrolled into view via `Scrollable.
+ensureVisible`, keyed per topic.
+
+`widgets/help_drawer.dart`'s `HelpIconButton(topicId: ...)` is the per-page icon: `showHelpPanel`
+pushes a non-opaque `PageRouteBuilder` (dismissible scrim + slide-in from the right, reusing the
+same `HelpEntryRow` row widget as the full page) rather than using `Scaffold.endDrawer`, so it
+drops onto any screen's app bar `actions` without that screen needing to restructure its layout
+around a drawer. Its "See full Help page" link pops the panel and calls `openHelpTopic`. Wired into
+nine screens' top-right: Library, a Series, the project shell's own toolbar, Goals, Plot Grid,
+Timeline, Relationships, Export, and Export/Import for Review.
+
+Verified live: the Library icon opens a panel with the "Library (Home)" topic, its "See full Help
+page" link correctly closes the panel and lands on that exact segment in Settings; a series' own
+icon and a project's toolbar icon both open the right topic; the full Help page's search box
+correctly narrows to genuine matches (confirmed against a query that happened to appear in more
+than one topic's text, to be sure it wasn't just showing everything).
+
+**587 tests total**, `flutter analyze` clean.

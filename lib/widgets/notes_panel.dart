@@ -1,28 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/project.dart';
+import '../models/content_owner.dart';
 import '../models/story_note.dart';
 import '../services/story_notes_service.dart';
 import '../state/reference_provider.dart';
 
 /// Sidebar for Story Notes: a search box, then either ranked search results or
-/// the folder tree (root notes first, then one section per folder).
+/// the folder tree (root notes first, then one section per folder). Shared
+/// between a project and a series (see [ContentOwner]).
 class NotesPanel extends ConsumerWidget {
-  const NotesPanel({super.key, required this.project});
+  const NotesPanel({super.key, required this.owner});
 
-  final Project project;
+  final ContentOwner owner;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final query = ref.watch(noteSearchQueryProvider);
-    final service = ref.watch(storyNotesServiceProvider(project)).valueOrNull;
+    final service = ref.watch(storyNotesServiceProvider(owner)).valueOrNull;
 
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-          child: _SearchField(project: project),
+          child: _SearchField(owner: owner),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -49,8 +50,8 @@ class NotesPanel extends ConsumerWidget {
         const SizedBox(height: 4),
         Expanded(
           child: query.trim().isEmpty
-              ? _NoteTree(project: project, service: service)
-              : _SearchResults(project: project, service: service),
+              ? _NoteTree(owner: owner, service: service)
+              : _SearchResults(owner: owner, service: service),
         ),
       ],
     );
@@ -63,7 +64,7 @@ class NotesPanel extends ConsumerWidget {
     String? folder,
   }) async {
     final created = await service.createNote(folder: folder);
-    invalidateReferences(ref, project);
+    invalidateReferences(ref, owner);
     ref.read(openReferenceProvider.notifier).state =
         ReferenceSelection(ReferenceKind.note, created.id);
   }
@@ -76,7 +77,7 @@ class NotesPanel extends ConsumerWidget {
     final name = await _promptForText(context, title: 'New folder', label: 'Folder name');
     if (name == null || name.trim().isEmpty) return;
     await service.createFolder(name);
-    invalidateReferences(ref, project);
+    invalidateReferences(ref, owner);
   }
 }
 
@@ -112,9 +113,9 @@ Future<String?> _promptForText(
 }
 
 class _SearchField extends ConsumerStatefulWidget {
-  const _SearchField({required this.project});
+  const _SearchField({required this.owner});
 
-  final Project project;
+  final ContentOwner owner;
 
   @override
   ConsumerState<_SearchField> createState() => _SearchFieldState();
@@ -163,14 +164,14 @@ class _SearchFieldState extends ConsumerState<_SearchField> {
 }
 
 class _SearchResults extends ConsumerWidget {
-  const _SearchResults({required this.project, required this.service});
+  const _SearchResults({required this.owner, required this.service});
 
-  final Project project;
+  final ContentOwner owner;
   final StoryNotesService? service;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final resultsAsync = ref.watch(noteSearchResultsProvider(project));
+    final resultsAsync = ref.watch(noteSearchResultsProvider(owner));
 
     return resultsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -183,7 +184,7 @@ class _SearchResults extends ConsumerWidget {
           : ListView(
               children: [
                 for (final note in results)
-                  _NoteTile(project: project, note: note, service: service),
+                  _NoteTile(owner: owner, note: note, service: service),
               ],
             ),
     );
@@ -191,15 +192,15 @@ class _SearchResults extends ConsumerWidget {
 }
 
 class _NoteTree extends ConsumerWidget {
-  const _NoteTree({required this.project, required this.service});
+  const _NoteTree({required this.owner, required this.service});
 
-  final Project project;
+  final ContentOwner owner;
   final StoryNotesService? service;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final notesAsync = ref.watch(storyNoteListProvider(project));
-    final foldersAsync = ref.watch(noteFoldersProvider(project));
+    final notesAsync = ref.watch(storyNoteListProvider(owner));
+    final foldersAsync = ref.watch(noteFoldersProvider(owner));
 
     return notesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -218,10 +219,10 @@ class _NoteTree extends ConsumerWidget {
         return ListView(
           children: [
             for (final note in rootNotes)
-              _NoteTile(project: project, note: note, service: service),
+              _NoteTile(owner: owner, note: note, service: service),
             for (final folder in folders)
               _FolderSection(
-                project: project,
+                owner: owner,
                 folder: folder,
                 notes: notes.where((n) => n.folder == folder).toList(),
                 service: service,
@@ -235,13 +236,13 @@ class _NoteTree extends ConsumerWidget {
 
 class _FolderSection extends ConsumerWidget {
   const _FolderSection({
-    required this.project,
+    required this.owner,
     required this.folder,
     required this.notes,
     required this.service,
   });
 
-  final Project project;
+  final ContentOwner owner;
   final String folder;
   final List<StoryNote> notes;
   final StoryNotesService? service;
@@ -271,7 +272,7 @@ class _FolderSection extends ConsumerWidget {
         for (final note in notes)
           Padding(
             padding: const EdgeInsets.only(left: 16),
-            child: _NoteTile(project: project, note: note, service: service),
+            child: _NoteTile(owner: owner, note: note, service: service),
           ),
       ],
     );
@@ -284,7 +285,7 @@ class _FolderSection extends ConsumerWidget {
     switch (action) {
       case 'note':
         final created = await service.createNote(folder: folder);
-        invalidateReferences(ref, project);
+        invalidateReferences(ref, owner);
         ref.read(openReferenceProvider.notifier).state =
             ReferenceSelection(ReferenceKind.note, created.id);
       case 'rename':
@@ -297,7 +298,7 @@ class _FolderSection extends ConsumerWidget {
         );
         if (name == null || name.trim().isEmpty) return;
         await service.renameFolder(folder, name);
-        invalidateReferences(ref, project);
+        invalidateReferences(ref, owner);
       case 'delete':
         if (!context.mounted) return;
         final confirmed = await showDialog<bool>(
@@ -324,15 +325,15 @@ class _FolderSection extends ConsumerWidget {
         );
         if (confirmed != true) return;
         await service.deleteFolder(folder);
-        invalidateReferences(ref, project);
+        invalidateReferences(ref, owner);
     }
   }
 }
 
 class _NoteTile extends ConsumerWidget {
-  const _NoteTile({required this.project, required this.note, required this.service});
+  const _NoteTile({required this.owner, required this.note, required this.service});
 
-  final Project project;
+  final ContentOwner owner;
   final StoryNote note;
   final StoryNotesService? service;
 
@@ -340,7 +341,7 @@ class _NoteTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selection = ref.watch(openReferenceProvider);
     final isOpen = selection?.kind == ReferenceKind.note && selection?.id == note.id;
-    final folders = ref.watch(noteFoldersProvider(project)).valueOrNull ?? const [];
+    final folders = ref.watch(noteFoldersProvider(owner)).valueOrNull ?? const [];
 
     return ListTile(
       dense: true,
@@ -400,7 +401,7 @@ class _NoteTile extends ConsumerWidget {
       );
       if (target == null) return;
       await service.moveToFolder(note, target.isEmpty ? null : target);
-      invalidateReferences(ref, project);
+      invalidateReferences(ref, owner);
       return;
     }
 
@@ -429,6 +430,6 @@ class _NoteTile extends ConsumerWidget {
     if (selection?.id == note.id) {
       ref.read(openReferenceProvider.notifier).state = null;
     }
-    invalidateReferences(ref, project);
+    invalidateReferences(ref, owner);
   }
 }

@@ -63,7 +63,12 @@ class StatusBar extends ConsumerWidget {
 
 /// One dot-plus-icon status entry: [color] carries the meaning (green good,
 /// amber caution, red/grey off), [icon] identifies which subsystem, and
-/// [message] is the hover tooltip explaining the color.
+/// [message] explains the color — shown via a tap-triggered SnackBar rather
+/// than a hover `Tooltip`, since `Tooltip` needs an ancestor `Overlay` this
+/// bar doesn't have (it lives in `Scaffold.bottomNavigationBar`, outside the
+/// app's main Navigator — see app.dart's doc comment for the two different
+/// ways of fixing that with a manual `Overlay` that went wrong first).
+/// `ScaffoldMessenger`, unlike `Overlay`, *is* reachable from here.
 class _StatusEntry extends StatelessWidget {
   const _StatusEntry({
     required this.icon,
@@ -77,8 +82,10 @@ class _StatusEntry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: message,
+    return GestureDetector(
+      onTap: () => ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message))),
       child: Icon(icon, size: 14, color: color),
     );
   }
@@ -119,22 +126,38 @@ class _VaultStatusIndicator extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final status = ref.watch(vaultStatusProvider).valueOrNull;
     final autoRefresh = ref.watch(vaultAutoRefreshProvider);
+    final allowUnencrypted = ref.watch(vaultAllowUnencryptedProvider);
 
     switch (status) {
       case null:
       case VaultStatus.notConfigured:
-        return const _StatusEntry(
-          icon: Icons.lock_open_outlined,
-          color: Colors.grey,
-          message: 'Backup vault: not set up (Settings → Vault)',
-        );
       case VaultStatus.locked:
-        return const _StatusEntry(
-          icon: Icons.lock_clock_outlined,
-          color: Colors.amber,
-          message:
-              'Backup vault: locked — enter your password to resume '
-              'encrypted, signed backups',
+        // A password isn't unlocked this session in either of these two
+        // cases, but backups may still be running unencrypted — see
+        // VaultActions.refreshProject. That's a materially different state
+        // from "nothing is happening at all," so it gets its own icon/color
+        // rather than folding into the plain "not set up"/"locked" ones.
+        if (allowUnencrypted && autoRefresh) {
+          return _StatusEntry(
+            icon: Icons.lock_open_outlined,
+            color: Colors.orange,
+            message: status == VaultStatus.locked
+                ? 'Backup vault: locked, but backups are still running — '
+                      'NOT encrypted (unlock for encrypted backups instead)'
+                : 'Backup vault: no password set — backups are running, '
+                      'but NOT encrypted (Settings → Vault)',
+          );
+        }
+        return _StatusEntry(
+          icon: status == VaultStatus.locked
+              ? Icons.lock_clock_outlined
+              : Icons.lock_open_outlined,
+          color: status == VaultStatus.locked ? Colors.amber : Colors.grey,
+          message: status == VaultStatus.locked
+              ? 'Backup vault: locked — enter your password to resume '
+                    'encrypted, signed backups'
+              : 'Backup vault: not set up, no backups running '
+                    '(Settings → Vault)',
         );
       case VaultStatus.unlocked:
         return _StatusEntry(
@@ -219,6 +242,13 @@ class _DriveStatusIndicatorState extends ConsumerState<_DriveStatusIndicator>
       );
     }
 
-    return Tooltip(message: label, child: dot);
+    // Tap-triggered SnackBar rather than a hover Tooltip — see _StatusEntry's
+    // doc for why (no Overlay ancestor available in this bar's position).
+    return GestureDetector(
+      onTap: () => ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(label))),
+      child: dot,
+    );
   }
 }

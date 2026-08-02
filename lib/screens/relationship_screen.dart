@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/content_owner.dart';
 import '../models/profile_entry.dart';
 import '../models/project.dart';
 import '../models/relationship.dart';
 import '../state/reference_provider.dart';
 import '../state/relationship_provider.dart';
+import '../widgets/help_drawer.dart';
 import '../widgets/immediate_drag_recognizer.dart';
 
 const _nodeSize = 96.0;
@@ -46,7 +48,7 @@ class RelationshipScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final charactersAsync = ref.watch(characterListProvider(project));
+    final charactersAsync = ref.watch(characterListProvider(ContentOwner.project(project)));
     final relationshipsAsync = ref.watch(relationshipListProvider(project));
     final layoutAsync = ref.watch(relationshipLayoutProvider(project));
 
@@ -67,6 +69,7 @@ class RelationshipScreen extends ConsumerWidget {
                 ? null
                 : () => _addRelationship(context, ref, charactersAsync.value!),
           ),
+          const HelpIconButton(topicId: 'relationshipDiagram'),
           const SizedBox(width: 8),
         ],
       ),
@@ -126,9 +129,9 @@ class RelationshipScreen extends ConsumerWidget {
   Future<void> _addCharacter(BuildContext context, WidgetRef ref) async {
     final name = await _promptText(context, title: 'New Character', label: 'Name');
     if (name == null || name.trim().isEmpty) return;
-    final service = await ref.read(characterServiceProvider(project).future);
+    final service = await ref.read(characterServiceProvider(ContentOwner.project(project)).future);
     await service.create(name: name.trim());
-    if (context.mounted) invalidateReferences(ref, project);
+    if (context.mounted) invalidateReferences(ref, ContentOwner.project(project));
   }
 }
 

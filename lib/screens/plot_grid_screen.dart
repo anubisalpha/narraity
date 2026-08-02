@@ -5,6 +5,7 @@ import '../models/plot_grid.dart';
 import '../models/project.dart';
 import '../state/manuscript_provider.dart';
 import '../state/plot_grid_provider.dart';
+import '../widgets/help_drawer.dart';
 
 const _plotlineColumnWidth = 180.0;
 const _sceneColumnWidth = 160.0;
@@ -46,6 +47,7 @@ class PlotGridScreen extends ConsumerWidget {
             icon: const Icon(Icons.add),
             onPressed: () => _addPlotline(context, ref),
           ),
+          const HelpIconButton(topicId: 'plotGrid'),
           const SizedBox(width: 8),
         ],
       ),

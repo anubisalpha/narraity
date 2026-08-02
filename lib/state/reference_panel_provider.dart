@@ -1,8 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/content_owner.dart';
 import '../models/profile_entry.dart';
 import '../models/project.dart';
+import '../models/series.dart';
 import 'reference_provider.dart';
 
 /// State for the Reference Panel (PLAN.md "Feature: Reference Panel"): what's
@@ -149,6 +151,66 @@ final pinnedReferencesProvider =
       PinnedReferencesNotifier.new,
     );
 
+/// Entry ids pinned to the panel for one series — keyed by the series
+/// itself, not by project, so a character pinned from the series' own
+/// Characters tab shows up in the Reference Panel of *every* project inside
+/// that series, not just the one open when it was pinned.
+class PinnedSeriesReferencesNotifier extends FamilyNotifier<List<String>, Series> {
+  String get _prefKey => 'referencePanel.seriesPins.${arg.id}';
+
+  @override
+  List<String> build(Series series) {
+    _restore();
+    return const [];
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getStringList(_prefKey) ?? const [];
+  }
+
+  Future<void> toggle(String entryId) async {
+    state = state.contains(entryId)
+        ? state.where((id) => id != entryId).toList()
+        : [...state, entryId];
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_prefKey, state);
+  }
+}
+
+final pinnedSeriesReferencesProvider = NotifierProvider.family<
+    PinnedSeriesReferencesNotifier, List<String>, Series>(
+  PinnedSeriesReferencesNotifier.new,
+);
+
+/// Whether [entryId] is pinned for [owner] — dispatches to the project- or
+/// series-keyed pin list depending on which kind of owner it is, so callers
+/// (the Reference Panel's cards, `ProfilePanel`'s pin toggle) don't need to
+/// know which provider backs which owner type.
+bool isReferencePinned(WidgetRef ref, ContentOwner owner, String entryId) {
+  final project = owner.projectOrNull;
+  if (project != null) {
+    return ref.watch(pinnedReferencesProvider(project)).contains(entryId);
+  }
+  final series = owner.seriesOrNull;
+  if (series != null) {
+    return ref.watch(pinnedSeriesReferencesProvider(series)).contains(entryId);
+  }
+  return false;
+}
+
+void toggleReferencePin(WidgetRef ref, ContentOwner owner, String entryId) {
+  final project = owner.projectOrNull;
+  if (project != null) {
+    ref.read(pinnedReferencesProvider(project).notifier).toggle(entryId);
+    return;
+  }
+  final series = owner.seriesOrNull;
+  if (series != null) {
+    ref.read(pinnedSeriesReferencesProvider(series).notifier).toggle(entryId);
+  }
+}
+
 /// Names mentioned (`[[Name]]`) in the scene currently open in the editor,
 /// published by SceneEditor on its save debounce. One open scene at a time,
 /// so this isn't project-keyed.
@@ -230,8 +292,9 @@ class ReferencePanelContent {
 
 final referencePanelContentProvider =
     FutureProvider.family<ReferencePanelContent, Project>((ref, project) async {
-      final characters = await ref.watch(characterListProvider(project).future);
-      final world = await ref.watch(worldListProvider(project).future);
+      final owner = ContentOwner.project(project);
+      final characters = await ref.watch(characterListProvider(owner).future);
+      final world = await ref.watch(worldListProvider(owner).future);
       final pinnedIds = ref.watch(pinnedReferencesProvider(project));
       final mentionedNames = ref.watch(sceneMentionedNamesProvider);
 
@@ -242,6 +305,47 @@ final referencePanelContentProvider =
           entry.id: ReferenceCardItem(entry, ProfileKind.world),
       };
       // Preserve pin order; silently drop ids whose entry has been deleted.
+      final pinned = [
+        for (final id in pinnedIds)
+          if (byId.containsKey(id)) byId[id]!,
+      ];
+
+      final mentions = resolveMentions(mentionedNames, characters, world);
+      final pinnedIdSet = pinned.map((item) => item.entry.id).toSet();
+      final mentioned = mentions.entries
+          .where((item) => !pinnedIdSet.contains(item.entry.id))
+          .toList();
+
+      return ReferencePanelContent(
+        pinned: pinned,
+        mentioned: mentioned,
+        unresolved: mentions.unresolved,
+      );
+    });
+
+/// The Reference Panel's "Series" tab content for [series] — same shape as
+/// [referencePanelContentProvider], but reading the series' own characters
+/// and worldbuilding, pinned via [pinnedSeriesReferencesProvider]. Keyed
+/// only by series (not by which project is open), so it's identical no
+/// matter which of the series' projects the panel is showing it from — the
+/// whole point being that a series-level pin follows you between books.
+/// Mentions still resolve against the scene currently open in *whichever*
+/// project you're writing, so `[[Name]]` can reach a series-level character
+/// without it being pinned first.
+final seriesReferencePanelContentProvider =
+    FutureProvider.family<ReferencePanelContent, Series>((ref, series) async {
+      final owner = ContentOwner.series(series);
+      final characters = await ref.watch(characterListProvider(owner).future);
+      final world = await ref.watch(worldListProvider(owner).future);
+      final pinnedIds = ref.watch(pinnedSeriesReferencesProvider(series));
+      final mentionedNames = ref.watch(sceneMentionedNamesProvider);
+
+      final byId = {
+        for (final entry in characters)
+          entry.id: ReferenceCardItem(entry, ProfileKind.character),
+        for (final entry in world)
+          entry.id: ReferenceCardItem(entry, ProfileKind.world),
+      };
       final pinned = [
         for (final id in pinnedIds)
           if (byId.containsKey(id)) byId[id]!,

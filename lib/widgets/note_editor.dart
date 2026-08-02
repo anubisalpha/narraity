@@ -3,18 +3,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/project.dart';
+import '../models/content_owner.dart';
 import '../models/story_note.dart';
 import '../services/story_notes_service.dart';
 import '../state/editor_settings_provider.dart';
 import '../state/reference_provider.dart';
 
 /// Main-pane editor for one story note: title, tags, and a markdown body,
-/// autosaved on the same debounce as the scene editor.
+/// autosaved on the same debounce as the scene editor. Shared between a
+/// project and a series (see [ContentOwner]).
 class NoteEditor extends ConsumerStatefulWidget {
-  const NoteEditor({super.key, required this.project, required this.noteId});
+  const NoteEditor({super.key, required this.owner, required this.noteId});
 
-  final Project project;
+  final ContentOwner owner;
   final String noteId;
 
   @override
@@ -59,7 +60,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor> {
   }
 
   Future<void> _load() async {
-    final service = await ref.read(storyNotesServiceProvider(widget.project).future);
+    final service = await ref.read(storyNotesServiceProvider(widget.owner).future);
     final notes = await service.listAll();
     final note = notes.where((n) => n.id == widget.noteId).firstOrNull;
     if (!mounted || note == null) return;
@@ -93,7 +94,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor> {
     await service.save(updated);
     _note = updated;
     _dirty = false;
-    if (mounted) invalidateReferences(ref, widget.project);
+    if (mounted) invalidateReferences(ref, widget.owner);
   }
 
   Future<void> _addTag() async {
@@ -143,7 +144,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor> {
     final updated = (_note ?? note).copyWith(tags: tags);
     await service.save(updated);
     setState(() => _note = updated);
-    if (mounted) invalidateReferences(ref, widget.project);
+    if (mounted) invalidateReferences(ref, widget.owner);
   }
 
   /// Wraps the selection in [marker], or inserts a marker pair at the caret —

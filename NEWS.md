@@ -7,6 +7,34 @@ app release required. This is the source for the in-app News Feed (`NewsService`
 Newest entry first. Each entry is a `## YYYY-MM-DD: Title` heading — `NewsService` parses on that
 pattern, so keep the format consistent.
 
+## 2026-08-02: Series-level content, a real Help system — v1.4.0
+
+**Characters, World, Notes, and To-dos can now live at the series level**, shared across every
+book in a series instead of being copied into each one separately. Open a series from the Library
+and its own Characters/World/Notes/To-dos tabs work exactly like a project's — a recurring
+antagonist or the shared magic system only needs to exist once. Any project-level character or
+world entry can be **moved** to its series (or back into a specific project) from its own menu,
+keeping its fields and image intact.
+
+**The Reference Panel gained a Series tab.** Pin a character or world entry from a series' own
+tabs and it shows up in the "Series" tab of every project's Reference Panel inside that series,
+right alongside the existing "Project" tab for that book's own pins — kept deliberately separate
+so the two never blur together.
+
+**A real Help system.** Settings has a new **Help** category: every icon and panel in the app,
+explained, organized into collapsible segments with a search box. And every major screen — Library,
+a Series, an open project's toolbar, Goals, Plot Grid, Timeline, Relationships, and both Export
+screens — now has its own **?** icon in the top-right corner that slides out a panel explaining
+just that page, with a link through to the full Help page if you want to browse further.
+
+**Smaller fixes:** the back button from a project that's part of a series now returns you to that
+series' screen instead of always landing on the Library. Google Drive Sync gained a **Sync All
+Now** button. The Backup Vault can now run **without a password** if you'd rather trade the
+encryption for convenience — a toggle in Settings > Backup & Vault, reflected honestly in the
+status bar (an orange icon, not a green one, when backups are running unencrypted). The status bar
+itself now stays visible everywhere, including Focus Mode and the series screen, instead of
+disappearing on some pages.
+
 ## 2026-08-02: Rename projects, a resizable sidebar, and a status bar — v1.3.0
 
 **Projects can now be renamed.** Tap the pencil next to the title in a project's toolbar to give it

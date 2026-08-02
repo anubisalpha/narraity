@@ -13,7 +13,10 @@ final _generationFormat = DateFormat('d MMM yyyy, HH:mm');
 final _folderStampFormat = DateFormat('yyyy-MM-dd HH-mm');
 
 Future<void> showVaultRestoreDialog(BuildContext context, Project project) =>
-    showDialog<void>(context: context, builder: (_) => _VaultRestoreDialog(project: project));
+    showDialog<void>(
+      context: context,
+      builder: (_) => _VaultRestoreDialog(project: project),
+    );
 
 /// Restores a vault generation into a **new** project folder beside the
 /// original rather than overwriting it. A restore is a recovery action taken
@@ -26,7 +29,8 @@ class _VaultRestoreDialog extends ConsumerStatefulWidget {
   final Project project;
 
   @override
-  ConsumerState<_VaultRestoreDialog> createState() => _VaultRestoreDialogState();
+  ConsumerState<_VaultRestoreDialog> createState() =>
+      _VaultRestoreDialogState();
 }
 
 class _VaultRestoreDialogState extends ConsumerState<_VaultRestoreDialog> {
@@ -51,12 +55,16 @@ class _VaultRestoreDialogState extends ConsumerState<_VaultRestoreDialog> {
     });
     try {
       final libraryRoot = await ref.read(libraryServiceProvider).libraryRoot();
-      final targetDir = Directory(_uniquePath(
-        libraryRoot,
-        '${widget.project.folderName} (restored ${_folderStampFormat.format(DateTime.now())})',
-      ));
+      final targetDir = Directory(
+        _uniquePath(
+          libraryRoot,
+          '${widget.project.folderName} (restored ${_folderStampFormat.format(DateTime.now())})',
+        ),
+      );
 
-      await ref.read(vaultServiceProvider).restoreVault(
+      await ref
+          .read(vaultServiceProvider)
+          .restoreVault(
             vaultFile: generation,
             targetDir: targetDir,
             password: _password.text,
@@ -66,7 +74,9 @@ class _VaultRestoreDialogState extends ConsumerState<_VaultRestoreDialog> {
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Restored to "${p.basename(targetDir.path)}".')),
+          SnackBar(
+            content: Text('Restored to "${p.basename(targetDir.path)}".'),
+          ),
         );
       }
     } catch (error) {
@@ -93,17 +103,21 @@ class _VaultRestoreDialogState extends ConsumerState<_VaultRestoreDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final generationsAsync = ref.watch(vaultGenerationsProvider(widget.project));
+    final generationsAsync = ref.watch(
+      vaultGenerationsProvider(widget.project),
+    );
 
     return AlertDialog(
       title: Text('Restore ${widget.project.title}'),
       content: SizedBox(
         width: 460,
         child: generationsAsync.when(
-          loading: () => const Center(child: Padding(
-            padding: EdgeInsets.all(24),
-            child: CircularProgressIndicator(),
-          )),
+          loading: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: CircularProgressIndicator(),
+            ),
+          ),
           error: (err, stack) => Text('Could not list backups: $err'),
           data: (generations) {
             if (generations.isEmpty) {
@@ -132,7 +146,12 @@ class _VaultRestoreDialogState extends ConsumerState<_VaultRestoreDialog> {
                             RadioListTile<File>(
                               dense: true,
                               value: generation,
-                              title: Text(_labelFor(generation, generations.first == generation)),
+                              title: Text(
+                                _labelFor(
+                                  generation,
+                                  generations.first == generation,
+                                ),
+                              ),
                             ),
                         ],
                       ),
@@ -140,15 +159,33 @@ class _VaultRestoreDialogState extends ConsumerState<_VaultRestoreDialog> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: _password,
-                  obscureText: true,
-                  enabled: !_busy,
-                  decoration: const InputDecoration(
-                    labelText: 'Vault password for this backup',
-                    helperText: 'Backups made before a password change need the old password.',
-                    helperMaxLines: 2,
-                  ),
+                // A plain (unencrypted — see "Back up without a password" in
+                // Settings → Vault) generation needs no password at all, and
+                // asking for one would just be confusing — checked async per
+                // selection since it means opening the file's header.
+                FutureBuilder<bool>(
+                  future: ref
+                      .read(vaultServiceProvider)
+                      .isEncryptedVault(_selected!),
+                  builder: (context, snapshot) {
+                    if (snapshot.data == false) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 4),
+                        child: Text('This backup is not password-protected.'),
+                      );
+                    }
+                    return TextField(
+                      controller: _password,
+                      obscureText: true,
+                      enabled: !_busy,
+                      decoration: const InputDecoration(
+                        labelText: 'Vault password for this backup',
+                        helperText:
+                            'Backups made before a password change need the old password.',
+                        helperMaxLines: 2,
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -162,7 +199,12 @@ class _VaultRestoreDialogState extends ConsumerState<_VaultRestoreDialog> {
                 ],
                 if (_error != null) ...[
                   const SizedBox(height: 12),
-                  Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 ],
               ],
             );

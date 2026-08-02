@@ -11,6 +11,7 @@ import '../widgets/editor_settings_form.dart';
 import '../widgets/library_background_picker.dart';
 import '../widgets/read_aloud_settings_form.dart';
 import '../widgets/about_section.dart';
+import '../widgets/help_page.dart';
 import '../widgets/vault_settings_section.dart';
 import 'feedback_screen.dart';
 
@@ -23,6 +24,7 @@ enum _SettingsCategory {
   spellCheck,
   drive,
   export,
+  help,
   feedback,
   about,
 }
@@ -37,6 +39,7 @@ extension on _SettingsCategory {
     _SettingsCategory.spellCheck => 'Spell Check & Language',
     _SettingsCategory.drive => 'Google Drive Sync',
     _SettingsCategory.export => 'Export',
+    _SettingsCategory.help => 'Help',
     _SettingsCategory.feedback => 'Feedback',
     _SettingsCategory.about => 'About',
   };
@@ -50,6 +53,7 @@ extension on _SettingsCategory {
     _SettingsCategory.spellCheck => Icons.spellcheck,
     _SettingsCategory.drive => Icons.cloud_sync_outlined,
     _SettingsCategory.export => Icons.ios_share,
+    _SettingsCategory.help => Icons.help_outline,
     _SettingsCategory.feedback => Icons.feedback_outlined,
     _SettingsCategory.about => Icons.info_outline,
   };
@@ -73,14 +77,22 @@ extension on _SettingsCategory {
 /// Spell Check/Drive Sync/Export are placeholders for phases 4.5/5/6 so the
 /// structure doesn't need reshaping as they land.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.initialHelpTopicId});
+
+  /// Opens straight into Help with the matching segment expanded and
+  /// scrolled into view, instead of the default Appearance category — the
+  /// seam a future in-context help icon on another screen will use (see
+  /// `openHelpTopic`). Leave null for the normal "gear icon" entry point.
+  final String? initialHelpTopicId;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  _SettingsCategory _selected = _SettingsCategory.appearance;
+  late _SettingsCategory _selected = widget.initialHelpTopicId != null
+      ? _SettingsCategory.help
+      : _SettingsCategory.appearance;
 
   @override
   Widget build(BuildContext context) {
@@ -130,11 +142,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _SettingsCategory.backup => const _BackupSection(),
       _SettingsCategory.spellCheck => const _SpellCheckSection(),
       _SettingsCategory.drive => const _DriveSyncSection(),
+      _SettingsCategory.help =>
+        HelpPageContent(initialTopicId: widget.initialHelpTopicId),
       _SettingsCategory.feedback => const _FeedbackSection(),
       _SettingsCategory.about => const AboutSectionContent(),
       _ => const SizedBox.shrink(),
     };
   }
+}
+
+/// Opens Settings straight into Help with [topicId]'s segment expanded and
+/// scrolled into view. Not called anywhere yet — this is the seam a future
+/// in-context help icon on another screen (project shell, series screen,
+/// …) will use so "Help" from that page lands on the relevant segment
+/// instead of the top of the whole list.
+void openHelpTopic(BuildContext context, String topicId) {
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => SettingsScreen(initialHelpTopicId: topicId),
+    ),
+  );
 }
 
 class _FeedbackSection extends StatelessWidget {

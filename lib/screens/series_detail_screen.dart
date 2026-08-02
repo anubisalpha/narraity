@@ -2,18 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../models/content_owner.dart';
+import '../models/profile_entry.dart';
 import '../models/project.dart';
 import '../models/series.dart';
 import '../state/library_provider.dart';
 import '../state/manuscript_provider.dart';
+import '../state/reference_panel_provider.dart'
+    show manuscriptSidebarWidthProvider;
+import '../state/reference_provider.dart';
+import '../widgets/help_drawer.dart';
 import '../widgets/new_project_dialog.dart';
+import '../widgets/note_editor.dart';
+import '../widgets/notes_panel.dart';
+import '../widgets/profile_editor.dart';
+import '../widgets/profile_panel.dart';
 import '../widgets/project_actions.dart';
 import '../widgets/project_kind_style.dart';
+import '../widgets/resize_handle.dart';
+import '../widgets/todo_panel.dart';
 
-/// Shows every project belonging to [series] — pushed from the library's
-/// stacked series card. Renaming/deleting the series, and adding a new
-/// project directly into it, all live here rather than on the library
-/// screen itself, keeping that screen's action surface from growing further.
+/// A series' own screen: its projects (the default main-pane view), plus —
+/// shared across every project inside it, unlike anything else in this app —
+/// Characters, World, Notes, and To-dos in a resizable left sidebar that
+/// mirrors the project shell's own. Pushed from the library's stacked
+/// series card. Renaming/deleting the series, and adding a new project
+/// directly into it, live here rather than on the library screen itself.
 class SeriesDetailScreen extends ConsumerWidget {
   const SeriesDetailScreen({super.key, required this.series});
 
@@ -22,6 +36,8 @@ class SeriesDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final projectsAsync = ref.watch(projectListProvider);
+    final reference = ref.watch(openReferenceProvider);
+    final owner = ContentOwner.series(series);
 
     return Scaffold(
       appBar: AppBar(
@@ -44,26 +60,96 @@ class SeriesDetailScreen extends ConsumerWidget {
               ),
             ],
           ),
+          const HelpIconButton(topicId: 'series'),
         ],
       ),
-      body: projectsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) =>
-            Center(child: Text('Failed to load projects: $err')),
-        data: (allProjects) {
-          final projects = allProjects
-              .where((p) => p.seriesId == series.id)
-              .toList();
-          return projects.isEmpty
-              ? _EmptySeries(series: series)
-              : _SeriesProjectGrid(projects: projects, series: series);
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final sidebarWidth =
+              constraints.maxWidth * ref.watch(manuscriptSidebarWidthProvider);
+          return Row(
+            children: [
+              SizedBox(
+                width: sidebarWidth,
+                child: DefaultTabController(
+                  length: 4,
+                  child: Column(
+                    children: [
+                      // Icons rather than text labels: same reasoning as the
+                      // project shell's own sidebar tabs (manuscript_tree.dart)
+                      // — text doesn't fit a resizable sidebar at its
+                      // narrowest without truncating.
+                      const TabBar(
+                        tabs: [
+                          Tab(icon: Icon(Icons.people_outline), height: 46),
+                          Tab(icon: Icon(Icons.public), height: 46),
+                          Tab(
+                            icon: Icon(Icons.sticky_note_2_outlined),
+                            height: 46,
+                          ),
+                          Tab(icon: Icon(Icons.checklist), height: 46),
+                        ],
+                      ),
+                      Expanded(
+                        child: TabBarView(
+                          children: [
+                            ProfilePanel(
+                              owner: owner,
+                              kind: ProfileKind.character,
+                            ),
+                            ProfilePanel(owner: owner, kind: ProfileKind.world),
+                            NotesPanel(owner: owner),
+                            TodoPanel(owner: owner),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              ResizeHandle(
+                onDrag: (delta) => ref
+                    .read(manuscriptSidebarWidthProvider.notifier)
+                    .set(
+                      ref.read(manuscriptSidebarWidthProvider) +
+                          delta / constraints.maxWidth,
+                    ),
+                onDragEnd: () =>
+                    ref.read(manuscriptSidebarWidthProvider.notifier).save(),
+              ),
+              Expanded(
+                child: reference != null
+                    ? _ReferenceMainPane(owner: owner, reference: reference)
+                    : projectsAsync.when(
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (err, stack) => Center(
+                          child: Text('Failed to load projects: $err'),
+                        ),
+                        data: (allProjects) {
+                          final projects = allProjects
+                              .where((p) => p.seriesId == series.id)
+                              .toList();
+                          return projects.isEmpty
+                              ? _EmptySeries(series: series)
+                              : _SeriesProjectGrid(
+                                  projects: projects,
+                                  series: series,
+                                );
+                        },
+                      ),
+              ),
+            ],
+          );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _addProject(context, ref),
-        icon: const Icon(Icons.add),
-        label: const Text('New Project in Series'),
-      ),
+      floatingActionButton: reference != null
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => _addProject(context, ref),
+              icon: const Icon(Icons.add),
+              label: const Text('New Project in Series'),
+            ),
     );
   }
 
@@ -136,7 +222,9 @@ class SeriesDetailScreen extends ConsumerWidget {
         title: const Text('Delete this series?'),
         content: const Text(
           'The series grouping is removed, but every project inside it is kept — '
-          'they\'ll appear as standalone projects in your library again.',
+          'they\'ll appear as standalone projects in your library again. Any '
+          'series-level characters, worldbuilding, notes, or to-dos are '
+          'removed with it.',
         ),
         actions: [
           TextButton(
@@ -158,6 +246,53 @@ class SeriesDetailScreen extends ConsumerWidget {
     if (context.mounted) {
       Navigator.of(context).pop();
     }
+  }
+}
+
+/// Wraps [ProfileEditor]/[NoteEditor] with a way back to the project grid —
+/// the project shell doesn't need this (closing a reference there means
+/// switching to a scene instead), but a series screen has no scene to fall
+/// back to.
+class _ReferenceMainPane extends ConsumerWidget {
+  const _ReferenceMainPane({required this.owner, required this.reference});
+
+  final ContentOwner owner;
+  final ReferenceSelection reference;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+          child: TextButton.icon(
+            onPressed: () =>
+                ref.read(openReferenceProvider.notifier).state = null,
+            icon: const Icon(Icons.arrow_back, size: 18),
+            label: const Text('Back to Projects'),
+          ),
+        ),
+        Expanded(
+          child: switch (reference.kind) {
+            ReferenceKind.character => ProfileEditor(
+              owner: owner,
+              kind: ProfileKind.character,
+              entryId: reference.id,
+            ),
+            ReferenceKind.world => ProfileEditor(
+              owner: owner,
+              kind: ProfileKind.world,
+              entryId: reference.id,
+            ),
+            ReferenceKind.note => NoteEditor(
+              owner: owner,
+              noteId: reference.id,
+            ),
+          },
+        ),
+      ],
+    );
   }
 }
 
@@ -231,6 +366,14 @@ class _SeriesProjectGrid extends ConsumerWidget {
             child: InkWell(
               onTap: () {
                 ref.read(openContentIdProvider.notifier).state = null;
+                // Remembered so the project shell's back button can return
+                // here instead of the top-level library — see
+                // currentSeriesProvider's doc in library_provider.dart.
+                ref.read(currentSeriesProvider.notifier).state = series;
+                // Don't let a series-level character/note left open here
+                // carry into the project shell, where that id wouldn't
+                // resolve to anything.
+                ref.read(openReferenceProvider.notifier).state = null;
                 ref.read(currentProjectProvider.notifier).state = project;
                 // Setting currentProjectProvider swaps NarraityApp's `home`
                 // widget from LibraryScreen to ProjectShellScreen (see
@@ -260,17 +403,31 @@ class _SeriesProjectGrid extends ConsumerWidget {
                           onSelected: (action) async {
                             switch (action) {
                               case 'remove':
-                                final library = ref.read(libraryServiceProvider);
+                                final library = ref.read(
+                                  libraryServiceProvider,
+                                );
                                 await library.saveProject(
                                   project.copyWith(clearSeriesId: true),
                                 );
                                 ref.invalidate(projectListProvider);
                               case 'style':
-                                await editProjectCardStyle(context, ref, project);
+                                await editProjectCardStyle(
+                                  context,
+                                  ref,
+                                  project,
+                                );
                               case 'archive':
-                                await archiveProjectWithConfirmation(context, ref, project);
+                                await archiveProjectWithConfirmation(
+                                  context,
+                                  ref,
+                                  project,
+                                );
                               case 'delete':
-                                await deleteProjectWithConfirmation(context, ref, project);
+                                await deleteProjectWithConfirmation(
+                                  context,
+                                  ref,
+                                  project,
+                                );
                             }
                           },
                           itemBuilder: (context) => const [

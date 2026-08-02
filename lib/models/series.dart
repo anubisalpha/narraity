@@ -43,4 +43,14 @@ class Series {
         modified: DateTime.parse(json['modified'] as String),
         sortOrder: json['sortOrder'] as int?,
       );
+
+  /// Equality by [id] alone — see [Project]'s matching override for why:
+  /// every other field can be edited via [copyWith], and without this,
+  /// family providers keyed by a whole `Series` would treat every edited
+  /// copy (a rename, a reorder) as a brand-new provider instance.
+  @override
+  bool operator ==(Object other) => other is Series && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
 }

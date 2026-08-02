@@ -5,8 +5,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/content_owner.dart';
 import '../models/profile_entry.dart';
-import '../models/project.dart';
 import '../services/profile_service.dart';
 import '../state/editor_settings_provider.dart';
 import '../state/reference_provider.dart';
@@ -16,16 +16,18 @@ import '../state/reference_provider.dart';
 /// Fields are author-defined: every one can be renamed, removed, or added to,
 /// and any can be starred as `quickRef` so the Reference Panel (Phase 2.5)
 /// knows what's worth showing at a glance. Saves are debounced like the scene
-/// editor rather than needing an explicit save action.
+/// editor rather than needing an explicit save action. Shared between a
+/// project and a series (see [ContentOwner]) — the Reference Panel itself
+/// is project-only, so `quickRef` is inert but harmless for a series entry.
 class ProfileEditor extends ConsumerStatefulWidget {
   const ProfileEditor({
     super.key,
-    required this.project,
+    required this.owner,
     required this.kind,
     required this.entryId,
   });
 
-  final Project project;
+  final ContentOwner owner;
   final ProfileKind kind;
   final String entryId;
 
@@ -79,7 +81,7 @@ class _ProfileEditorState extends ConsumerState<ProfileEditor> {
 
   Future<void> _load() async {
     final service = await ref.read(
-      (_isCharacter ? characterServiceProvider : worldServiceProvider)(widget.project)
+      (_isCharacter ? characterServiceProvider : worldServiceProvider)(widget.owner)
           .future,
     );
     final entries = await service.list();
@@ -131,7 +133,7 @@ class _ProfileEditorState extends ConsumerState<ProfileEditor> {
     await service.save(updated);
     _dirty = false;
     _entry = updated;
-    if (mounted) invalidateReferences(ref, widget.project);
+    if (mounted) invalidateReferences(ref, widget.owner);
   }
 
   /// Field edits that change structure (add/rename/remove/star) save straight
@@ -143,7 +145,7 @@ class _ProfileEditorState extends ConsumerState<ProfileEditor> {
     await service.save(updated);
     setState(() => _entry = updated);
     _dirty = false;
-    if (mounted) invalidateReferences(ref, widget.project);
+    if (mounted) invalidateReferences(ref, widget.owner);
   }
 
   Future<void> _addField() async {
@@ -253,7 +255,7 @@ class _ProfileEditorState extends ConsumerState<ProfileEditor> {
     final updated = await service.attachImage(entry, File(path));
     if (!mounted) return;
     setState(() => _entry = updated);
-    invalidateReferences(ref, widget.project);
+    invalidateReferences(ref, widget.owner);
   }
 
   Future<void> _removeImage() async {
@@ -263,7 +265,7 @@ class _ProfileEditorState extends ConsumerState<ProfileEditor> {
     final updated = await service.removeImage(entry);
     if (!mounted) return;
     setState(() => _entry = updated);
-    invalidateReferences(ref, widget.project);
+    invalidateReferences(ref, widget.owner);
   }
 
   Future<String?> _promptForFieldName({required String title, String initial = ''}) {

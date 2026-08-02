@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:narraity/models/content_owner.dart';
 import 'package:narraity/models/profile_entry.dart';
 import 'package:narraity/models/project.dart';
 import 'package:narraity/models/scene_snapshot.dart';
@@ -135,11 +136,12 @@ void main() {
     // Reference material lives inside the project folder, so it should be
     // swept up by the vault automatically — this pins that down rather than
     // assuming it.
-    final characters = await container.read(characterServiceProvider(project).future);
+    final owner = ContentOwner.project(project);
+    final characters = await container.read(characterServiceProvider(owner).future);
     final created = await characters.create(name: 'Elena Vance');
-    final world = await container.read(worldServiceProvider(project).future);
+    final world = await container.read(worldServiceProvider(owner).future);
     await world.create(name: 'Ashfall Keep', category: 'Location');
-    final notes = await container.read(storyNotesServiceProvider(project).future);
+    final notes = await container.read(storyNotesServiceProvider(owner).future);
     await notes.createFolder('Research');
     await notes.createNote(title: 'Filed note', folder: 'Research');
 

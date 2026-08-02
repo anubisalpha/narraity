@@ -24,10 +24,12 @@ class VaultSettingsSection extends ConsumerWidget {
     final statusAsync = ref.watch(vaultStatusProvider);
 
     return statusAsync.when(
-      loading: () => const Center(child: Padding(
-        padding: EdgeInsets.all(24),
-        child: CircularProgressIndicator(),
-      )),
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CircularProgressIndicator(),
+        ),
+      ),
       error: (err, stack) => Text('Could not read vault state: $err'),
       data: (status) => switch (status) {
         VaultStatus.notConfigured => const _SetupCard(),
@@ -102,7 +104,9 @@ class _SetupCardState extends ConsumerState<_SetupCard> {
                   controller: _password,
                   obscureText: true,
                   enabled: !_busy,
-                  decoration: const InputDecoration(labelText: 'Vault password'),
+                  decoration: const InputDecoration(
+                    labelText: 'Vault password',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -110,11 +114,18 @@ class _SetupCardState extends ConsumerState<_SetupCard> {
                   obscureText: true,
                   enabled: !_busy,
                   onSubmitted: (_) => _submit(),
-                  decoration: const InputDecoration(labelText: 'Confirm password'),
+                  decoration: const InputDecoration(
+                    labelText: 'Confirm password',
+                  ),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 8),
-                  Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 ],
                 const SizedBox(height: 16),
                 Align(
@@ -123,7 +134,10 @@ class _SetupCardState extends ConsumerState<_SetupCard> {
                     onPressed: _busy ? null : _submit,
                     child: _busy
                         ? const SizedBox(
-                            height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Text('Set up vault password'),
                   ),
                 ),
@@ -138,22 +152,61 @@ class _SetupCardState extends ConsumerState<_SetupCard> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                Icon(Icons.warning_amber_rounded,
-                    color: Theme.of(context).colorScheme.onErrorContainer),
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: Theme.of(context).colorScheme.onErrorContainer,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'There is no way to recover this password. Without it, vault '
                     'backups cannot be opened by anyone — including you. Write it '
                     'down somewhere safe.',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
         ),
+        const SizedBox(height: 16),
+        const _UnencryptedBackupToggle(),
       ],
+    );
+  }
+}
+
+/// Opt-in fallback for anyone who doesn't want a vault password at all —
+/// shown wherever there's currently no encrypted backup running (no
+/// password set yet, or a password set but not unlocked this session):
+/// [_SetupCard] and [_UnlockCard]. Not shown once unlocked, since real
+/// encrypted backups are already happening and this setting has no effect
+/// on that path — see [VaultActions.refreshProject].
+class _UnencryptedBackupToggle extends ConsumerWidget {
+  const _UnencryptedBackupToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(vaultAllowUnencryptedProvider);
+
+    return Card(
+      child: SwitchListTile(
+        value: enabled,
+        onChanged: (value) =>
+            ref.read(vaultAllowUnencryptedProvider.notifier).set(value),
+        title: const Text('Back up without a password'),
+        subtitle: Text(
+          enabled
+              ? 'Backups run automatically without a password — still protects '
+                    'against corruption, accidental deletion, or a failed drive, '
+                    'but the backup file itself is NOT encrypted.'
+              : 'Off: no password means no automatic backup at all. Turn this on '
+                    'to still get automatic (unencrypted) backups without setting '
+                    'up a vault password.',
+        ),
+      ),
     );
   }
 }
@@ -182,8 +235,12 @@ class _UnlockCardState extends ConsumerState<_UnlockCard> {
       _error = null;
     });
     try {
-      final ok = await ref.read(vaultStatusProvider.notifier).unlock(_password.text);
-      if (!ok && mounted) setState(() => _error = 'That password is not correct.');
+      final ok = await ref
+          .read(vaultStatusProvider.notifier)
+          .unlock(_password.text);
+      if (!ok && mounted) {
+        setState(() => _error = 'That password is not correct.');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -191,52 +248,69 @@ class _UnlockCardState extends ConsumerState<_UnlockCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.lock_outline),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Vault is locked. Writing still works normally, but new '
-                    'history entries are unsigned and backups will not run '
-                    'until you unlock.',
+                const Row(
+                  children: [
+                    Icon(Icons.lock_outline),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Vault is locked. Writing still works normally, but new '
+                        'history entries are unsigned and backups will not run '
+                        'until you unlock.',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _password,
+                  obscureText: true,
+                  autofocus: true,
+                  enabled: !_busy,
+                  onSubmitted: (_) => _submit(),
+                  decoration: const InputDecoration(
+                    labelText: 'Vault password',
+                  ),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton(
+                    onPressed: _busy ? null : _submit,
+                    child: _busy
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Unlock'),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _password,
-              obscureText: true,
-              autofocus: true,
-              enabled: !_busy,
-              onSubmitted: (_) => _submit(),
-              decoration: const InputDecoration(labelText: 'Vault password'),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 8),
-              Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-            ],
-            const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton(
-                onPressed: _busy ? null : _submit,
-                child: _busy
-                    ? const SizedBox(
-                        height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Unlock'),
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
+        const SizedBox(height: 16),
+        const _UnencryptedBackupToggle(),
+      ],
     );
   }
 }
@@ -254,9 +328,14 @@ class _UnlockedBody extends ConsumerWidget {
       children: [
         Card(
           child: ListTile(
-            leading: const Icon(Icons.verified_user_outlined, color: Colors.green),
+            leading: const Icon(
+              Icons.verified_user_outlined,
+              color: Colors.green,
+            ),
             title: const Text('Vault unlocked'),
-            subtitle: const Text('History entries are signed and verified; backups can run.'),
+            subtitle: const Text(
+              'History entries are signed and verified; backups can run.',
+            ),
             trailing: TextButton(
               onPressed: () => ref.read(vaultStatusProvider.notifier).lock(),
               child: const Text('Lock'),
@@ -273,15 +352,18 @@ class _UnlockedBody extends ConsumerWidget {
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   value: autoRefresh,
-                  onChanged: (value) => ref.read(vaultAutoRefreshProvider.notifier).set(value),
+                  onChanged: (value) =>
+                      ref.read(vaultAutoRefreshProvider.notifier).set(value),
                   title: const Text('Back up automatically'),
                   subtitle: const Text(
                     'Refreshes the open project\'s vault periodically and when you close it.',
                   ),
                 ),
                 const Divider(height: 24),
-                Text('Generations kept per project: $retention',
-                    style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  'Generations kept per project: $retention',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
                 const SizedBox(height: 4),
                 const Text(
                   'Older backups are pruned beyond this count. Keeping several '
@@ -292,10 +374,13 @@ class _UnlockedBody extends ConsumerWidget {
                   value: retention.toDouble(),
                   min: VaultRetentionNotifier.minCount.toDouble(),
                   max: VaultRetentionNotifier.maxCount.toDouble(),
-                  divisions: VaultRetentionNotifier.maxCount - VaultRetentionNotifier.minCount,
+                  divisions:
+                      VaultRetentionNotifier.maxCount -
+                      VaultRetentionNotifier.minCount,
                   label: '$retention',
-                  onChanged: (value) =>
-                      ref.read(vaultRetentionCountProvider.notifier).set(value.round()),
+                  onChanged: (value) => ref
+                      .read(vaultRetentionCountProvider.notifier)
+                      .set(value.round()),
                 ),
               ],
             ),
@@ -350,7 +435,8 @@ class _ProjectBackupList extends ConsumerWidget {
             : Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  for (final project in projects) _ProjectBackupTile(project: project),
+                  for (final project in projects)
+                    _ProjectBackupTile(project: project),
                 ],
               ),
       ),
@@ -382,9 +468,9 @@ class _ProjectBackupTileState extends ConsumerState<_ProjectBackupTile> {
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Backup failed: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Backup failed: $error')));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -393,22 +479,28 @@ class _ProjectBackupTileState extends ConsumerState<_ProjectBackupTile> {
 
   @override
   Widget build(BuildContext context) {
-    final generationsAsync = ref.watch(vaultGenerationsProvider(widget.project));
+    final generationsAsync = ref.watch(
+      vaultGenerationsProvider(widget.project),
+    );
 
     return ListTile(
       leading: const Icon(Icons.shield_outlined),
       title: Text(widget.project.title),
-      subtitle: Text(generationsAsync.when(
-        loading: () => 'Checking backups…',
-        error: (err, stack) => 'Could not read backups',
-        data: (generations) {
-          if (generations.isEmpty) return 'No backups yet';
-          final latest = vaultGenerationTimestamp(generations.first);
-          final when = latest == null ? 'unknown time' : _generationFormat.format(latest);
-          final count = generations.length;
-          return 'Latest $when · $count generation${count == 1 ? '' : 's'}';
-        },
-      )),
+      subtitle: Text(
+        generationsAsync.when(
+          loading: () => 'Checking backups…',
+          error: (err, stack) => 'Could not read backups',
+          data: (generations) {
+            if (generations.isEmpty) return 'No backups yet';
+            final latest = vaultGenerationTimestamp(generations.first);
+            final when = latest == null
+                ? 'unknown time'
+                : _generationFormat.format(latest);
+            final count = generations.length;
+            return 'Latest $when · $count generation${count == 1 ? '' : 's'}';
+          },
+        ),
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -420,7 +512,10 @@ class _ProjectBackupTileState extends ConsumerState<_ProjectBackupTile> {
             tooltip: 'Back up now',
             icon: _busy
                 ? const SizedBox(
-                    height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.backup_outlined),
             onPressed: _busy ? null : _backupNow,
           ),
@@ -431,13 +526,17 @@ class _ProjectBackupTileState extends ConsumerState<_ProjectBackupTile> {
 }
 
 Future<void> showChangeVaultPasswordDialog(BuildContext context) =>
-    showDialog<void>(context: context, builder: (_) => const _ChangePasswordDialog());
+    showDialog<void>(
+      context: context,
+      builder: (_) => const _ChangePasswordDialog(),
+    );
 
 class _ChangePasswordDialog extends ConsumerStatefulWidget {
   const _ChangePasswordDialog();
 
   @override
-  ConsumerState<_ChangePasswordDialog> createState() => _ChangePasswordDialogState();
+  ConsumerState<_ChangePasswordDialog> createState() =>
+      _ChangePasswordDialogState();
 }
 
 class _ChangePasswordDialogState extends ConsumerState<_ChangePasswordDialog> {
@@ -470,17 +569,21 @@ class _ChangePasswordDialogState extends ConsumerState<_ChangePasswordDialog> {
       _progress = 'Starting…';
     });
     try {
-      await ref.read(vaultActionsProvider).changePassword(
-        oldPassword: _current.text,
-        newPassword: _next.text,
-        onProgress: (status) {
-          if (mounted) setState(() => _progress = status);
-        },
-      );
+      await ref
+          .read(vaultActionsProvider)
+          .changePassword(
+            oldPassword: _current.text,
+            newPassword: _next.text,
+            onProgress: (status) {
+              if (mounted) setState(() => _progress = status);
+            },
+          );
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Vault password changed and history re-signed.')),
+          const SnackBar(
+            content: Text('Vault password changed and history re-signed.'),
+          ),
         );
       }
     } catch (error) {
@@ -524,7 +627,9 @@ class _ChangePasswordDialogState extends ConsumerState<_ChangePasswordDialog> {
               controller: _confirm,
               obscureText: true,
               enabled: !busy,
-              decoration: const InputDecoration(labelText: 'Confirm new password'),
+              decoration: const InputDecoration(
+                labelText: 'Confirm new password',
+              ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -541,7 +646,10 @@ class _ChangePasswordDialogState extends ConsumerState<_ChangePasswordDialog> {
             ],
             if (_error != null) ...[
               const SizedBox(height: 12),
-              Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
             ],
           ],
         ),

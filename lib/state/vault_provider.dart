@@ -27,12 +27,12 @@ final vaultRootProvider = FutureProvider<Directory>((ref) async {
 /// re-entering the password constantly.
 final historySigningKeyManagerProvider =
     FutureProvider<HistorySigningKeyManager>((ref) async {
-  final vaultRoot = await ref.watch(vaultRootProvider.future);
-  return HistorySigningKeyManager(
-    saltFile: File(p.join(vaultRoot.path, 'salt')),
-    verifierFile: File(p.join(vaultRoot.path, 'verifier')),
-  );
-});
+      final vaultRoot = await ref.watch(vaultRootProvider.future);
+      return HistorySigningKeyManager(
+        saltFile: File(p.join(vaultRoot.path, 'salt')),
+        verifierFile: File(p.join(vaultRoot.path, 'verifier')),
+      );
+    });
 
 final vaultServiceProvider = Provider<VaultService>((ref) => VaultService());
 
@@ -61,7 +61,9 @@ class VaultStatusNotifier extends AsyncNotifier<VaultStatus> {
   Future<VaultStatus> build() async {
     final manager = await ref.watch(historySigningKeyManagerProvider.future);
     if (manager.isUnlocked) return VaultStatus.unlocked;
-    return await manager.isConfigured ? VaultStatus.locked : VaultStatus.notConfigured;
+    return await manager.isConfigured
+        ? VaultStatus.locked
+        : VaultStatus.notConfigured;
   }
 
   Future<void> setup(String password) async {
@@ -100,7 +102,9 @@ class VaultStatusNotifier extends AsyncNotifier<VaultStatus> {
 }
 
 final vaultStatusProvider =
-    AsyncNotifierProvider<VaultStatusNotifier, VaultStatus>(VaultStatusNotifier.new);
+    AsyncNotifierProvider<VaultStatusNotifier, VaultStatus>(
+      VaultStatusNotifier.new,
+    );
 
 const _retentionPrefKey = 'vault.retentionCount';
 const _autoRefreshPrefKey = 'vault.autoRefresh';
@@ -154,7 +158,42 @@ class VaultAutoRefreshNotifier extends Notifier<bool> {
 }
 
 final vaultAutoRefreshProvider =
-    NotifierProvider<VaultAutoRefreshNotifier, bool>(VaultAutoRefreshNotifier.new);
+    NotifierProvider<VaultAutoRefreshNotifier, bool>(
+      VaultAutoRefreshNotifier.new,
+    );
+
+const _allowUnencryptedPrefKey = 'vault.allowUnencrypted';
+
+/// Opt-in: run automatic backups even with no vault password set, writing
+/// plain (unencrypted) generations instead of skipping backup entirely (see
+/// [VaultActions.refreshProject] and [VaultService.buildPlainVault]). Off by
+/// default — matches this app's convention for new automatic behavior
+/// (e.g. [DriveImmediateSyncNotifier]) being opt-in, and specifically here
+/// because turning it on trades away encryption, which shouldn't happen
+/// silently.
+class VaultAllowUnencryptedNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    _restore();
+    return false;
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getBool(_allowUnencryptedPrefKey) ?? false;
+  }
+
+  Future<void> set(bool enabled) async {
+    state = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_allowUnencryptedPrefKey, enabled);
+  }
+}
+
+final vaultAllowUnencryptedProvider =
+    NotifierProvider<VaultAllowUnencryptedNotifier, bool>(
+      VaultAllowUnencryptedNotifier.new,
+    );
 
 /// Set once the user dismisses the unlock prompt, so opening several projects
 /// in one session doesn't re-ask after they've already declined.
@@ -170,17 +209,33 @@ class VaultActions {
   final Ref _ref;
 
   /// Builds a new vault generation for [project], pruning old ones past the
-  /// configured retention count. Returns null when the vault isn't unlocked —
-  /// there's no password to encrypt with, which is an expected state (the user
-  /// skipped the prompt), not an error.
+  /// configured retention count. Returns null when there's nothing to build
+  /// with: no password unlocked this session, and [vaultAllowUnencryptedProvider]
+  /// isn't turned on to fall back to a plain (unencrypted) generation —
+  /// both expected, user-chosen states, not errors.
   Future<File?> refreshProject(Project project) async {
     final password = _ref.read(vaultSessionPasswordProvider);
-    if (password == null) return null;
+    if (password == null) {
+      if (!_ref.read(vaultAllowUnencryptedProvider)) return null;
+
+      final libraryRoot = await _ref.read(libraryServiceProvider).libraryRoot();
+      final vaultDir = await vaultDirFor(project);
+      return _ref
+          .read(vaultServiceProvider)
+          .refreshPlainVault(
+            projectDir: Directory(p.join(libraryRoot.path, project.folderName)),
+            vaultDir: vaultDir,
+            baseName: project.folderName,
+            retainCount: _ref.read(vaultRetentionCountProvider),
+          );
+    }
 
     final libraryRoot = await _ref.read(libraryServiceProvider).libraryRoot();
     final vaultDir = await vaultDirFor(project);
 
-    return _ref.read(vaultServiceProvider).refreshVault(
+    return _ref
+        .read(vaultServiceProvider)
+        .refreshVault(
           projectDir: Directory(p.join(libraryRoot.path, project.folderName)),
           vaultDir: vaultDir,
           baseName: project.folderName,
@@ -223,8 +278,9 @@ class VaultActions {
     final libraryRoot = await library.libraryRoot();
     final projects = await library.listProjects();
 
-    SceneHistoryService historyFor(Project project) =>
-        SceneHistoryService(Directory(p.join(libraryRoot.path, project.folderName)));
+    SceneHistoryService historyFor(Project project) => SceneHistoryService(
+      Directory(p.join(libraryRoot.path, project.folderName)),
+    );
 
     for (final project in projects) {
       onProgress?.call('Checking ${project.title}…');
@@ -263,11 +319,14 @@ final vaultActionsProvider = Provider<VaultActions>(VaultActions.new);
 
 /// Existing vault generations for a project, newest first. Invalidate after
 /// building a backup to refresh the settings/restore lists.
-final vaultGenerationsProvider =
-    FutureProvider.family<List<File>, Project>((ref, project) async {
+final vaultGenerationsProvider = FutureProvider.family<List<File>, Project>((
+  ref,
+  project,
+) async {
   final vaultDir = await ref.read(vaultActionsProvider).vaultDirFor(project);
-  final generations =
-      await ref.watch(vaultServiceProvider).listGenerations(vaultDir, project.folderName);
+  final generations = await ref
+      .watch(vaultServiceProvider)
+      .listGenerations(vaultDir, project.folderName);
   return generations.reversed.toList();
 });
 

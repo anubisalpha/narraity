@@ -9,6 +9,7 @@ import '../services/filename_sanitizer.dart';
 import '../services/review_export_service.dart';
 import '../state/manuscript_provider.dart';
 import '../state/review_export_provider.dart';
+import '../widgets/help_drawer.dart';
 
 /// AI/external review round-trip (Phase 4), kept as its own screen rather
 /// than buried in the scene editor toolbar — sending work out to a reviewer
@@ -105,6 +106,7 @@ class _ReviewExportScreenState extends ConsumerState<ReviewExportScreen> {
             icon: const Icon(Icons.download_outlined),
             onPressed: _import,
           ),
+          const HelpIconButton(topicId: 'reviewExport'),
           const SizedBox(width: 8),
         ],
       ),

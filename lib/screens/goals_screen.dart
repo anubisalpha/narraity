@@ -5,6 +5,7 @@ import '../models/project.dart';
 import '../state/goals_provider.dart';
 import '../widgets/goal_progress_card.dart';
 import '../widgets/goal_setup_wizard.dart';
+import '../widgets/help_drawer.dart';
 
 class GoalsScreen extends ConsumerWidget {
   const GoalsScreen({super.key, required this.project});
@@ -16,7 +17,10 @@ class GoalsScreen extends ConsumerWidget {
     final goalsAsync = ref.watch(goalListProvider(project));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Goals')),
+      appBar: AppBar(
+        title: const Text('Goals'),
+        actions: const [HelpIconButton(topicId: 'goals'), SizedBox(width: 8)],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => showGoalSetupWizard(context, ref, project),
         icon: const Icon(Icons.add),

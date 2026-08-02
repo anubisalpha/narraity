@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/content_owner.dart';
 import '../models/project.dart';
 import '../models/timeline.dart';
 import '../state/manuscript_provider.dart';
 import '../state/reference_provider.dart';
 import '../state/timeline_provider.dart';
+import '../widgets/help_drawer.dart';
 import '../widgets/immediate_drag_recognizer.dart';
 
 const _cardWidth = 200.0;
@@ -46,6 +48,7 @@ class TimelineScreen extends ConsumerWidget {
             icon: const Icon(Icons.add),
             onPressed: () => _addTrack(context, ref),
           ),
+          const HelpIconButton(topicId: 'timeline'),
           const SizedBox(width: 8),
         ],
       ),
@@ -638,8 +641,9 @@ Future<void> showTimelineEventDialog(
   var linkedWorld = {...event.linkedWorldIds};
 
   final scenes = await ref.read(sceneColumnsProvider(project).future);
-  final characters = await ref.read(characterListProvider(project).future);
-  final world = await ref.read(worldListProvider(project).future);
+  final characters =
+      await ref.read(characterListProvider(ContentOwner.project(project)).future);
+  final world = await ref.read(worldListProvider(ContentOwner.project(project)).future);
   if (!context.mounted) return;
 
   final result = await showDialog<bool>(

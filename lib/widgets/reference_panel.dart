@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/content_owner.dart';
 import '../models/profile_entry.dart';
 import '../models/project.dart';
 import '../services/profile_service.dart';
+import '../state/library_provider.dart';
 import '../state/reference_panel_provider.dart';
 import '../state/reference_provider.dart';
 
@@ -13,6 +15,12 @@ import '../state/reference_provider.dart';
 /// entries and for whatever the open scene mentions, showing only the fields
 /// the author starred as quickRef — contextual reference *while writing*,
 /// never a navigation away from the manuscript.
+///
+/// When [project] belongs to a series, the panel splits into two tabs —
+/// "Project" (this project's own pinned/mentioned entries, as before) and
+/// "Series" (the series' own entries, pinned from the series' Characters/
+/// World tabs and shared across every book in it). A standalone project
+/// shows just the project content, with no tab bar at all.
 class ReferencePanel extends ConsumerWidget {
   const ReferencePanel({super.key, required this.project});
 
@@ -20,7 +28,8 @@ class ReferencePanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final contentAsync = ref.watch(referencePanelContentProvider(project));
+    final seriesAsync = ref.watch(projectSeriesProvider(project));
+    final series = seriesAsync.valueOrNull;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -41,56 +50,106 @@ class ReferencePanel extends ConsumerWidget {
           ),
         ),
         Expanded(
-          child: contentAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (err, stack) => Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text('Failed to load references: $err'),
-            ),
-            data: (content) {
-              if (content.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text(
-                    'Pin a character or world entry from the sidebar, or type '
-                    '@ in a scene to mention one — its at-a-glance fields '
-                    'appear here while you write.',
+          child: series == null
+              ? _ReferenceList(
+                  owner: ContentOwner.project(project),
+                  contentAsync: ref.watch(referencePanelContentProvider(project)),
+                )
+              : DefaultTabController(
+                  length: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const TabBar(
+                        tabs: [Tab(text: 'Project'), Tab(text: 'Series')],
+                      ),
+                      Expanded(
+                        child: TabBarView(
+                          children: [
+                            _ReferenceList(
+                              owner: ContentOwner.project(project),
+                              contentAsync:
+                                  ref.watch(referencePanelContentProvider(project)),
+                            ),
+                            _ReferenceList(
+                              owner: ContentOwner.series(series),
+                              contentAsync: ref.watch(
+                                  seriesReferencePanelContentProvider(series)),
+                              emptyMessage:
+                                  'Pin a character or world entry from the "${series.title}" '
+                                  'series\' own Characters/World tabs — it\'ll show up here in '
+                                  'every project in the series.',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                );
-              }
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
-                children: [
-                  for (final item in content.pinned)
-                    _ReferenceCard(project: project, item: item, pinned: true),
-                  if (content.mentioned.isNotEmpty && content.pinned.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-                      child: Text('In this scene',
-                          style: Theme.of(context).textTheme.labelSmall),
-                    ),
-                  for (final item in content.mentioned)
-                    _ReferenceCard(project: project, item: item, pinned: false),
-                  for (final name in content.unresolved)
-                    _UnresolvedMentionCard(project: project, name: name),
-                ],
-              );
-            },
-          ),
+                ),
         ),
       ],
     );
   }
 }
 
+class _ReferenceList extends StatelessWidget {
+  const _ReferenceList({
+    required this.owner,
+    required this.contentAsync,
+    this.emptyMessage = 'Pin a character or world entry from the sidebar, or '
+        'type @ in a scene to mention one — its at-a-glance fields appear '
+        'here while you write.',
+  });
+
+  final ContentOwner owner;
+  final AsyncValue<ReferencePanelContent> contentAsync;
+  final String emptyMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    return contentAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, stack) => Padding(
+        padding: const EdgeInsets.all(12),
+        child: Text('Failed to load references: $err'),
+      ),
+      data: (content) {
+        if (content.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(emptyMessage),
+          );
+        }
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
+          children: [
+            for (final item in content.pinned)
+              _ReferenceCard(owner: owner, item: item, pinned: true),
+            if (content.mentioned.isNotEmpty && content.pinned.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+                child: Text('In this scene',
+                    style: Theme.of(context).textTheme.labelSmall),
+              ),
+            for (final item in content.mentioned)
+              _ReferenceCard(owner: owner, item: item, pinned: false),
+            for (final name in content.unresolved)
+              _UnresolvedMentionCard(owner: owner, name: name),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _ReferenceCard extends ConsumerWidget {
   const _ReferenceCard({
-    required this.project,
+    required this.owner,
     required this.item,
     required this.pinned,
   });
 
-  final Project project;
+  final ContentOwner owner;
   final ReferenceCardItem item;
   final bool pinned;
 
@@ -100,8 +159,8 @@ class _ReferenceCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final serviceAsync = ref.watch(
-        (_isCharacter ? characterServiceProvider : worldServiceProvider)(project));
+    final serviceAsync = ref
+        .watch((_isCharacter ? characterServiceProvider : worldServiceProvider)(owner));
     final service = serviceAsync.valueOrNull;
     final imageFile = service?.imageFile(entry);
     final hasImage = imageFile != null && imageFile.existsSync();
@@ -149,9 +208,7 @@ class _ReferenceCard extends ConsumerWidget {
                     pinned ? Icons.push_pin : Icons.push_pin_outlined,
                     size: 16,
                   ),
-                  onPressed: () => ref
-                      .read(pinnedReferencesProvider(project).notifier)
-                      .toggle(entry.id),
+                  onPressed: () => toggleReferencePin(ref, owner, entry.id),
                 ),
                 IconButton(
                   tooltip: 'Open full profile',
@@ -177,7 +234,7 @@ class _ReferenceCard extends ConsumerWidget {
             else
               for (final field in quickRefFields)
                 _QuickRefField(
-                  project: project,
+                  owner: owner,
                   entry: entry,
                   fieldName: field,
                   isCharacter: _isCharacter,
@@ -194,13 +251,13 @@ class _ReferenceCard extends ConsumerWidget {
 /// leaving the editor" behaviour.
 class _QuickRefField extends ConsumerStatefulWidget {
   const _QuickRefField({
-    required this.project,
+    required this.owner,
     required this.entry,
     required this.fieldName,
     required this.isCharacter,
   });
 
-  final Project project;
+  final ContentOwner owner;
   final ProfileEntry entry;
   final String fieldName;
   final bool isCharacter;
@@ -229,7 +286,7 @@ class _QuickRefFieldState extends ConsumerState<_QuickRefField> {
   Future<void> _startEditing() async {
     _service ??= await ref.read(
       (widget.isCharacter ? characterServiceProvider : worldServiceProvider)(
-              widget.project)
+              widget.owner)
           .future,
     );
     if (!mounted) return;
@@ -257,7 +314,7 @@ class _QuickRefFieldState extends ConsumerState<_QuickRefField> {
     await service.save(widget.entry.copyWith(
       fields: {...widget.entry.fields, widget.fieldName: text},
     ));
-    if (mounted) invalidateReferences(ref, widget.project);
+    if (mounted) invalidateReferences(ref, widget.owner);
   }
 
   @override
@@ -313,9 +370,9 @@ class _QuickRefFieldState extends ConsumerState<_QuickRefField> {
 /// renamed entry, or a character who doesn't have a profile yet. Offer to
 /// create one rather than just reporting the miss.
 class _UnresolvedMentionCard extends ConsumerWidget {
-  const _UnresolvedMentionCard({required this.project, required this.name});
+  const _UnresolvedMentionCard({required this.owner, required this.name});
 
-  final Project project;
+  final ContentOwner owner;
   final String name;
 
   @override
@@ -336,10 +393,9 @@ class _UnresolvedMentionCard extends ConsumerWidget {
             TextButton(
               child: const Text('Create'),
               onPressed: () async {
-                final service =
-                    await ref.read(characterServiceProvider(project).future);
+                final service = await ref.read(characterServiceProvider(owner).future);
                 final created = await service.create(name: name);
-                invalidateReferences(ref, project);
+                invalidateReferences(ref, owner);
                 ref.read(openReferenceProvider.notifier).state =
                     ReferenceSelection(ReferenceKind.character, created.id);
               },
