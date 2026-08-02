@@ -95,6 +95,52 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
     }
   }
 
+  Future<void> _renameProject() async {
+    final project = widget.project;
+    final controller = TextEditingController(text: project.title);
+    final newTitle = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename Project'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Title'),
+          onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    // Not disposed here on purpose: the dialog's closing (pop) animation
+    // still needs this TextField/controller for another frame after
+    // showDialog's Future resolves — disposing it immediately, right here,
+    // used to crash the app ("A TextEditingController was used after being
+    // disposed", cascading into framework assertions during that
+    // in-flight transition). Same pattern as `_promptForText` in
+    // notes_panel.dart, which never disposes its dialog-scoped controller
+    // either — a short-lived controller like this is cheap enough to just
+    // let get garbage-collected once the dialog's Element is gone.
+    if (newTitle == null || newTitle.isEmpty || newTitle == project.title) {
+      return;
+    }
+
+    final library = ref.read(libraryServiceProvider);
+    final updated = await library.renameProject(project, newTitle);
+    ref.invalidate(projectListProvider);
+    if (ref.read(currentProjectProvider)?.id == updated.id) {
+      ref.read(currentProjectProvider.notifier).state = updated;
+    }
+  }
+
   Future<void> _autoBackup() async {
     if (!_autoBackupEnabled) return;
     try {
@@ -129,7 +175,22 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                 onPressed: () =>
                     ref.read(currentProjectProvider.notifier).state = null,
               ),
-              title: Text(project.title),
+              title: InkWell(
+                onTap: _renameProject,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        project.title,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.edit_outlined, size: 16),
+                  ],
+                ),
+              ),
               actions: [
                 IconButton(
                   tooltip: 'New Idea',
@@ -231,82 +292,104 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
           return _FocusModeEscape(
             enabled: focusMode,
             onExit: () => ref.read(focusModeProvider.notifier).state = false,
-            child: Row(
-              children: [
-                if (!focusMode)
-                  SizedBox(
-                    width: 280,
-                    child: DefaultTabController(
-                      length: 5,
-                      child: Column(
-                        children: [
-                          // Icons rather than text labels: five text tabs
-                          // don't fit in a 280px sidebar without truncating.
-                          const TabBar(
-                            tabs: [
-                              Tab(
-                                icon: Icon(Icons.menu_book_outlined),
-                                height: 46,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final sidebarWidth =
+                    constraints.maxWidth *
+                    ref.watch(manuscriptSidebarWidthProvider);
+                return Row(
+                  children: [
+                    if (!focusMode)
+                      SizedBox(
+                        width: sidebarWidth,
+                        child: DefaultTabController(
+                          length: 5,
+                          child: Column(
+                            children: [
+                              // Icons rather than text labels: five text tabs
+                              // don't fit in a 280px sidebar without truncating.
+                              const TabBar(
+                                tabs: [
+                                  Tab(
+                                    icon: Icon(Icons.menu_book_outlined),
+                                    height: 46,
+                                  ),
+                                  Tab(
+                                    icon: Icon(Icons.people_outline),
+                                    height: 46,
+                                  ),
+                                  Tab(icon: Icon(Icons.public), height: 46),
+                                  Tab(
+                                    icon: Icon(Icons.sticky_note_2_outlined),
+                                    height: 46,
+                                  ),
+                                  Tab(icon: Icon(Icons.checklist), height: 46),
+                                ],
                               ),
-                              Tab(icon: Icon(Icons.people_outline), height: 46),
-                              Tab(icon: Icon(Icons.public), height: 46),
-                              Tab(
-                                icon: Icon(Icons.sticky_note_2_outlined),
-                                height: 46,
+                              Expanded(
+                                child: TabBarView(
+                                  children: [
+                                    ManuscriptTree(
+                                      project: project,
+                                      service: service,
+                                      structure: structure,
+                                    ),
+                                    ProfilePanel(
+                                      project: project,
+                                      kind: ProfileKind.character,
+                                    ),
+                                    ProfilePanel(
+                                      project: project,
+                                      kind: ProfileKind.world,
+                                    ),
+                                    NotesPanel(project: project),
+                                    TodoPanel(project: project),
+                                  ],
+                                ),
                               ),
-                              Tab(icon: Icon(Icons.checklist), height: 46),
                             ],
                           ),
-                          Expanded(
-                            child: TabBarView(
-                              children: [
-                                ManuscriptTree(
-                                  project: project,
-                                  service: service,
-                                  structure: structure,
-                                ),
-                                ProfilePanel(
-                                  project: project,
-                                  kind: ProfileKind.character,
-                                ),
-                                ProfilePanel(
-                                  project: project,
-                                  kind: ProfileKind.world,
-                                ),
-                                NotesPanel(project: project),
-                                TodoPanel(project: project),
-                              ],
+                        ),
+                      ),
+                    if (!focusMode)
+                      _ResizeHandle(
+                        onDrag: (delta) => ref
+                            .read(manuscriptSidebarWidthProvider.notifier)
+                            .set(
+                              ref.read(manuscriptSidebarWidthProvider) +
+                                  delta / constraints.maxWidth,
                             ),
-                          ),
-                        ],
+                        onDragEnd: () => ref
+                            .read(manuscriptSidebarWidthProvider.notifier)
+                            .save(),
+                      ),
+                    Expanded(
+                      child: _mainPane(
+                        reference: reference,
+                        openId: openId,
+                        service: service,
+                        structure: structure,
                       ),
                     ),
-                  ),
-                if (!focusMode) const VerticalDivider(width: 1),
-                Expanded(
-                  child: _mainPane(
-                    reference: reference,
-                    openId: openId,
-                    service: service,
-                    structure: structure,
-                  ),
-                ),
-                // Focus Mode hides the panel too — the point of Focus Mode is
-                // nothing but prose on screen.
-                if (!focusMode && referenceVisible) ...[
-                  _ReferencePanelResizeHandle(
-                    onDrag: (delta) => ref
-                        .read(referencePanelWidthProvider.notifier)
-                        .set(ref.read(referencePanelWidthProvider) - delta),
-                    onDragEnd: () =>
-                        ref.read(referencePanelWidthProvider.notifier).save(),
-                  ),
-                  SizedBox(
-                    width: ref.watch(referencePanelWidthProvider),
-                    child: ReferencePanel(project: project),
-                  ),
-                ],
-              ],
+                    // Focus Mode hides the panel too — the point of Focus Mode is
+                    // nothing but prose on screen.
+                    if (!focusMode && referenceVisible) ...[
+                      _ResizeHandle(
+                        onDrag: (delta) => ref
+                            .read(referencePanelWidthProvider.notifier)
+                            .set(ref.read(referencePanelWidthProvider) - delta),
+                        onDragEnd: () => ref
+                            .read(referencePanelWidthProvider.notifier)
+                            .save(),
+                      ),
+                      SizedBox(
+                        width: ref.watch(referencePanelWidthProvider),
+                        child: ReferencePanel(project: project),
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
           );
         },
@@ -372,13 +455,13 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
   }
 }
 
-/// Thin draggable divider that resizes the Reference Panel. Dragging left
-/// widens the panel, so the delta is inverted by the caller.
-class _ReferencePanelResizeHandle extends StatelessWidget {
-  const _ReferencePanelResizeHandle({
-    required this.onDrag,
-    required this.onDragEnd,
-  });
+/// Thin draggable divider that resizes an adjacent panel — the manuscript
+/// sidebar on the left and the Reference Panel on the right both use this,
+/// each translating the raw drag delta to its own width/fraction change
+/// (and sign: the Reference Panel widens when dragged left, so its caller
+/// inverts the delta).
+class _ResizeHandle extends StatelessWidget {
+  const _ResizeHandle({required this.onDrag, required this.onDragEnd});
 
   final ValueChanged<double> onDrag;
   final VoidCallback onDragEnd;

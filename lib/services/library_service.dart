@@ -154,6 +154,16 @@ class LibraryService {
     return updated;
   }
 
+  /// Renames [project] to [newTitle] and persists it. The on-disk folder
+  /// name is untouched — only the title shown in the UI changes — so this
+  /// can't collide with another project's folder or break any path already
+  /// stored elsewhere (cover image, exports, ...).
+  Future<Project> renameProject(Project project, String newTitle) async {
+    final updated = project.copyWith(title: newTitle, modified: DateTime.now());
+    await saveProject(updated);
+    return updated;
+  }
+
   /// Deletes the current cover file (if any) and clears `coverImagePath`.
   Future<Project> removeCoverImage(Project project) async {
     if (project.coverImagePath != null) {

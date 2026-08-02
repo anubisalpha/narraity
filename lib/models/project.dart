@@ -120,4 +120,20 @@ class Project {
       sortOrder: json['sortOrder'] as int?,
     );
   }
+
+  /// Equality by [id] alone — [id] is assigned once at creation and never
+  /// changes, unlike every other field (title, cover, sort order, ...),
+  /// which can all be edited in place via [copyWith]. Providers keyed by a
+  /// whole `Project` (`family: Project`) rely on this: without it, Dart's
+  /// default identity equality treats every edited copy as a brand-new key,
+  /// so a rename mid-session would tear down and rebuild every
+  /// project-scoped provider (manuscript service, structure, ...) even
+  /// though nothing they read actually changed — a real crash this fixed
+  /// (a Flutter framework assertion firing when that teardown raced an
+  /// in-flight rebuild).
+  @override
+  bool operator ==(Object other) => other is Project && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
 }

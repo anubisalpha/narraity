@@ -110,6 +110,12 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
   // load that's already known to fail — spell check just stays off rather
   // than breaking the rest of the editor.
   bool _spellCheckUnavailable = false;
+  bool _spellCheckRunning = false;
+  // Bumped on every run so a scan that's still yielding through a long
+  // document (see findMisspelledAsync) can tell it's been superseded by a
+  // newer one (the user kept typing, or switched scenes) and discard its
+  // now-stale result instead of clobbering the current one.
+  int _spellCheckGeneration = 0;
 
   /// Live `@…` autocomplete state (Phase 2.5). Non-null [_mentionQuery] means
   /// the caret is inside a mention being typed, and [_mentionMatches] holds
@@ -165,7 +171,19 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
     _dirty = false;
     _publishMentions();
     await _resolveAnnotations();
-    _scheduleSpellCheck(immediate: true);
+    // Deferred a frame: the *first* spell check of a session also loads the
+    // spell check service (dictionary extraction + native Hunspell init),
+    // which is one-time work heavy enough to starve this same isolate from
+    // painting the document it's attached to — the scene would sit on its
+    // own loading spinner behind the block instead of showing content
+    // immediately, exactly the freeze findMisspelledAsync's chunking can't
+    // help with since it happens before that method is ever reached.
+    // Posting this past the current frame lets the doc render first; the
+    // spell check indicator then covers the (still slow, just no longer
+    // blocking) service load once content is already on screen.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _scheduleSpellCheck(immediate: true);
+    });
   }
 
   // ---- spell check (Phase 4.5) -------------------------------------------
@@ -181,6 +199,12 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
   }
 
   Future<void> _runSpellCheck() async {
+    final generation = ++_spellCheckGeneration;
+    // Set before awaiting the service too — on a session's first check this
+    // wait includes one-time dictionary extraction and native Hunspell
+    // init, not just the scan itself, and that's the slower part.
+    setState(() => _spellCheckRunning = true);
+
     final SpellCheckService service;
     try {
       service = await ref.read(spellCheckServiceProvider.future);
@@ -189,13 +213,17 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
       // environment, ...) — spell check just stays off rather than
       // breaking the rest of the editor, and stop retrying every debounce.
       _spellCheckUnavailable = true;
+      if (mounted) setState(() => _spellCheckRunning = false);
       return;
     }
-    if (_disposed) return;
-    final ranges = service.findMisspelled(_controller.text);
-    if (_disposed) return;
+    if (_disposed || generation != _spellCheckGeneration) return;
+    final ranges = await service.findMisspelledAsync(_controller.text);
+    if (_disposed || generation != _spellCheckGeneration) return;
     _controller.misspelledRanges = ranges;
-    setState(() => _misspelled = ranges);
+    setState(() {
+      _misspelled = ranges;
+      _spellCheckRunning = false;
+    });
   }
 
   void _jumpToMisspelled(int start, int end) {
@@ -1077,14 +1105,22 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
                           ),
                           const VerticalDivider(width: 16),
                           IconButton(
-                            tooltip: _misspelled.isEmpty
-                                ? 'Spelling'
-                                : 'Spelling (${_misspelled.length})',
-                            icon: Badge(
-                              label: Text('${_misspelled.length}'),
-                              isLabelVisible: _misspelled.isNotEmpty,
-                              child: const Icon(Icons.spellcheck),
-                            ),
+                            tooltip: _spellCheckRunning
+                                ? 'Checking spelling…'
+                                : _misspelled.isEmpty
+                                    ? 'Spelling'
+                                    : 'Spelling (${_misspelled.length})',
+                            icon: _spellCheckRunning
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : Badge(
+                                    label: Text('${_misspelled.length}'),
+                                    isLabelVisible: _misspelled.isNotEmpty,
+                                    child: const Icon(Icons.spellcheck),
+                                  ),
                             onPressed: () =>
                                 setState(() => _spellingPanelOpen = !_spellingPanelOpen),
                           ),

@@ -7,6 +7,30 @@ app release required. This is the source for the in-app News Feed (`NewsService`
 Newest entry first. Each entry is a `## YYYY-MM-DD: Title` heading — `NewsService` parses on that
 pattern, so keep the format consistent.
 
+## 2026-08-02: Rename projects, a resizable sidebar, and a status bar — v1.3.0
+
+**Projects can now be renamed.** Tap the pencil next to the title in a project's toolbar to give it
+a proper name any time — no longer locked in from creation.
+
+**The left sidebar (manuscript tree / characters / world / notes / to-dos) is now resizable.** Drag
+the divider to the width you want; it's remembered as a proportion of the window, so it stays
+sensible whether you're on a laptop screen or an ultrawide monitor, and across resizes.
+
+**A new status bar** sits along the bottom of the app: version and copyright on the left, and on the
+right, at-a-glance icons for Spell check, Thesaurus, the Backup Vault, and Google Drive — hover any
+of them for details (the Vault icon tells you plainly whether your backups are actually encrypted
+right now; the Drive icon flickers while a sync is in progress). Hidden in Focus Mode along with the
+rest of the chrome.
+
+**Global Ideas now asks before deleting** an idea, matching every other delete confirmation in the
+app — previously it removed the idea immediately with no way back.
+
+**Under the hood:** fixed a real freeze — spell check's first run on a scene (or its very first run
+of a session, when the dictionary itself has to load) used to block the UI thread, which could look
+like the app had hung on any page with a lot of misspellings. It now runs off the critical path with
+a "Checking spelling…" indicator instead. Also fixed a related case where opening a project could
+sit on a loading spinner far longer than it should before showing your first scene.
+
 ## 2026-08-01: Archive & Delete, editable card style, and a new look — v1.2.0
 
 **Archive & Delete for projects.** Previously there was no way to remove a project from your

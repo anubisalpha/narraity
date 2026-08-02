@@ -67,5 +67,28 @@ class SpellCheckService {
           if (!isCorrect(word.text)) (word.start, word.end),
       ];
 
+  /// Same result as [findMisspelled], but yields to the event loop every
+  /// [chunkSize] words instead of checking the whole document in one
+  /// unbroken synchronous pass. Each word check is a native Hunspell call,
+  /// so a page with hundreds of misspellings (or just a long one) can add up
+  /// to a stretch long enough to freeze the UI thread — this keeps the app
+  /// responsive (and cancellable) while a scan is in flight, at the cost of
+  /// the scan itself taking a little longer in wall-clock time.
+  Future<List<(int start, int end)>> findMisspelledAsync(
+    String content, {
+    int chunkSize = 200,
+  }) async {
+    final result = <(int, int)>[];
+    var sinceYield = 0;
+    for (final word in tokenizeWords(content)) {
+      if (!isCorrect(word.text)) result.add((word.start, word.end));
+      if (++sinceYield >= chunkSize) {
+        sinceYield = 0;
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+    return result;
+  }
+
   void dispose() => _ffi.destroy(_handle);
 }

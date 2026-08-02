@@ -2345,3 +2345,53 @@ so it stays correct in both light and dark mode. Icon exported at 256px from the
 `branding/app_icon_master.png` used for the app icon itself, added as `assets/branding/app_icon.png`.
 
 **581 tests total**, `flutter analyze` clean. Verified visually in the running app.
+
+## Fixed: spell check freezing the UI, editable project titles, resizable sidebar, status bar
+
+Real user report, tracked to a genuine bug: on any scene with a lot of misspellings, the app looked
+like it was about to crash. Root cause was `SpellCheckService.findMisspelled` — a synchronous loop
+of native Hunspell FFI calls, one per word, run inline as soon as a scene loaded
+(`SceneEditor._load`), with no yield point for the whole scan. Added
+`findMisspelledAsync` (yields every 200 words via `await Future<void>.delayed(Duration.zero)`) and
+a `_spellCheckRunning` flag driving a small spinner on the spelling toolbar button so a scan in
+flight is visible rather than looking hung. That fixed the *scan* itself, but not the whole
+picture: a session's *first* spell check also has to load the spell check service (dictionary
+extraction + native Hunspell init), which is one-time work heavy enough to starve the same isolate
+from painting the scene document underneath it — so the very first scene opened after launch could
+still sit on `SceneEditor`'s own loading spinner well after its (near-instant) `readScene` call had
+returned. Fixed by deferring the first spell check kickoff a frame past the document's own render
+(`WidgetsBinding.instance.addPostFrameCallback`), so content shows immediately and the one-time
+service load happens visibly behind the spelling icon's spinner instead of blocking the frame.
+
+Also shipped from the same conversation: **project titles are now editable** (tap the pencil in the
+project shell's app bar → `LibraryService.renameProject`); the **left sidebar is now
+resize-by-drag**, stored as a *fraction* of the shell's width rather than a fixed pixel count
+(`ManuscriptSidebarWidthNotifier` in `reference_panel_provider.dart`) so it stays visually sensible
+across window sizes and monitors, unlike the Reference Panel's existing fixed-pixel width — the
+generic drag handle (`_ReferencePanelResizeHandle`) was renamed to `_ResizeHandle` and reused
+rather than duplicated; a new **status bar** (`widgets/status_bar.dart`) along the bottom shows
+app version/copyright plus live Thesaurus/Spell check/Vault/Google Drive status with tooltips, the
+Drive icon flickering during an actual sync (a new `driveSyncActiveProvider` flag, since nothing
+previously tracked "syncing right now" as opposed to "connected"); and **Global Ideas now confirms
+before deleting**, matching every other delete flow in the app.
+
+Two real bugs found and fixed while building the rename feature, both worth remembering:
+
+- `Project` had no `==`/`hashCode` override, so every `copyWith` (rename, cover change, ...) that
+  replaced `currentProjectProvider`'s state created an object Dart's default identity equality
+  treated as a brand-new key for every `family: Project`-keyed provider (`manuscriptServiceProvider`,
+  `manuscriptStructureProvider`, ...) — tearing down and rebuilding all of them on every rename even
+  though nothing they actually read had changed. Fixed with equality by `id` alone (the one field
+  that's genuinely immutable across a `copyWith`).
+- The rename dialog crashed on save/submit — `'_dependents.isEmpty': is not true'` cascading from
+  "A TextEditingController was used after being disposed." The dialog's `TextEditingController` was
+  disposed immediately after `showDialog`'s future resolved, but the dialog's own closing (pop)
+  *animation* still needed that `TextField` for another frame. Fixed by not disposing it at all —
+  matching `notes_panel.dart`'s existing `_promptForText` helper, which already skips disposal for
+  exactly this reason (a short-lived, dialog-scoped controller is cheap enough to just leave for GC).
+
+Verified live on a real Windows debug build throughout — including tracking down two false-negative
+test sessions caused by `open_application("Narraity")` launching the pre-installed release copy in
+Program Files alongside the dev build, rather than actually reaching the code under test.
+
+**582 tests total**, `flutter analyze` clean.

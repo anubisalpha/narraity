@@ -186,6 +186,25 @@ class _IdeaCard extends ConsumerWidget {
           SnackBar(content: Text('Attached to "${project.title}" as a story note')),
         );
       case 'delete':
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Delete "${idea.title}"?'),
+            content: const Text('This cannot be undone from within the app.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton.tonal(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true) return;
+
         await service.deleteIdea(idea);
         ref.invalidate(ideaListProvider);
     }

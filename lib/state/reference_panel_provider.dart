@@ -34,7 +34,8 @@ class ReferencePanelVisibleNotifier extends Notifier<bool> {
 
 final referencePanelVisibleProvider =
     NotifierProvider<ReferencePanelVisibleNotifier, bool>(
-        ReferencePanelVisibleNotifier.new);
+      ReferencePanelVisibleNotifier.new,
+    );
 
 class ReferencePanelWidthNotifier extends Notifier<double> {
   static const _prefKey = 'referencePanel.width';
@@ -50,7 +51,10 @@ class ReferencePanelWidthNotifier extends Notifier<double> {
 
   Future<void> _restore() async {
     final prefs = await SharedPreferences.getInstance();
-    state = (prefs.getDouble(_prefKey) ?? defaultWidth).clamp(minWidth, maxWidth);
+    state = (prefs.getDouble(_prefKey) ?? defaultWidth).clamp(
+      minWidth,
+      maxWidth,
+    );
   }
 
   /// Live value during a drag — not persisted per pixel; call [save] on drag
@@ -65,7 +69,52 @@ class ReferencePanelWidthNotifier extends Notifier<double> {
 
 final referencePanelWidthProvider =
     NotifierProvider<ReferencePanelWidthNotifier, double>(
-        ReferencePanelWidthNotifier.new);
+      ReferencePanelWidthNotifier.new,
+    );
+
+/// Width of the project shell's left sidebar (manuscript tree / profiles /
+/// world / notes / to-dos tabs), stored as a *fraction* of the shell's
+/// available width rather than a fixed pixel count — unlike
+/// [ReferencePanelWidthNotifier]. A fixed-pixel sidebar looks proportionally
+/// wrong the moment the window is resized or reopened on a different
+/// monitor; a fraction stays visually consistent across both, at the cost of
+/// [minFraction]/[maxFraction] being the only clamp available here — the
+/// caller (`project_shell_screen.dart`'s `LayoutBuilder`) is what turns this
+/// back into a pixel width against the *current* available width.
+class ManuscriptSidebarWidthNotifier extends Notifier<double> {
+  static const _prefKey = 'projectShell.sidebarWidthFraction';
+  static const defaultFraction = 0.2;
+  static const minFraction = 0.12;
+  static const maxFraction = 0.4;
+
+  @override
+  double build() {
+    _restore();
+    return defaultFraction;
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = (prefs.getDouble(_prefKey) ?? defaultFraction).clamp(
+      minFraction,
+      maxFraction,
+    );
+  }
+
+  /// Live value during a drag — not persisted per pixel; call [save] on drag
+  /// end so the preference file isn't rewritten continuously.
+  void set(double fraction) => state = fraction.clamp(minFraction, maxFraction);
+
+  Future<void> save() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_prefKey, state);
+  }
+}
+
+final manuscriptSidebarWidthProvider =
+    NotifierProvider<ManuscriptSidebarWidthNotifier, double>(
+      ManuscriptSidebarWidthNotifier.new,
+    );
 
 /// Entry ids pinned to the panel for one project — "keep this visible no
 /// matter what scene I'm in". Persisted per project (keyed by project id, not
@@ -97,12 +146,15 @@ class PinnedReferencesNotifier extends FamilyNotifier<List<String>, Project> {
 
 final pinnedReferencesProvider =
     NotifierProvider.family<PinnedReferencesNotifier, List<String>, Project>(
-        PinnedReferencesNotifier.new);
+      PinnedReferencesNotifier.new,
+    );
 
 /// Names mentioned (`[[Name]]`) in the scene currently open in the editor,
 /// published by SceneEditor on its save debounce. One open scene at a time,
 /// so this isn't project-keyed.
-final sceneMentionedNamesProvider = StateProvider<List<String>>((ref) => const []);
+final sceneMentionedNamesProvider = StateProvider<List<String>>(
+  (ref) => const [],
+);
 
 /// The panel's resolved content: mentioned names matched against real entries
 /// (characters first, then world), plus the names that matched nothing.
@@ -178,29 +230,32 @@ class ReferencePanelContent {
 
 final referencePanelContentProvider =
     FutureProvider.family<ReferencePanelContent, Project>((ref, project) async {
-  final characters = await ref.watch(characterListProvider(project).future);
-  final world = await ref.watch(worldListProvider(project).future);
-  final pinnedIds = ref.watch(pinnedReferencesProvider(project));
-  final mentionedNames = ref.watch(sceneMentionedNamesProvider);
+      final characters = await ref.watch(characterListProvider(project).future);
+      final world = await ref.watch(worldListProvider(project).future);
+      final pinnedIds = ref.watch(pinnedReferencesProvider(project));
+      final mentionedNames = ref.watch(sceneMentionedNamesProvider);
 
-  final byId = {
-    for (final entry in characters) entry.id: ReferenceCardItem(entry, ProfileKind.character),
-    for (final entry in world) entry.id: ReferenceCardItem(entry, ProfileKind.world),
-  };
-  // Preserve pin order; silently drop ids whose entry has been deleted.
-  final pinned = [
-    for (final id in pinnedIds)
-      if (byId.containsKey(id)) byId[id]!,
-  ];
+      final byId = {
+        for (final entry in characters)
+          entry.id: ReferenceCardItem(entry, ProfileKind.character),
+        for (final entry in world)
+          entry.id: ReferenceCardItem(entry, ProfileKind.world),
+      };
+      // Preserve pin order; silently drop ids whose entry has been deleted.
+      final pinned = [
+        for (final id in pinnedIds)
+          if (byId.containsKey(id)) byId[id]!,
+      ];
 
-  final mentions = resolveMentions(mentionedNames, characters, world);
-  final pinnedIdSet = pinned.map((item) => item.entry.id).toSet();
-  final mentioned =
-      mentions.entries.where((item) => !pinnedIdSet.contains(item.entry.id)).toList();
+      final mentions = resolveMentions(mentionedNames, characters, world);
+      final pinnedIdSet = pinned.map((item) => item.entry.id).toSet();
+      final mentioned = mentions.entries
+          .where((item) => !pinnedIdSet.contains(item.entry.id))
+          .toList();
 
-  return ReferencePanelContent(
-    pinned: pinned,
-    mentioned: mentioned,
-    unresolved: mentions.unresolved,
-  );
-});
+      return ReferencePanelContent(
+        pinned: pinned,
+        mentioned: mentioned,
+        unresolved: mentions.unresolved,
+      );
+    });

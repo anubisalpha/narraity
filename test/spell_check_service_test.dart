@@ -111,6 +111,18 @@ void main() {
     expect(misspelledText, ['throuhg', 'zqxvvbn']);
   });
 
+  test('findMisspelledAsync returns the same ranges as findMisspelled, '
+      'yielding between small chunks so a scan can never block a whole frame',
+      () async {
+    const content = 'Elena stepped throuhg the zqxvvbn doorway.';
+    final ranges = await service.findMisspelledAsync(content, chunkSize: 1);
+
+    final misspelledText = [
+      for (final (start, end) in ranges) content.substring(start, end),
+    ];
+    expect(misspelledText, ['throuhg', 'zqxvvbn']);
+  });
+
   test('extraction is idempotent: loading twice reuses the extracted files',
       () async {
     final secondService = await SpellCheckService.load(

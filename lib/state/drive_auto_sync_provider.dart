@@ -45,7 +45,9 @@ class DriveImmediateSyncNotifier extends Notifier<bool> {
 }
 
 final driveImmediateSyncEnabledProvider =
-    NotifierProvider<DriveImmediateSyncNotifier, bool>(DriveImmediateSyncNotifier.new);
+    NotifierProvider<DriveImmediateSyncNotifier, bool>(
+      DriveImmediateSyncNotifier.new,
+    );
 
 /// A guaranteed once-a-day full sync + reconciliation check, independent of
 /// (and in addition to) the more frequent interval below.
@@ -94,9 +96,21 @@ class DriveFrequentSyncIntervalNotifier extends Notifier<int> {
 }
 
 final driveFrequentSyncIntervalProvider =
-    NotifierProvider<DriveFrequentSyncIntervalNotifier, int>(DriveFrequentSyncIntervalNotifier.new);
+    NotifierProvider<DriveFrequentSyncIntervalNotifier, int>(
+      DriveFrequentSyncIntervalNotifier.new,
+    );
 
-final driveSyncLogServiceProvider = Provider<DriveSyncLogService>((ref) => DriveSyncLogService());
+final driveSyncLogServiceProvider = Provider<DriveSyncLogService>(
+  (ref) => DriveSyncLogService(),
+);
+
+/// True for the duration of an actual sync request (full or single-file) —
+/// purely a UI signal (the status bar's Drive icon flickers while this is
+/// true), not itself part of the sync machinery. A plain bool rather than a
+/// counter: syncs never run concurrently in this app (both the periodic
+/// scheduler and the file watcher await one sync at a time), so overlap
+/// isn't a case this needs to handle.
+final driveSyncActiveProvider = StateProvider<bool>((ref) => false);
 
 /// Re-applies `_Settings/settings.json` into the live providers after a
 /// sync might have pulled a newer copy from another device — same list
@@ -120,7 +134,11 @@ Future<void> reapplyAppSettingsAfterSync(Ref ref) async {
 }
 
 class _SyncTarget {
-  const _SyncTarget({required this.title, required this.folderName, required this.directory});
+  const _SyncTarget({
+    required this.title,
+    required this.folderName,
+    required this.directory,
+  });
   final String title;
   final String folderName;
   final Directory directory;
@@ -131,26 +149,32 @@ Future<List<_SyncTarget>> _allSyncTargets(Ref ref) async {
   final targets = <_SyncTarget>[];
 
   for (final project in await library.listProjects()) {
-    targets.add(_SyncTarget(
-      title: project.title,
-      folderName: project.folderName,
-      directory: await projectDirectory(library, project),
-    ));
+    targets.add(
+      _SyncTarget(
+        title: project.title,
+        folderName: project.folderName,
+        directory: await projectDirectory(library, project),
+      ),
+    );
   }
 
-  targets.add(_SyncTarget(
-    title: 'Vault backups',
-    folderName: '_Vault',
-    directory: await ref.read(vaultRootProvider.future),
-  ));
+  targets.add(
+    _SyncTarget(
+      title: 'Vault backups',
+      folderName: '_Vault',
+      directory: await ref.read(vaultRootProvider.future),
+    ),
+  );
 
   final settings = ref.read(appSettingsServiceProvider);
   await settings.exportToFile();
-  targets.add(_SyncTarget(
-    title: 'App settings',
-    folderName: '_Settings',
-    directory: await settings.settingsRoot(),
-  ));
+  targets.add(
+    _SyncTarget(
+      title: 'App settings',
+      folderName: '_Settings',
+      directory: await settings.settingsRoot(),
+    ),
+  );
 
   return targets;
 }
@@ -161,7 +185,9 @@ Future<List<_SyncTarget>> _allSyncTargets(Ref ref) async {
 /// change afterwards. A no-op if not currently signed in (a timer firing
 /// while signed out just skips silently rather than erroring).
 Future<void> runFullSyncAcrossAllTargets(Ref ref, SyncTrigger trigger) async {
-  if (ref.read(driveConnectionProvider) != DriveConnectionStatus.signedIn) return;
+  if (ref.read(driveConnectionProvider) != DriveConnectionStatus.signedIn) {
+    return;
+  }
 
   final DriveSyncService service;
   try {
@@ -171,30 +197,39 @@ Future<void> runFullSyncAcrossAllTargets(Ref ref, SyncTrigger trigger) async {
   }
 
   final log = ref.read(driveSyncLogServiceProvider);
-  for (final target in await _allSyncTargets(ref)) {
-    try {
-      final result = await service.sync(target.directory, target.folderName);
-      await log.append(SyncLogEntry(
-        timestamp: DateTime.now(),
-        targetTitle: target.title,
-        trigger: trigger,
-        uploaded: result.uploaded.length,
-        downloaded: result.downloaded.length,
-        deletedLocal: result.deletedLocal.length,
-        deletedRemote: result.deletedRemote.length,
-        conflicts: result.conflicts.length,
-      ));
-    } catch (error) {
-      await log.append(SyncLogEntry(
-        timestamp: DateTime.now(),
-        targetTitle: target.title,
-        trigger: trigger,
-        error: error.toString(),
-      ));
+  ref.read(driveSyncActiveProvider.notifier).state = true;
+  try {
+    for (final target in await _allSyncTargets(ref)) {
+      try {
+        final result = await service.sync(target.directory, target.folderName);
+        await log.append(
+          SyncLogEntry(
+            timestamp: DateTime.now(),
+            targetTitle: target.title,
+            trigger: trigger,
+            uploaded: result.uploaded.length,
+            downloaded: result.downloaded.length,
+            deletedLocal: result.deletedLocal.length,
+            deletedRemote: result.deletedRemote.length,
+            conflicts: result.conflicts.length,
+          ),
+        );
+      } catch (error) {
+        await log.append(
+          SyncLogEntry(
+            timestamp: DateTime.now(),
+            targetTitle: target.title,
+            trigger: trigger,
+            error: error.toString(),
+          ),
+        );
+      }
     }
-  }
 
-  await reapplyAppSettingsAfterSync(ref);
+    await reapplyAppSettingsAfterSync(ref);
+  } finally {
+    ref.read(driveSyncActiveProvider.notifier).state = false;
+  }
 }
 
 /// Owns the two independent timers (daily / "frequent") and re-schedules
@@ -212,7 +247,9 @@ class DriveAutoSyncScheduler {
     _frequentTimer?.cancel();
     _frequentTimer = null;
 
-    if (_ref.read(driveConnectionProvider) != DriveConnectionStatus.signedIn) return;
+    if (_ref.read(driveConnectionProvider) != DriveConnectionStatus.signedIn) {
+      return;
+    }
 
     if (_ref.read(driveDailySyncEnabledProvider)) {
       _dailyTimer = Timer.periodic(
@@ -244,7 +281,10 @@ final driveAutoSyncSchedulerProvider = Provider<DriveAutoSyncScheduler>((ref) {
   final scheduler = DriveAutoSyncScheduler(ref);
   ref
     ..listen(driveDailySyncEnabledProvider, (_, __) => scheduler.reschedule())
-    ..listen(driveFrequentSyncIntervalProvider, (_, __) => scheduler.reschedule())
+    ..listen(
+      driveFrequentSyncIntervalProvider,
+      (_, __) => scheduler.reschedule(),
+    )
     ..listen(driveConnectionProvider, (_, __) => scheduler.reschedule());
   scheduler.reschedule();
   ref.onDispose(scheduler.dispose);
@@ -256,11 +296,15 @@ final driveAutoSyncSchedulerProvider = Provider<DriveAutoSyncScheduler>((ref) {
 /// changed file individually right after it settles. Rebuilds (disposing
 /// the old watcher first) whenever any of those three conditions change,
 /// via Riverpod's normal `ref.watch`-inside-a-provider re-run semantics.
-final projectFileWatcherProvider = FutureProvider.autoDispose<void>((ref) async {
+final projectFileWatcherProvider = FutureProvider.autoDispose<void>((
+  ref,
+) async {
   final project = ref.watch(currentProjectProvider);
   final immediateEnabled = ref.watch(driveImmediateSyncEnabledProvider);
   final connection = ref.watch(driveConnectionProvider);
-  if (project == null || !immediateEnabled || connection != DriveConnectionStatus.signedIn) {
+  if (project == null ||
+      !immediateEnabled ||
+      connection != DriveConnectionStatus.signedIn) {
     return;
   }
 
@@ -269,26 +313,37 @@ final projectFileWatcherProvider = FutureProvider.autoDispose<void>((ref) async 
   final log = ref.read(driveSyncLogServiceProvider);
 
   Future<void> handleChange(String relativePath) async {
+    ref.read(driveSyncActiveProvider.notifier).state = true;
     try {
       final service = await ref.read(driveSyncServiceProvider.future);
-      final result = await service.syncSingleFile(dir, project.folderName, relativePath);
-      await log.append(SyncLogEntry(
-        timestamp: DateTime.now(),
-        targetTitle: project.title,
-        trigger: SyncTrigger.immediate,
-        uploaded: result.uploaded.length,
-        downloaded: result.downloaded.length,
-        deletedLocal: result.deletedLocal.length,
-        deletedRemote: result.deletedRemote.length,
-        conflicts: result.conflicts.length,
-      ));
+      final result = await service.syncSingleFile(
+        dir,
+        project.folderName,
+        relativePath,
+      );
+      await log.append(
+        SyncLogEntry(
+          timestamp: DateTime.now(),
+          targetTitle: project.title,
+          trigger: SyncTrigger.immediate,
+          uploaded: result.uploaded.length,
+          downloaded: result.downloaded.length,
+          deletedLocal: result.deletedLocal.length,
+          deletedRemote: result.deletedRemote.length,
+          conflicts: result.conflicts.length,
+        ),
+      );
     } catch (error) {
-      await log.append(SyncLogEntry(
-        timestamp: DateTime.now(),
-        targetTitle: project.title,
-        trigger: SyncTrigger.immediate,
-        error: error.toString(),
-      ));
+      await log.append(
+        SyncLogEntry(
+          timestamp: DateTime.now(),
+          targetTitle: project.title,
+          trigger: SyncTrigger.immediate,
+          error: error.toString(),
+        ),
+      );
+    } finally {
+      ref.read(driveSyncActiveProvider.notifier).state = false;
     }
   }
 
