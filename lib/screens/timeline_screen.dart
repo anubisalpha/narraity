@@ -13,6 +13,12 @@ import '../widgets/immediate_drag_recognizer.dart';
 const _cardWidth = 200.0;
 const _cardHeight = 100.0;
 
+/// Below this width the fixed 260px track sidebar leaves almost nothing for
+/// the canvas itself (as little as ~100dp on a phone) — same threshold used
+/// elsewhere in the app (see project_shell_screen.dart's own constant) for
+/// "this docked side panel needs to become a drawer instead."
+const _kNarrowBreakpoint = 700.0;
+
 /// Vertical space given to each track's row — a card centred on the row's
 /// baseline (yOffset 0) sits in the middle of this band, with room either
 /// side to stagger without normally overlapping the next track.
@@ -38,8 +44,23 @@ class TimelineScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tracksAsync = ref.watch(timelineTrackListProvider(project));
     final eventsAsync = ref.watch(timelineEventListProvider(project));
+    final isNarrow = MediaQuery.sizeOf(context).width < _kNarrowBreakpoint;
 
     return Scaffold(
+      // Below the breakpoint the 260px fixed sidebar leaves almost no room
+      // for the canvas — move it into a drawer instead, opened via the
+      // AppBar icon below, so the canvas gets the full width.
+      endDrawer: isNarrow
+          ? Drawer(
+              child: SafeArea(
+                child: tracksAsync.when(
+                  data: (tracks) => _TrackSidebar(project: project, tracks: tracks),
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (err, stack) => Center(child: Text('Failed to load tracks: $err')),
+                ),
+              ),
+            )
+          : null,
       appBar: AppBar(
         title: const Text('Timeline'),
         actions: [
@@ -48,6 +69,14 @@ class TimelineScreen extends ConsumerWidget {
             icon: const Icon(Icons.add),
             onPressed: () => _addTrack(context, ref),
           ),
+          if (isNarrow)
+            Builder(
+              builder: (context) => IconButton(
+                tooltip: 'Tracks',
+                icon: const Icon(Icons.route),
+                onPressed: () => Scaffold.of(context).openEndDrawer(),
+              ),
+            ),
           const HelpIconButton(topicId: 'timeline'),
           const SizedBox(width: 8),
         ],
@@ -57,18 +86,20 @@ class TimelineScreen extends ConsumerWidget {
           Center(child: Text('Failed to load timeline: $error')),
         (AsyncData(value: final tracks), AsyncData(value: final events)) => tracks.isEmpty
             ? _EmptyState(onAddTrack: () => _addTrack(context, ref))
-            : Row(
-                children: [
-                  Expanded(
-                    child: _TimelineCanvas(project: project, tracks: tracks, events: events),
+            : isNarrow
+                ? _TimelineCanvas(project: project, tracks: tracks, events: events)
+                : Row(
+                    children: [
+                      Expanded(
+                        child: _TimelineCanvas(project: project, tracks: tracks, events: events),
+                      ),
+                      const VerticalDivider(width: 1),
+                      SizedBox(
+                        width: 260,
+                        child: _TrackSidebar(project: project, tracks: tracks),
+                      ),
+                    ],
                   ),
-                  const VerticalDivider(width: 1),
-                  SizedBox(
-                    width: 260,
-                    child: _TrackSidebar(project: project, tracks: tracks),
-                  ),
-                ],
-              ),
         _ => const Center(child: CircularProgressIndicator()),
       },
     );
