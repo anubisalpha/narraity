@@ -35,6 +35,7 @@ import '../state/tts_settings_provider.dart';
 import 'annotation_highlight_controller.dart';
 import 'annotation_panel.dart';
 import 'dictation_model_dialog.dart';
+import 'help_drawer.dart';
 import 'spelling_panel.dart';
 
 /// The writing surface for one scene/section: markdown-backed text editor
@@ -1228,6 +1229,8 @@ class _SceneEditorState extends ConsumerState<SceneEditor> {
                               ),
                             ],
                           ),
+                          const VerticalDivider(width: 16),
+                          const HelpIconButton(topicId: 'sceneEditor'),
                         ],
                       ),
                     ),

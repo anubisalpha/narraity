@@ -11,7 +11,7 @@ flows (no health data; optional Google Drive sync; optional GitHub sign-in for F
 
 - [x] Account already exists: "Anubis Productions" (marc.anubis@gmail.com) — shared across the
       -aity/Android app family, see memory `play-console-account`. Account-level step, done.
-- [ ] Confirm Narraity has its own app entry in Play Console (not yet checked this session)
+- [x] Confirmed Narraity has its own app entry in Play Console
 
 ---
 
@@ -35,8 +35,8 @@ flows (no health data; optional Google Drive sync; optional GitHub sign-in for F
 
 - [x] Generated release keystore 2026-08-03 — `narraity-release.jks` (project root), alias
       `narraity`, 10000-day validity, confirmed with user before generating
-- [ ] **Back the `.jks` up off-machine** (Google Drive, password manager attachment, etc.) — not
-      yet done. If it's lost and Play App Signing isn't enabled, the app can never be updated again.
+- [x] **Back the `.jks` up off-machine** — not a separate action needed; the whole `claudecore`
+      folder tree (including this project) is already covered by Google Drive backup.
 - [x] `keystore.properties` created at project root, added to `.gitignore` (`*.jks`,
       `keystore.properties`)
 - [x] Signing config wired into `android/app/build.gradle.kts` — reads from
@@ -204,7 +204,7 @@ your go-ahead first, since that's a public site edit.
 ```
 
 **Open questions before publishing:**
-- [ ] Confirm `contacts@aity.uk` actually receives mail (Plesk mailbox/forward) before this goes live
+- [x] `contacts@aity.uk` mailbox confirmed set up
 - [ ] Fill in the real publish date
 - [ ] User read-through/edits
 - [ ] Explicit go-ahead to edit the live `privacy.html` and SFTP-deploy it (per the deploy command

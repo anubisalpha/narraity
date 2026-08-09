@@ -64,6 +64,16 @@ class _ManuscriptSidebarTabs extends ConsumerWidget {
 
   final Project project;
 
+  /// Index-matched to the [TabBar]'s five tabs above — which help topic the
+  /// header's help icon shows for whichever tab is currently selected.
+  static const _sidebarTabHelpTopics = [
+    'manuscript',
+    'charactersWorld',
+    'charactersWorld',
+    'notes',
+    'todos',
+  ];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final service = ref.watch(manuscriptServiceProvider(project)).valueOrNull;
@@ -77,15 +87,36 @@ class _ManuscriptSidebarTabs extends ConsumerWidget {
       length: 5,
       child: Column(
         children: [
-          // Icons rather than text labels: five text tabs don't fit in a
-          // 280px sidebar without truncating.
-          const TabBar(
-            tabs: [
-              Tab(icon: Icon(Icons.menu_book_outlined), height: 46),
-              Tab(icon: Icon(Icons.people_outline), height: 46),
-              Tab(icon: Icon(Icons.public), height: 46),
-              Tab(icon: Icon(Icons.sticky_note_2_outlined), height: 46),
-              Tab(icon: Icon(Icons.checklist), height: 46),
+          Row(
+            children: [
+              // Icons rather than text labels: five text tabs don't fit in a
+              // 280px sidebar without truncating.
+              const Expanded(
+                child: TabBar(
+                  tabs: [
+                    Tab(icon: Icon(Icons.menu_book_outlined), height: 46),
+                    Tab(icon: Icon(Icons.people_outline), height: 46),
+                    Tab(icon: Icon(Icons.public), height: 46),
+                    Tab(icon: Icon(Icons.sticky_note_2_outlined), height: 46),
+                    Tab(icon: Icon(Icons.checklist), height: 46),
+                  ],
+                ),
+              ),
+              // One help icon that follows whichever tab is selected, rather
+              // than five — the tab bar has no room to spare for a sixth
+              // icon, and each tab already has its own topic in
+              // help_content.dart (manuscript/charactersWorld/notes/todos).
+              Builder(
+                builder: (context) {
+                  final controller = DefaultTabController.of(context);
+                  return AnimatedBuilder(
+                    animation: controller,
+                    builder: (context, _) => HelpIconButton(
+                      topicId: _sidebarTabHelpTopics[controller.index],
+                    ),
+                  );
+                },
+              ),
             ],
           ),
           Expanded(

@@ -10,6 +10,7 @@ import '../services/profile_service.dart';
 import '../state/library_provider.dart';
 import '../state/reference_panel_provider.dart';
 import '../state/reference_provider.dart';
+import 'help_drawer.dart';
 
 /// The Reference Panel (PLAN.md differentiator): compact cards for pinned
 /// entries and for whatever the open scene mentions, showing only the fields
@@ -46,6 +47,7 @@ class ReferencePanel extends ConsumerWidget {
             children: [
               Text('Reference', style: Theme.of(context).textTheme.titleSmall),
               const Spacer(),
+              const HelpIconButton(topicId: 'referencePanel'),
               IconButton(
                 tooltip: 'Hide panel',
                 icon: const Icon(Icons.close, size: 18),
