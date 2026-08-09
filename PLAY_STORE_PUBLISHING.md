@@ -68,22 +68,29 @@ flows (no health data; optional Google Drive sync; optional GitHub sign-in for F
       elsewhere in this file — cleared and retried each time, not a real failure.
 - [x] Tested the release build live (installed on `emulator-5554`) — **found a second, deeper
       bug**: Settings → Google Drive Sync now correctly shows a real "Not connected. / Connect"
-      state (confirming the oauth_config.json fix above worked), but tapping Connect throws
+      state (confirming the oauth_config.json fix above worked), but tapping Connect threw
       `SocketException: Failed to create server socket (OS Error: Operation not permitted,
-      errno = 1), address = localhost, port = 0`. `DriveAuthService`'s browser+loopback flow
-      (`clientViaUserConsent`, which binds a local HTTP server to catch the OAuth redirect) is
-      documented in its own code comment as working "identically on Windows and Android" — it
-      doesn't. Google's loopback-IP OAuth flow is specifically for installed *desktop* apps;
-      Android appears to block the app from binding that server socket. **Not yet fixed** — the
-      user wants to first confirm this is a genuine Android platform restriction and not an
-      emulator-specific network sandboxing artifact, by testing on a real device. If confirmed on
-      real hardware, the real fix is a separate Android-native auth path (most likely the
-      `google_sign_in` package, ironically the exact package PLAN.md originally rejected — its
-      "Android/iOS/macOS/Web, not Windows" limitation is exactly why it's right *for Android*,
-      with the current loopback flow kept for Windows), which likely also needs a second,
-      Android-type OAuth client (package name + SHA-1) registered in Google Cloud Console
-      alongside the existing Desktop-type client. Two platform-specific code paths, not a
-      quick patch — do not attempt without discussing the approach first.
+      errno = 1), address = localhost, port = 0`. Confirmed on the user's real device too — a
+      genuine Android platform restriction, not an emulator artifact.
+- [x] **Fixed** (2026-08-09) — `DriveAuthService` is now an abstract factory with two real
+      implementations instead of one shared loopback flow: Windows keeps the existing
+      `googleapis_auth` browser+loopback flow; Android uses `google_sign_in`'s Credential
+      Manager-based flow instead. `flutter analyze` clean, all 590 tests pass, both
+      `flutter build windows` and `flutter build apk --debug` succeed with the
+      `oauth_config.json` dart-defines. Full detail (including exactly what to register in
+      Google Cloud Console) in `README.md`'s "Google Drive Sync" section.
+- [ ] **Blocked on Google Cloud Console setup** — the fix above needs two new OAuth clients in
+      the same project as the existing Desktop-type one, neither of which exist yet:
+      1. **Android**-type client: package `uk.aity.narraity`, release SHA-1
+         `18:DE:24:8B:0E:85:53:4B:39:93:87:5E:ED:6A:90:C4:C2:43:0E:34` (from
+         `narraity-release.jks`). Optionally also register the debug SHA-1
+         `20:5F:0F:B4:E5:40:9F:20:7F:9E:D4:C3:D5:6E:79:51:56:00:53:0B` as a second Android-type
+         client (same package name) if debug builds should be able to sign in too.
+      2. **Web application**-type client (no SHA-1 needed) — its Client ID goes into
+         `oauth_config.json` as `GOOGLE_OAUTH_ANDROID_SERVER_CLIENT_ID` (currently an empty
+         placeholder there). Until this is filled in, Android will keep showing "not configured".
+      Once both exist and `oauth_config.json` has the real Web client ID, rebuild via
+      `android/build_release.ps1` and test sign-in for real on a device.
 
 ---
 
@@ -341,11 +348,10 @@ signed AAB again afterward with the Settings fix included.
 **Not yet done:**
 - Content rating questionnaire, data safety form, app content declarations — all Play Console UI,
   can't be automated from here
-- **Drive sync's OAuth flow is broken on Android** (`SocketException` binding the loopback
-  server) — needs a real device test to confirm it's not emulator-specific before deciding on a
-  fix. See the Session 2026-08-09 entry below for full detail. This blocks Drive sync being a
-  real, working feature on Android even though the build-config gap (missing
-  `oauth_config.json`) is now fixed.
+- **Drive sync's Android auth code is fixed but untested end-to-end** — blocked purely on Google
+  Cloud Console setup (an Android-type + a Web-type OAuth client, neither created yet — see
+  section 3's Android sign-in entry above for the exact values to register). Once
+  `oauth_config.json` has the real Web client ID, rebuild and test sign-in for real.
 - Everything else in section 9 (Pre-Launch Testing) below is otherwise unblocked — the release
   build itself launches fine in release/minified mode (Hunspell/Vosk FFI survived), just Drive
   sign-in specifically fails.
