@@ -7,6 +7,37 @@ app release required. This is the source for the in-app News Feed (`NewsService`
 Newest entry first. Each entry is a `## YYYY-MM-DD: Title` heading — `NewsService` parses on that
 pattern, so keep the format consistent.
 
+## 2026-08-09: Publishing Planning — v1.5.0
+
+**A Publishing Dashboard** now sits one tap from the Library screen (the overflow menu's top item)
+— one card per project showing its chosen publishing route, checklist progress, next deadline, and
+how many reviewer copies are out and overdue, so you can check on every project's publishing status
+without opening each one.
+
+**Contacts.** A library-wide address book for agents, editors, beta readers, ARC reviewers, cover
+designers, and publishers — reachable from the Library screen, not tied to any one project, since
+an agent might represent more than one manuscript.
+
+**Planning**, inside a project's toolbar menu, is a deadline list for the post-writing work — query
+package due, beta copies going out, launch day — grouped into Overdue / Due Soon / Upcoming / Done,
+each optionally linked to a Contact.
+
+**A Reviewer Tracker**, living inside the new **Publishing Hub**, replaces "who has my manuscript
+and did they ever get back to me" guesswork with a real log: who a copy went to, when, the deadline
+you agreed, and — once it's back — how long it actually took and an average turnaround stat across
+everyone.
+
+**The Publishing Hub itself** is route-by-route guidance — Traditional, Self-Publishing, Web Serial,
+or Hybrid — with a stage checklist for whichever route you're pursuing. Each item has a one-click
+web search and a **Copy AI Prompt** button that fills in your project's title, author, genre, and
+live word count, ready to paste into your AI assistant of choice. A permanent "Red Flags to Watch
+For" section covers vanity-press warning signs and rights basics, shown regardless of route.
+
+**A notification bell** now sits in the top bar everywhere — the Library screen (every project) and
+inside each project (that project only) — with a badge counting overdue milestones and overdue
+reviewer copies. Tap it for a sidebar listing exactly what's pending, with each item linking
+straight to where you'd go to deal with it.
+
 ## 2026-08-02: Series-level content, a real Help system — v1.4.0
 
 **Characters, World, Notes, and To-dos can now live at the series level**, shared across every

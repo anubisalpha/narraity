@@ -22,6 +22,8 @@ import '../widgets/help_drawer.dart';
 import '../widgets/manuscript_tree.dart';
 import '../widgets/note_editor.dart';
 import '../widgets/notes_panel.dart';
+import '../widgets/notification_bell.dart';
+import '../widgets/notifications_sidebar.dart';
 import '../widgets/profile_editor.dart';
 import '../widgets/profile_panel.dart';
 import '../widgets/quick_capture_dialog.dart';
@@ -32,7 +34,9 @@ import '../widgets/todo_panel.dart';
 import '../widgets/vault_unlock_dialog.dart';
 import 'export_screen.dart';
 import 'goals_screen.dart';
+import 'planning_screen.dart';
 import 'plot_grid_screen.dart';
+import 'publishing_hub_screen.dart';
 import 'relationship_screen.dart';
 import 'review_export_screen.dart';
 import 'series_detail_screen.dart';
@@ -300,6 +304,7 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
       drawer: (!focusMode && isNarrow)
           ? Drawer(child: SafeArea(child: _ManuscriptSidebarTabs(project: project)))
           : null,
+      endDrawer: focusMode ? null : NotificationsSidebar(project: project),
       appBar: focusMode
           ? null
           : AppBar(
@@ -380,6 +385,7 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                   onPressed: () =>
                       ref.read(focusModeProvider.notifier).state = true,
                 ),
+                NotificationBell(project: project),
                 PopupMenuButton<String>(
                   tooltip: 'More',
                   onSelected: (action) {
@@ -390,6 +396,12 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) => GoalsScreen(project: project),
+                          ),
+                        );
+                      case 'planning':
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => PlanningScreen(project: project),
                           ),
                         );
                       case 'plotGrid':
@@ -422,6 +434,12 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                             builder: (_) => ExportScreen(project: project),
                           ),
                         );
+                      case 'publishingHub':
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => PublishingHubScreen(project: project),
+                          ),
+                        );
                       case 'editorSettings':
                         showEditorSettingsDialog(context, ref);
                     }
@@ -429,6 +447,7 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                   itemBuilder: (context) => const [
                     PopupMenuItem(value: 'newIdea', child: Text('New Idea')),
                     PopupMenuItem(value: 'goals', child: Text('Goals')),
+                    PopupMenuItem(value: 'planning', child: Text('Planning')),
                     PopupMenuItem(value: 'plotGrid', child: Text('Plot Grid')),
                     PopupMenuItem(value: 'timeline', child: Text('Timeline')),
                     PopupMenuItem(
@@ -440,6 +459,10 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                       child: Text('Export / Import for Review'),
                     ),
                     PopupMenuItem(value: 'export', child: Text('Export')),
+                    PopupMenuItem(
+                      value: 'publishingHub',
+                      child: Text('Publishing Hub'),
+                    ),
                     PopupMenuItem(
                       value: 'editorSettings',
                       child: Text('Editor settings'),

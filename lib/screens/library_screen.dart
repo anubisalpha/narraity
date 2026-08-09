@@ -22,14 +22,18 @@ import '../widgets/import_destination_dialog.dart';
 import '../widgets/move_to_series_dialog.dart';
 import '../widgets/new_project_dialog.dart';
 import '../widgets/new_series_dialog.dart';
+import '../widgets/notification_bell.dart';
+import '../widgets/notifications_sidebar.dart';
 import '../widgets/project_kind_style.dart';
 import '../widgets/quick_capture_dialog.dart';
 import '../widgets/update_available_banner.dart';
 import '../widgets/whats_new_dialog.dart';
 import 'app_goals_screen.dart';
 import 'archived_projects_screen.dart';
+import 'contacts_screen.dart';
 import 'ideas_screen.dart';
 import 'news_screen.dart';
+import 'publishing_dashboard_screen.dart';
 import 'restore_from_drive_screen.dart';
 import 'review_sessions_screen.dart';
 import 'series_detail_screen.dart';
@@ -45,9 +49,11 @@ class LibraryScreen extends ConsumerWidget {
     final background = ref.watch(libraryBackgroundProvider);
 
     return Scaffold(
+      endDrawer: const NotificationsSidebar(),
       appBar: AppBar(
         title: const AppWordmark(),
         actions: [
+          const NotificationBell(),
           // See project_shell_screen.dart's matching comment for why this is
           // a primary-actions-plus-overflow-menu, not a scrollable Row of
           // every action (an Expanded inside AppBar's `actions` doesn't have
@@ -68,6 +74,12 @@ class LibraryScreen extends ConsumerWidget {
             tooltip: 'More',
             onSelected: (action) {
               switch (action) {
+                case 'publishingDashboard':
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const PublishingDashboardScreen(),
+                    ),
+                  );
                 case 'globalIdeas':
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const IdeasScreen()),
@@ -81,6 +93,10 @@ class LibraryScreen extends ConsumerWidget {
                     MaterialPageRoute(
                       builder: (_) => const ReviewSessionsScreen(),
                     ),
+                  );
+                case 'contacts':
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const ContactsScreen()),
                   );
                 case 'importManuscript':
                   _importManuscript(context, ref);
@@ -104,6 +120,10 @@ class LibraryScreen extends ConsumerWidget {
             },
             itemBuilder: (context) => const [
               PopupMenuItem(
+                value: 'publishingDashboard',
+                child: Text('Publishing Dashboard'),
+              ),
+              PopupMenuItem(
                 value: 'globalIdeas',
                 child: Text('Global Ideas'),
               ),
@@ -112,6 +132,7 @@ class LibraryScreen extends ConsumerWidget {
                 value: 'reviewManuscript',
                 child: Text('Review a Manuscript'),
               ),
+              PopupMenuItem(value: 'contacts', child: Text('Contacts')),
               PopupMenuItem(
                 value: 'importManuscript',
                 child: Text('Import Manuscript'),

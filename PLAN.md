@@ -720,6 +720,7 @@ anonymously or from a shared inbox, which is the whole point.
 | 6.5 | ✅ Done (core) | Multi-Novel Series Support — series entity, shared characters/worldbuilding/relationships/timeline, series dashboard. Series/covers/drag-reorder shipped; series-level dashboard beyond the stack-card/detail screen not separately scoped — revisit if needed |
 | 7 (parked) | ⏸ Parked | Co-authoring — **parked, not scoped for v1.** Real-time concurrent editing needs a different sync model entirely (CRDT/OT), distinct from the file-level Drive sync used everywhere else. Needs dedicated design thought before it's even phased in; revisit once the core app is solid. |
 | 8 | ✅ Done | In-App Release Notes, News Feed, and Feedback — see Feature section above and BUILD_LOG.md. Built 2026-08-01; GitHub OAuth App registered (`client_id` `Ov23liOBvd1Ln9bJKqdO`), all three built and unit-tested (mocked HTTP), but not yet verified against a real GitHub OAuth/Discussions round-trip. |
+| 9 | ✅ Done | Publishing Planning — library-wide Contacts, per-project Planning (milestones/deadlines), Reviewer/Beta-Copy Tracker with turnaround stats, a Notifications bell+sidebar (library-wide and per-project), a Publishing Hub (route-by-route guidance transcribed from a saved brainstorm, a stage checklist with web-search shortcuts and auto-filled AI-prompt templates, plus the Reviewer Tracker UI), and a Publishing Dashboard summarising every project's planning/publishing status. Built 2026-08-09. |
 
 ## Cross-Platform Roadmap (macOS, iOS, Linux — post-v1)
 
