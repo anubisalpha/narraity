@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -43,6 +44,77 @@ import 'timeline_screen.dart';
 /// interruption.
 const _autoBackupInterval = Duration(minutes: 30);
 
+/// Below this width, the three-pane desktop layout (sidebar + editor +
+/// reference panel, all docked side by side) stops fitting — on a phone-width
+/// screen it leaves barely any room for the manuscript itself even when
+/// nothing overflows outright. Chosen well above typical phone widths
+/// (~360-430dp) and below typical desktop window widths, so phones/narrow
+/// split-screen windows get the single-pane layout and normal desktop use is
+/// unaffected.
+const _kNarrowBreakpoint = 700.0;
+
+/// The manuscript tree / characters / world / notes / to-dos tab group,
+/// factored out so it can be hosted either inline in the docked sidebar
+/// (wide/desktop layout) or inside a [Drawer] (narrow/phone layout) without
+/// duplicating the tab setup. Watches its own providers rather than taking
+/// already-resolved data, since the two call sites don't share a build
+/// context that's convenient to thread that through.
+class _ManuscriptSidebarTabs extends ConsumerWidget {
+  const _ManuscriptSidebarTabs({required this.project});
+
+  final Project project;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final service = ref.watch(manuscriptServiceProvider(project)).valueOrNull;
+    final structure = ref
+        .watch(manuscriptStructureProvider(project))
+        .valueOrNull;
+    if (service == null || structure == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return DefaultTabController(
+      length: 5,
+      child: Column(
+        children: [
+          // Icons rather than text labels: five text tabs don't fit in a
+          // 280px sidebar without truncating.
+          const TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.menu_book_outlined), height: 46),
+              Tab(icon: Icon(Icons.people_outline), height: 46),
+              Tab(icon: Icon(Icons.public), height: 46),
+              Tab(icon: Icon(Icons.sticky_note_2_outlined), height: 46),
+              Tab(icon: Icon(Icons.checklist), height: 46),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                ManuscriptTree(
+                  project: project,
+                  service: service,
+                  structure: structure,
+                ),
+                ProfilePanel(
+                  owner: ContentOwner.project(project),
+                  kind: ProfileKind.character,
+                ),
+                ProfilePanel(
+                  owner: ContentOwner.project(project),
+                  kind: ProfileKind.world,
+                ),
+                NotesPanel(owner: ContentOwner.project(project)),
+                TodoPanel(owner: ContentOwner.project(project)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// The open-project shell: manuscript tree + to-dos in a sidebar, the scene
 /// editor as the main pane, and Focus Mode that collapses everything but the
 /// prose.
@@ -56,6 +128,7 @@ class ProjectShellScreen extends ConsumerStatefulWidget {
 }
 
 class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   late final VaultActions _vaultActions;
   Timer? _backupTimer;
 
@@ -189,8 +262,13 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
     final referenceVisible = ref.watch(referencePanelVisibleProvider);
     final serviceAsync = ref.watch(manuscriptServiceProvider(project));
     final structureAsync = ref.watch(manuscriptStructureProvider(project));
+    final isNarrow = MediaQuery.sizeOf(context).width < _kNarrowBreakpoint;
 
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: (!focusMode && isNarrow)
+          ? Drawer(child: SafeArea(child: _ManuscriptSidebarTabs(project: project)))
+          : null,
       appBar: focusMode
           ? null
           : AppBar(
@@ -218,84 +296,124 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                 ),
               ),
               actions: [
-                IconButton(
-                  tooltip: 'New Idea',
-                  icon: const Icon(Icons.lightbulb_outline),
-                  onPressed: () => showQuickCaptureDialog(context, ref),
-                ),
-                IconButton(
-                  tooltip: 'Goals',
-                  icon: const Icon(Icons.flag_outlined),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => GoalsScreen(project: project),
-                    ),
+                // Putting an Expanded/SingleChildScrollView directly inside
+                // `actions` (an earlier attempt at this fix) is an
+                // anti-pattern: AppBar's internal actions Row uses
+                // `mainAxisSize: MainAxisSize.min`, which doesn't give an
+                // Expanded child a well-defined Flex ancestor — it rendered
+                // the drawer button on top of the leading back button
+                // instead of after the title. Standard Material fix instead:
+                // a few primary actions stay directly visible, everything
+                // else moves behind one overflow (⋮) menu, so the action row
+                // is always a small, fixed number of plain IconButtons no
+                // matter how many actions this screen has.
+                if (isNarrow)
+                  IconButton(
+                    tooltip: 'Manuscript / Characters / World / Notes / To-dos',
+                    icon: const Icon(Icons.menu_book_outlined),
+                    onPressed: () => _scaffoldKey.currentState?.openDrawer(),
                   ),
-                ),
                 IconButton(
-                  tooltip: 'Plot Grid',
-                  icon: const Icon(Icons.grid_on_outlined),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PlotGridScreen(project: project),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Timeline',
-                  icon: const Icon(Icons.timeline),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => TimelineScreen(project: project),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Relationships',
-                  icon: const Icon(Icons.hub_outlined),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => RelationshipScreen(project: project),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Export / Import for Review',
-                  icon: const Icon(Icons.rate_review_outlined),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => ReviewExportScreen(project: project),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Export',
-                  icon: const Icon(Icons.ios_share),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => ExportScreen(project: project),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Editor settings',
-                  icon: const Icon(Icons.text_fields),
-                  onPressed: () => showEditorSettingsDialog(context, ref),
-                ),
-                IconButton(
-                  tooltip: referenceVisible
-                      ? 'Hide Reference Panel'
-                      : 'Show Reference Panel',
-                  isSelected: referenceVisible,
+                  tooltip: isNarrow
+                      ? 'Reference Panel'
+                      : (referenceVisible
+                            ? 'Hide Reference Panel'
+                            : 'Show Reference Panel'),
+                  isSelected: !isNarrow && referenceVisible,
                   icon: const Icon(Icons.menu_open),
-                  onPressed: () =>
-                      ref.read(referencePanelVisibleProvider.notifier).toggle(),
+                  onPressed: () {
+                    // Narrow layout has no room to dock the panel alongside
+                    // the editor — push it full-screen instead, matching the
+                    // drawer treatment given to the sidebar above.
+                    if (isNarrow) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (routeContext) => Scaffold(
+                            body: SafeArea(
+                              child: ReferencePanel(
+                                project: project,
+                                onClose: () => Navigator.of(routeContext).pop(),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    } else {
+                      ref.read(referencePanelVisibleProvider.notifier).toggle();
+                    }
+                  },
                 ),
                 IconButton(
                   tooltip: 'Focus Mode (Esc to exit)',
                   icon: const Icon(Icons.center_focus_strong),
                   onPressed: () =>
                       ref.read(focusModeProvider.notifier).state = true,
+                ),
+                PopupMenuButton<String>(
+                  tooltip: 'More',
+                  onSelected: (action) {
+                    switch (action) {
+                      case 'newIdea':
+                        showQuickCaptureDialog(context, ref);
+                      case 'goals':
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => GoalsScreen(project: project),
+                          ),
+                        );
+                      case 'plotGrid':
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => PlotGridScreen(project: project),
+                          ),
+                        );
+                      case 'timeline':
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TimelineScreen(project: project),
+                          ),
+                        );
+                      case 'relationships':
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => RelationshipScreen(project: project),
+                          ),
+                        );
+                      case 'reviewExport':
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ReviewExportScreen(project: project),
+                          ),
+                        );
+                      case 'export':
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ExportScreen(project: project),
+                          ),
+                        );
+                      case 'editorSettings':
+                        showEditorSettingsDialog(context, ref);
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'newIdea', child: Text('New Idea')),
+                    PopupMenuItem(value: 'goals', child: Text('Goals')),
+                    PopupMenuItem(value: 'plotGrid', child: Text('Plot Grid')),
+                    PopupMenuItem(value: 'timeline', child: Text('Timeline')),
+                    PopupMenuItem(
+                      value: 'relationships',
+                      child: Text('Relationships'),
+                    ),
+                    PopupMenuItem(
+                      value: 'reviewExport',
+                      child: Text('Export / Import for Review'),
+                    ),
+                    PopupMenuItem(value: 'export', child: Text('Export')),
+                    PopupMenuItem(
+                      value: 'editorSettings',
+                      child: Text('Editor settings'),
+                    ),
+                  ],
                 ),
                 const HelpIconButton(topicId: 'projectToolbar'),
                 const SizedBox(width: 8),
@@ -321,68 +439,29 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
             onExit: () => ref.read(focusModeProvider.notifier).state = false,
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final sidebarWidth =
-                    constraints.maxWidth *
-                    ref.watch(manuscriptSidebarWidthProvider);
+                // The stored width is a fraction of the available width (see
+                // ManuscriptSidebarWidthNotifier's doc comment), which looks
+                // right on a wide desktop window but collapses to an
+                // unreadably narrow sidebar on a phone-width screen — clamp
+                // to a minimum absolute pixel width (but never more than half
+                // the available space, so the main pane always has room too).
+                final sidebarWidth = math.max(
+                  constraints.maxWidth * ref.watch(manuscriptSidebarWidthProvider),
+                  math.min(200.0, constraints.maxWidth * 0.5),
+                );
                 return Row(
                   children: [
-                    if (!focusMode)
+                    // Narrow layout: sidebar lives in the Drawer (see the
+                    // Scaffold's `drawer`) and the reference panel is a
+                    // pushed full-screen route (see the AppBar action above)
+                    // — neither is docked here, so the editor gets the full
+                    // width instead of being squeezed into whatever's left
+                    // over from two docked panels plus their resize handles.
+                    if (!focusMode && !isNarrow) ...[
                       SizedBox(
                         width: sidebarWidth,
-                        child: DefaultTabController(
-                          length: 5,
-                          child: Column(
-                            children: [
-                              // Icons rather than text labels: five text tabs
-                              // don't fit in a 280px sidebar without truncating.
-                              const TabBar(
-                                tabs: [
-                                  Tab(
-                                    icon: Icon(Icons.menu_book_outlined),
-                                    height: 46,
-                                  ),
-                                  Tab(
-                                    icon: Icon(Icons.people_outline),
-                                    height: 46,
-                                  ),
-                                  Tab(icon: Icon(Icons.public), height: 46),
-                                  Tab(
-                                    icon: Icon(Icons.sticky_note_2_outlined),
-                                    height: 46,
-                                  ),
-                                  Tab(icon: Icon(Icons.checklist), height: 46),
-                                ],
-                              ),
-                              Expanded(
-                                child: TabBarView(
-                                  children: [
-                                    ManuscriptTree(
-                                      project: project,
-                                      service: service,
-                                      structure: structure,
-                                    ),
-                                    ProfilePanel(
-                                      owner: ContentOwner.project(project),
-                                      kind: ProfileKind.character,
-                                    ),
-                                    ProfilePanel(
-                                      owner: ContentOwner.project(project),
-                                      kind: ProfileKind.world,
-                                    ),
-                                    NotesPanel(
-                                      owner: ContentOwner.project(project),
-                                    ),
-                                    TodoPanel(
-                                      owner: ContentOwner.project(project),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        child: _ManuscriptSidebarTabs(project: project),
                       ),
-                    if (!focusMode)
                       ResizeHandle(
                         onDrag: (delta) => ref
                             .read(manuscriptSidebarWidthProvider.notifier)
@@ -394,6 +473,7 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                             .read(manuscriptSidebarWidthProvider.notifier)
                             .save(),
                       ),
+                    ],
                     Expanded(
                       child: _mainPane(
                         reference: reference,
@@ -404,7 +484,7 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                     ),
                     // Focus Mode hides the panel too — the point of Focus Mode is
                     // nothing but prose on screen.
-                    if (!focusMode && referenceVisible) ...[
+                    if (!focusMode && !isNarrow && referenceVisible) ...[
                       ResizeHandle(
                         onDrag: (delta) => ref
                             .read(referencePanelWidthProvider.notifier)

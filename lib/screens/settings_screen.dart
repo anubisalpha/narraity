@@ -72,10 +72,75 @@ extension on _SettingsCategory {
   };
 }
 
-/// App-wide settings, organized by category in a side nav — built to grow:
-/// Appearance and Editor are live now, Dictation was added in Phase 1.3, and
-/// Spell Check/Drive Sync/Export are placeholders for phases 4.5/5/6 so the
-/// structure doesn't need reshaping as they land.
+/// See project_shell_screen.dart's matching constant/comment — same
+/// reasoning, duplicated because private top-level consts don't cross files.
+/// Settings' own reason to collapse below it: the always-extended
+/// `NavigationRail` (min 220px) beside a content pane is the same two-pane
+/// assumption that broke the project shell's sidebar — on a phone it leaves
+/// too little room for real content (e.g. the Appearance theme picker
+/// overflowing).
+const _kNarrowBreakpoint = 700.0;
+
+/// Renders one category's actual settings content — factored out of
+/// [_SettingsScreenState] so both the wide two-pane layout and the narrow
+/// per-category pushed page ([_SettingsCategoryScaffold]) can use it without
+/// duplicating the switch.
+Widget _settingsCategoryContent(
+  _SettingsCategory category, {
+  String? initialHelpTopicId,
+}) {
+  if (category.isComingSoon) {
+    return _ComingSoonSection(category: category);
+  }
+  return switch (category) {
+    _SettingsCategory.appearance => const _AppearanceSection(),
+    _SettingsCategory.editor => const _EditorSection(),
+    _SettingsCategory.dictation => const _DictationSection(),
+    _SettingsCategory.readAloud => const _ReadAloudSection(),
+    _SettingsCategory.backup => const _BackupSection(),
+    _SettingsCategory.spellCheck => const _SpellCheckSection(),
+    _SettingsCategory.drive => const _DriveSyncSection(),
+    _SettingsCategory.help => HelpPageContent(initialTopicId: initialHelpTopicId),
+    _SettingsCategory.feedback => const _FeedbackSection(),
+    _SettingsCategory.about => const AboutSectionContent(),
+    _ => const SizedBox.shrink(),
+  };
+}
+
+/// A single category's settings as its own full-width page, with its own
+/// AppBar (title = the category name, back pops to the category list) —
+/// the narrow-width equivalent of clicking a `NavigationRailDestination` in
+/// the wide two-pane layout.
+class _SettingsCategoryScaffold extends StatelessWidget {
+  const _SettingsCategoryScaffold({
+    required this.category,
+    this.initialHelpTopicId,
+  });
+
+  final _SettingsCategory category;
+  final String? initialHelpTopicId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(category.label)),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: _settingsCategoryContent(
+          category,
+          initialHelpTopicId: initialHelpTopicId,
+        ),
+      ),
+    );
+  }
+}
+
+/// App-wide settings, organized by category — a side nav on wide/desktop
+/// windows (built to grow: Appearance and Editor are live now, Dictation was
+/// added in Phase 1.3, and Spell Check/Drive Sync/Export are placeholders
+/// for phases 4.5/5/6 so the structure doesn't need reshaping as they land),
+/// or a menu list that pushes a full-width page per category on narrow/phone
+/// screens (see [_kNarrowBreakpoint]).
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, this.initialHelpTopicId});
 
@@ -96,6 +161,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.sizeOf(context).width < _kNarrowBreakpoint;
+
+    // Direct entry into a specific Help topic (see `openHelpTopic`) always
+    // shows that content immediately, narrow or wide — matches how this
+    // already worked before the narrow category list existed, just now
+    // reusing the shared per-category page instead of a bespoke layout.
+    if (isNarrow && widget.initialHelpTopicId != null) {
+      return _SettingsCategoryScaffold(
+        category: _SettingsCategory.help,
+        initialHelpTopicId: widget.initialHelpTopicId,
+      );
+    }
+
+    if (isNarrow) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Settings')),
+        body: ListView(
+          children: [
+            for (final category in _SettingsCategory.values)
+              ListTile(
+                leading: Icon(category.icon),
+                title: Text(category.label),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        _SettingsCategoryScaffold(category: category),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: Row(
@@ -121,33 +221,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.all(24),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 560),
-                child: _buildContent(_selected),
+                child: _settingsCategoryContent(
+                  _selected,
+                  initialHelpTopicId: widget.initialHelpTopicId,
+                ),
               ),
             ),
           ),
         ],
       ),
     );
-  }
-
-  Widget _buildContent(_SettingsCategory category) {
-    if (category.isComingSoon) {
-      return _ComingSoonSection(category: category);
-    }
-    return switch (category) {
-      _SettingsCategory.appearance => const _AppearanceSection(),
-      _SettingsCategory.editor => const _EditorSection(),
-      _SettingsCategory.dictation => const _DictationSection(),
-      _SettingsCategory.readAloud => const _ReadAloudSection(),
-      _SettingsCategory.backup => const _BackupSection(),
-      _SettingsCategory.spellCheck => const _SpellCheckSection(),
-      _SettingsCategory.drive => const _DriveSyncSection(),
-      _SettingsCategory.help =>
-        HelpPageContent(initialTopicId: widget.initialHelpTopicId),
-      _SettingsCategory.feedback => const _FeedbackSection(),
-      _SettingsCategory.about => const AboutSectionContent(),
-      _ => const SizedBox.shrink(),
-    };
   }
 }
 

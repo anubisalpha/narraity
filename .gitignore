@@ -62,3 +62,7 @@ windows/*.pfx
 /android/app/profile
 /android/app/release
 windows/tools/
+
+# Android release signing (private key — never committed)
+*.jks
+keystore.properties

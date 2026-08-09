@@ -47,50 +47,14 @@ class LibraryScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const AppWordmark(),
         actions: [
+          // See project_shell_screen.dart's matching comment for why this is
+          // a primary-actions-plus-overflow-menu, not a scrollable Row of
+          // every action (an Expanded inside AppBar's `actions` doesn't have
+          // a well-defined Flex ancestor and misrenders).
           IconButton(
             tooltip: 'New Idea',
             icon: const Icon(Icons.lightbulb_outline),
             onPressed: () => showQuickCaptureDialog(context, ref),
-          ),
-          IconButton(
-            tooltip: 'Global Ideas',
-            icon: const Icon(Icons.tips_and_updates_outlined),
-            onPressed: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const IdeasScreen())),
-          ),
-          IconButton(
-            tooltip: 'App-Wide Goals',
-            icon: const Icon(Icons.flag_circle_outlined),
-            onPressed: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const AppGoalsScreen())),
-          ),
-          IconButton(
-            tooltip: 'Review a Manuscript',
-            icon: const Icon(Icons.rate_review_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ReviewSessionsScreen()),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Import Manuscript',
-            icon: const Icon(Icons.file_upload_outlined),
-            onPressed: () => _importManuscript(context, ref),
-          ),
-          IconButton(
-            tooltip: 'News',
-            icon: const Icon(Icons.campaign_outlined),
-            onPressed: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const NewsScreen())),
-          ),
-          IconButton(
-            tooltip: 'Archived & Deleted Projects',
-            icon: const Icon(Icons.inventory_2_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ArchivedProjectsScreen()),
-            ),
           ),
           IconButton(
             tooltip: 'Settings',
@@ -98,6 +62,59 @@ class LibraryScreen extends ConsumerWidget {
             onPressed: () => Navigator.of(
               context,
             ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'More',
+            onSelected: (action) {
+              switch (action) {
+                case 'globalIdeas':
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const IdeasScreen()),
+                  );
+                case 'appGoals':
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AppGoalsScreen()),
+                  );
+                case 'reviewManuscript':
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ReviewSessionsScreen(),
+                    ),
+                  );
+                case 'importManuscript':
+                  _importManuscript(context, ref);
+                case 'news':
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const NewsScreen()),
+                  );
+                case 'archived':
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ArchivedProjectsScreen(),
+                    ),
+                  );
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'globalIdeas',
+                child: Text('Global Ideas'),
+              ),
+              PopupMenuItem(value: 'appGoals', child: Text('App-Wide Goals')),
+              PopupMenuItem(
+                value: 'reviewManuscript',
+                child: Text('Review a Manuscript'),
+              ),
+              PopupMenuItem(
+                value: 'importManuscript',
+                child: Text('Import Manuscript'),
+              ),
+              PopupMenuItem(value: 'news', child: Text('News')),
+              PopupMenuItem(
+                value: 'archived',
+                child: Text('Archived & Deleted Projects'),
+              ),
+            ],
           ),
           const HelpIconButton(topicId: 'library'),
           const SizedBox(width: 8),

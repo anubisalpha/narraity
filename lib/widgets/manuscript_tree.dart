@@ -152,7 +152,10 @@ class _CoverTile extends ConsumerWidget {
               },
             )
           : const Icon(Icons.image_outlined, size: 18),
-      title: Text(hasCover ? 'Front Cover' : 'Add Front Cover'),
+      title: Text(
+        hasCover ? 'Front Cover' : 'Add Front Cover',
+        overflow: TextOverflow.ellipsis,
+      ),
       onTap: () => hasCover ? _showOptions(context, ref) : _pickCover(context, ref),
     );
   }
@@ -227,7 +230,7 @@ class _SectionTile extends ConsumerWidget {
       dense: true,
       selected: selected,
       leading: const Icon(Icons.auto_awesome, size: 18),
-      title: Text(section.title),
+      title: Text(section.title, overflow: TextOverflow.ellipsis),
       onTap: () => openScene(ref, section.id),
       trailing: PopupMenuButton<String>(
         onSelected: (_) => onDelete(),
@@ -351,6 +354,7 @@ class _NodeTileState extends ConsumerState<_NodeTile> {
                 ? '${node.typeLabel} · $itemCount ${itemCount == 1 ? 'item' : 'items'}'
                 : node.typeLabel,
             style: Theme.of(context).textTheme.labelSmall,
+            overflow: TextOverflow.ellipsis,
           ),
           onTap: () => openScene(ref, node.id),
           trailing: PopupMenuButton<String>(

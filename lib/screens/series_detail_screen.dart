@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -22,6 +24,52 @@ import '../widgets/project_kind_style.dart';
 import '../widgets/resize_handle.dart';
 import '../widgets/todo_panel.dart';
 
+/// See project_shell_screen.dart's matching constant/comment — same
+/// reasoning, duplicated because private top-level consts don't cross files.
+const _kNarrowBreakpoint = 700.0;
+
+/// The Characters/World/Notes/To-dos tab group, factored out so it can be
+/// hosted either inline in the docked sidebar (wide/desktop layout) or
+/// inside a [Drawer] (narrow/phone layout) — mirrors project_shell_screen
+/// .dart's `_ManuscriptSidebarTabs`.
+class _SeriesSidebarTabs extends StatelessWidget {
+  const _SeriesSidebarTabs({required this.owner});
+
+  final ContentOwner owner;
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 4,
+      child: Column(
+        children: [
+          // Icons rather than text labels: same reasoning as the project
+          // shell's own sidebar tabs (manuscript_tree.dart) — text doesn't
+          // fit a resizable sidebar at its narrowest without truncating.
+          const TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.people_outline), height: 46),
+              Tab(icon: Icon(Icons.public), height: 46),
+              Tab(icon: Icon(Icons.sticky_note_2_outlined), height: 46),
+              Tab(icon: Icon(Icons.checklist), height: 46),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                ProfilePanel(owner: owner, kind: ProfileKind.character),
+                ProfilePanel(owner: owner, kind: ProfileKind.world),
+                NotesPanel(owner: owner),
+                TodoPanel(owner: owner),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// A series' own screen: its projects (the default main-pane view), plus —
 /// shared across every project inside it, unlike anything else in this app —
 /// Characters, World, Notes, and To-dos in a resizable left sidebar that
@@ -38,9 +86,26 @@ class SeriesDetailScreen extends ConsumerWidget {
     final projectsAsync = ref.watch(projectListProvider);
     final reference = ref.watch(openReferenceProvider);
     final owner = ContentOwner.series(series);
+    final isNarrow = MediaQuery.sizeOf(context).width < _kNarrowBreakpoint;
 
     return Scaffold(
+      // Narrow layout: the sidebar lives here instead of docked inline (see
+      // the Row below) — opened via the Builder-wrapped menu button in the
+      // AppBar, which needs a context below this Scaffold to call
+      // Scaffold.of(context).openDrawer().
+      drawer: isNarrow
+          ? Drawer(child: SafeArea(child: _SeriesSidebarTabs(owner: owner)))
+          : null,
       appBar: AppBar(
+        leading: isNarrow
+            ? Builder(
+                builder: (context) => IconButton(
+                  tooltip: 'Characters / World / Notes / To-dos',
+                  icon: const Icon(Icons.menu),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                ),
+              )
+            : null,
         title: Text(series.title),
         actions: [
           PopupMenuButton<String>(
@@ -65,58 +130,31 @@ class SeriesDetailScreen extends ConsumerWidget {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final sidebarWidth =
-              constraints.maxWidth * ref.watch(manuscriptSidebarWidthProvider);
+          // See project_shell_screen.dart's matching comment: the stored
+          // width is a fraction of available width, which needs a minimum
+          // pixel floor to stay legible on a phone-width screen.
+          final sidebarWidth = math.max(
+            constraints.maxWidth * ref.watch(manuscriptSidebarWidthProvider),
+            math.min(200.0, constraints.maxWidth * 0.5),
+          );
           return Row(
             children: [
-              SizedBox(
-                width: sidebarWidth,
-                child: DefaultTabController(
-                  length: 4,
-                  child: Column(
-                    children: [
-                      // Icons rather than text labels: same reasoning as the
-                      // project shell's own sidebar tabs (manuscript_tree.dart)
-                      // — text doesn't fit a resizable sidebar at its
-                      // narrowest without truncating.
-                      const TabBar(
-                        tabs: [
-                          Tab(icon: Icon(Icons.people_outline), height: 46),
-                          Tab(icon: Icon(Icons.public), height: 46),
-                          Tab(
-                            icon: Icon(Icons.sticky_note_2_outlined),
-                            height: 46,
-                          ),
-                          Tab(icon: Icon(Icons.checklist), height: 46),
-                        ],
-                      ),
-                      Expanded(
-                        child: TabBarView(
-                          children: [
-                            ProfilePanel(
-                              owner: owner,
-                              kind: ProfileKind.character,
-                            ),
-                            ProfilePanel(owner: owner, kind: ProfileKind.world),
-                            NotesPanel(owner: owner),
-                            TodoPanel(owner: owner),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+              if (!isNarrow) ...[
+                SizedBox(
+                  width: sidebarWidth,
+                  child: _SeriesSidebarTabs(owner: owner),
                 ),
-              ),
-              ResizeHandle(
-                onDrag: (delta) => ref
-                    .read(manuscriptSidebarWidthProvider.notifier)
-                    .set(
-                      ref.read(manuscriptSidebarWidthProvider) +
-                          delta / constraints.maxWidth,
-                    ),
-                onDragEnd: () =>
-                    ref.read(manuscriptSidebarWidthProvider.notifier).save(),
-              ),
+                ResizeHandle(
+                  onDrag: (delta) => ref
+                      .read(manuscriptSidebarWidthProvider.notifier)
+                      .set(
+                        ref.read(manuscriptSidebarWidthProvider) +
+                            delta / constraints.maxWidth,
+                      ),
+                  onDragEnd: () =>
+                      ref.read(manuscriptSidebarWidthProvider.notifier).save(),
+                ),
+              ],
               Expanded(
                 child: reference != null
                     ? _ReferenceMainPane(owner: owner, reference: reference)

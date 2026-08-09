@@ -2654,3 +2654,129 @@ trip — Release Notes, News Feed, and Feedback's Device Flow sign-in through to
 found and fixed along the way (code-visibility UX, premature poll abort, the `grant_type` string,
 and the missing `public_repo` scope) — see the entries above for each. This closes out the last
 "built but unverified" item tracked in PLAN.md's open questions.
+
+## Phone-width responsive layout: three-pane desktop layout never verified on a real phone screen
+
+Started as Play Store readiness prep (signing, listing content — see `PLAY_STORE_PUBLISHING.md`).
+Generating real phone screenshots via the Android emulator (`nd_pixel` AVD) surfaced a genuine,
+first-time-caught set of bugs: the project shell's three-pane layout (sidebar + editor + Reference
+Panel, all docked side by side) and its resizable-sidebar/reference-panel width providers were
+built and verified only on Windows desktop. On a phone-width screen (~360-430dp):
+
+- `ManuscriptSidebarWidthNotifier`'s width is a *fraction* of available width (12%-40%, default
+  20%) with no minimum pixel floor — 20% of a phone's width is far too narrow for labels like "Add
+  Front Cover" or "Act · 3 items," and those specific `Text` widgets in `manuscript_tree.dart` had
+  no `overflow: TextOverflow.ellipsis` set either (unlike the node-title `Text` next to them,
+  which did) — the combination made Flutter's default line-breaker wrap those labels one character
+  per line instead of truncating.
+- The project shell's AppBar `actions` (10 `IconButton`s), the library screen's AppBar `actions` (9
+  `IconButton`s), and the series detail screen's sidebar shared the same class of bug — a fixed Row
+  with no wrap/scroll overflows off-screen on a narrow AppBar; in debug mode this shows as
+  Flutter's red/black/yellow "RIGHT OVERFLOWED" banner, in release mode it would silently clip, and
+  the last few actions (Focus Mode, Help) would be genuinely unreachable, not just visually broken.
+
+Two-part fix:
+1. **Immediate patches** (`project_shell_screen.dart`, `series_detail_screen.dart`,
+   `manuscript_tree.dart`, `library_screen.dart`): a minimum absolute pixel floor on the
+   fraction-based sidebar width (`math.max(fraction * width, math.min(200.0, width * 0.5))`),
+   `overflow: TextOverflow.ellipsis` on the two previously-unguarded tree labels, and wrapping each
+   AppBar's fixed action-icon Row in `SingleChildScrollView(scrollDirection: Axis.horizontal,
+   reverse: true)` so it scrolls instead of overflowing.
+2. **Real responsive breakpoint** (`project_shell_screen.dart`, `series_detail_screen.dart`): patches
+   alone still left almost no room for actual manuscript content on a phone even once nothing was
+   overflowing outright — a genuine "rethink the display, not just patch the overflow" call from the
+   user. Added `_kNarrowBreakpoint = 700.0` (logical px). Below it: the docked sidebar becomes a
+   `Scaffold.drawer` (opened via a new menu `IconButton`, first in the scrollable actions row —
+   `GlobalKey<ScaffoldState>` in the project shell's `State` class, a `Builder`-obtained context in
+   the series detail screen's stateless `ConsumerWidget`), and the Reference Panel becomes a pushed
+   full-screen `MaterialPageRoute` instead of a docked column (`ReferencePanel` gained an optional
+   `onClose` callback so its own header close button can pop the route instead of only toggling
+   `referencePanelVisibleProvider`, which nothing narrow-mode is watching). Above the breakpoint,
+   behavior is unchanged — same three-pane docked layout, same resize handles. Sidebar tab content
+   was factored into `_ManuscriptSidebarTabs`/`_SeriesSidebarTabs` widgets shared between the
+   docked (wide) and Drawer (narrow) call sites rather than duplicated.
+
+Verified live on the `nd_pixel` emulator (a debug build, `flutter build apk --debug
+--split-per-abi` — the AVD's small userdata partition can't fit the full multi-ABI debug APK,
+`x86_64`-only install is required): drawer opens with fully legible tree labels, Reference Panel
+opens full-screen with fully readable body text, no overflow banner anywhere, all AppBar actions
+reachable via horizontal scroll. `flutter analyze` clean throughout.
+
+**Not yet swept for the same class of bug:** `timeline_screen.dart`'s in-body toolbar Row (~7
+`IconButton`s, not the AppBar) and any other screen not yet live-tested at phone width —
+`scene_editor.dart`'s own formatting toolbar was already built with the same
+`SingleChildScrollView` pattern, so it needed no fix. Worth a deliberate phone-width pass over the
+rest of the app before an actual Play Store submission, not just the screens this session happened
+to touch.
+
+**Emulator environment gotcha, new this session:** the `Medium_Phone` AVD hung/crashed repeatedly
+at the exact same boot point (right after the WHPX hypervisor handoff — see
+`feedback-android-emulator-workflow` memory for the same class of issue previously seen with
+`nd_pixel`) even after `wsl --shutdown` and retrying with `-gpu swiftshader_indirect`. Switching to
+the already-known-working `nd_pixel` AVD (with its documented `-feature -VirtioWifi` flag)
+succeeded immediately. Worth trying a different AVD first, rather than repeatedly retrying the same
+one, if an emulator hangs at that exact boot point again.
+
+## Follow-up: the responsive-layout fix itself had a bug — AppBar actions overlapping leading
+
+User caught it live: the new drawer-menu `IconButton` was rendering on top of the leading back
+arrow instead of after the title, on the project shell's AppBar. Root cause: wrapping the actions
+Row in `Expanded(child: SingleChildScrollView(...))` — placing `Expanded` directly inside AppBar's
+`actions` list is an anti-pattern. AppBar's internal actions Row uses `mainAxisSize: MainAxisSize.
+min`, which doesn't give an `Expanded` child a well-defined Flex ancestor to expand within; the
+practical result was the drawer button and the leading back button rendering stacked at the same
+position (confirmed by cropping/zooming a screenshot — a back-arrow chevron shape was visibly
+embedded inside the book icon's outline).
+
+Fixed by switching to the standard Material pattern instead: a small, fixed number of primary
+actions stay directly visible (drawer menu when narrow, Reference Panel toggle, Focus Mode, Help),
+everything else moves behind a single overflow `PopupMenuButton` (⋮). No `Expanded`/
+`SingleChildScrollView` anywhere in `actions` anymore — the action list is always a handful of
+plain `IconButton`s regardless of how many actions a screen has, so there's nothing left to
+overflow or misrender. Applied to both `project_shell_screen.dart` and `library_screen.dart`
+(the same `Expanded`-in-`actions` anti-pattern had been used in both). Verified live on the
+`nd_pixel` emulator: leading back arrow and the drawer button now render as two separate, correctly
+positioned icons; the drawer and overflow menu both open correctly with all content reachable.
+
+**Also hit, unrelated but worth recording:** rebuilding the signed release AAB after this fix
+required five retries — Windows Defender real-time scanning repeatedly locked freshly-written
+Gradle intermediates mid-build (`mergeReleaseAssets`, `mergeReleaseNativeLibs`,
+`extractReleaseNativeSymbolTables`, then persistently `lintVitalAnalyzeRelease`'s lint-cache
+directory three times in a row, surviving a Gradle daemon restart and a full `intermediates/` wipe).
+Worked around by disabling the release lint check entirely (`android.lint.checkReleaseBuilds =
+false` in `app/build.gradle.kts`) — `flutter analyze` (Dart-level) remains this project's actual
+code-quality gate and was never bypassed. **Also found in passing, not yet fixed:** Settings >
+Appearance's theme picker (a custom oval/circle segmented control) shows its own
+"RIGHT OVERFLOWED BY 23 PIXELS" banner three times on this phone width — a different widget, same
+"never verified on phone" root cause as everything else this session, not yet investigated.
+
+## Settings screen: same two-pane-on-phone bug, user spotted it and described the fix
+
+User: "the settings pages also need reviewing the side menu is too wide... it almost needs a
+setting menu page and then for it to go pages for each menu item and then a back to the menu
+again" — exactly right, and exactly the same root cause as everything else this session:
+`settings_screen.dart` used an always-`extended: true` `NavigationRail` (min 220px) beside a
+content pane, unconditionally, with no narrow-width handling at all. This is what was producing
+the Appearance theme-picker overflow noticed earlier.
+
+Fixed with precisely the structure the user described: below `_kNarrowBreakpoint` (700px, same
+constant/reasoning as the other screens), Settings' own body becomes a plain `ListView` of category
+`ListTile`s (icon, label, chevron) — tapping one pushes a new `_SettingsCategoryScaffold` route with
+its own `AppBar` (title = category name) and back button returning to the list. Above the
+breakpoint, the existing `NavigationRail` + content two-pane layout is unchanged. Refactored the
+category-content switch (`_buildContent`) out of the State class into a standalone
+`_settingsCategoryContent()` function so both the wide two-pane layout and the narrow pushed page
+share it without duplication. The `openHelpTopic()` direct-entry seam (jumping straight into a
+specific Help topic from elsewhere in the app) still works unchanged on both widths — on narrow it
+now reuses `_SettingsCategoryScaffold` directly rather than a bespoke path.
+
+Verified live: category list is clean, tapping Appearance pushes a full-width page where the theme
+picker (System/Light/Dark) and the Library Background swatches both render correctly with no
+overflow, back returns cleanly to the list. `flutter analyze` clean.
+
+**Also this session:** built and SFTP-uploaded a signed release APK for direct-install testing —
+`https://aity.uk/beta/narraity.v1.4.1.b9.apk` (uses the same release keystore as the AAB, not a
+debug build) — per the family-wide "-aity beta uploads go to aity.uk" convention. Also rebuilt the
+signed release AAB (Play Store) with all of today's fixes — same repeated Windows Defender
+lock-on-fresh-Gradle-output pattern as earlier in the session, worked around the same way
+(clear the specific locked intermediate directory, retry).

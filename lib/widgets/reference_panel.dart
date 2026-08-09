@@ -22,9 +22,15 @@ import '../state/reference_provider.dart';
 /// World tabs and shared across every book in it). A standalone project
 /// shows just the project content, with no tab bar at all.
 class ReferencePanel extends ConsumerWidget {
-  const ReferencePanel({super.key, required this.project});
+  const ReferencePanel({super.key, required this.project, this.onClose});
 
   final Project project;
+
+  /// Called instead of toggling [referencePanelVisibleProvider] when the
+  /// panel is shown as a pushed full-screen route (narrow/phone layout)
+  /// rather than docked inline — pops the route instead of flipping a
+  /// visibility flag nothing in that layout is watching.
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -43,8 +49,11 @@ class ReferencePanel extends ConsumerWidget {
               IconButton(
                 tooltip: 'Hide panel',
                 icon: const Icon(Icons.close, size: 18),
-                onPressed: () =>
-                    ref.read(referencePanelVisibleProvider.notifier).toggle(),
+                onPressed:
+                    onClose ??
+                    () => ref
+                        .read(referencePanelVisibleProvider.notifier)
+                        .toggle(),
               ),
             ],
           ),
