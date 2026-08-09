@@ -147,24 +147,24 @@ Not yet completed in Play Console. Expected answers, given what the app actually
 ## 7. Privacy & Data Safety
 
 ### Privacy Policy (required)
-- [ ] Narraity has no privacy policy yet. `Sites/aity.uk/privacy.html` currently only has a Mosaity
-      section — needs a new Narraity section added, following the same structure
-- [ ] Host at `https://aity.uk/privacy#narraity` (or similar) once written
+- [x] **Live at https://aity.uk/privacy.html#narraity** (deployed 2026-08-09) — added as a new
+      `.product-banner` + policy section in `Sites/aity.uk/privacy.html`, same pattern as
+      Mosaity's, plus an `id="narraity"` anchor (and a matching `id="mosaity"` added to Mosaity's
+      banner for consistency) so the section can be linked to directly. Deployed via the SFTP
+      command in `Sites/aity.uk/README.md`, verified live via a real page fetch (not just "upload
+      succeeded").
 - [ ] Enter URL in Play Console
 
-**Draft HTML block below**, written to slot into `Sites/aity.uk/privacy.html` as a new
-`.product-banner` + policy section (same pattern as Mosaity's), right after Mosaity's `<hr>` and
-before the closing `<a class="back">`. **Not yet applied to the live file or published** — needs
-your go-ahead first, since that's a public site edit.
+**HTML block below** — kept for reference; this is what's now live in `Sites/aity.uk/privacy.html`.
 
 ```html
-        <div class="product-banner">
+        <div class="product-banner" id="narraity">
             <span class="name">Narraity</span>
             <a class="visit" href="https://github.com/anubisalpha/narraity" target="_blank" rel="noopener">Visit on GitHub &rarr;</a>
         </div>
 
         <h2 style="margin-top:0.5rem; font-size:1.4rem;">Narraity Privacy Policy</h2>
-        <p class="updated">Last updated: [DATE OF PUBLISH]</p>
+        <p class="updated">Last updated: 9 August 2026</p>
 
         <div class="summary">
             <strong>In short:</strong> Your manuscript stays on your device. Narraity has no
@@ -212,13 +212,6 @@ your go-ahead first, since that's a public site edit.
 
         <hr>
 ```
-
-**Open questions before publishing:**
-- [x] `contacts@aity.uk` mailbox confirmed set up
-- [ ] Fill in the real publish date
-- [ ] User read-through/edits
-- [ ] Explicit go-ahead to edit the live `privacy.html` and SFTP-deploy it (per the deploy command
-      in `Sites/aity.uk/README.md`)
 
 ### Data Safety Form — draft answers
 
@@ -306,22 +299,51 @@ direct-install testing, per the `-aity` family's beta-upload convention:
 signed AAB again afterward with the Settings fix included.
 
 **Not yet done:**
-- Back up `narraity-release.jks` off-machine (important — do this soon)
-- Confirm/create the Narraity app entry in Play Console
-- Set up `support@aity.uk` mailbox (Plesk) — doesn't exist yet, checked 2026-08-03
-- Write and publish a Narraity privacy-policy section on `aity.uk/privacy.html` (needs explicit
-  go-ahead before editing/publishing a live public page)
 - Graphics: feature graphic, tablet screenshots (phone screenshots done, see above)
 - Content rating questionnaire, data safety form, app content declarations — all Play Console UI,
   can't be automated from here
-- Test the signed release build on a real device/emulator (not yet done — the AAB is built and
+- Test the signed release build on a real device/emulator (still open — the AAB is built and
   verified signed, but no release-mode/minified smoke test has happened yet, and this app has an
   FFI surface — Hunspell/Vosk — that a minified build could break silently, same caveat as
-  Mosaity's checklist)
-- `timeline_screen.dart`'s track sidebar (fixed 260px width, `_TrackSidebar`/`_TrackSidebarRow`)
-  doesn't overflow on phone width but is cramped — leaves very little room for the timeline canvas
-  itself. Not fixed this session (no crash/overflow, just tight) — worth a proper look before
-  submission, same "never verified on phone" root cause as the other fixes above
-- No screen other than Library/ProjectShell/SeriesDetail/Settings has been live-tested at phone
-  width — worth a deliberate pass over the rest of the app (Export, Plot Grid, Relationship
-  Diagram, etc.) rather than assuming they're fine because their AppBar action counts are low
+  Mosaity's checklist). **Also now needs to confirm Drive sign-in actually completes**, not just
+  that the app launches — see the Session 2026-08-09 entry below.
+- Rebuild both the AAB and beta APK via the new `android/build_release.ps1` (Session 2026-08-09) —
+  every Android artifact built so far, including the ones referenced above, is missing the Google
+  Drive OAuth wiring.
+
+## Session 2026-08-09 — help icons, Timeline fix, Android OAuth gap, privacy policy live
+
+Started from the user reporting the in-app Help system didn't cover the manuscript sidebar tabs
+(Manuscript/Characters/World/Notes/To-dos) or the scene editor's own formatting toolbar — only the
+project toolbar (New Idea/Goals/Plot Grid/...) had a working "?" icon, even though
+`help_content.dart` already had full topics written for the missing ones (`manuscript`,
+`sceneEditor`, `charactersWorld`, `notes`, `todos`, `referencePanel`). Wired up help icons for the
+sidebar tab group (one icon that follows whichever tab is selected), the scene editor toolbar, and
+the Reference Panel — verified live on **both** the Android emulator and a fresh Windows debug
+build (rebuilt after `windows/flutter/ephemeral` had gone missing its `.cc` source files —
+regenerated via `flutter precache --windows` + `flutter pub get`).
+
+While doing a broader phone-width sweep (Timeline, Plot Grid, Relationships, Export, Goals,
+Settings sub-pages, Global Ideas, News, Feedback, About), found and fixed a real bug:
+`timeline_screen.dart`'s track sidebar was a fixed 260px column regardless of screen width,
+squeezing the canvas down to as little as ~100dp on a phone (confirmed live — the canvas was a
+barely-visible sliver). Fixed with the same breakpoint pattern used elsewhere: below 700px the
+sidebar becomes an end drawer (new "Tracks" AppBar icon), canvas gets the full width. Verified
+live. Everything else checked in the sweep was already clean.
+
+**The big find:** the user reported Drive sync doesn't work on their real Android device.
+Checked the emulator's Settings → Google Drive Sync and got the same "OAuth client ID... not set
+for this build" message. Root cause: `flutter build appbundle`/`flutter build apk` on their own do
+**not** pick up `oauth_config.json` — Windows' `release.ps1`/`build_installer.ps1` already pass
+`--dart-define-from-file=oauth_config.json` correctly, but no Android equivalent ever existed, so
+every Android build shipped so far (the signed AAB, the beta APK, this session's debug builds) was
+built without it. Added `android/build_release.ps1` to fix this going forward — checked the user
+explicitly wants the build-process fix only for now, not an immediate rebuild/reship.
+
+Also wrote and deployed the Narraity section of the privacy policy — **live at
+https://aity.uk/privacy.html#narraity** — using the draft HTML already sitting in this file,
+plus an `id="narraity"` anchor (and a matching one added to Mosaity's section) so it can be linked
+to directly. Confirmed live via a real page fetch, not just "upload succeeded".
+
+Four commits this session, all local on `main`, not yet pushed: help icons, Timeline fix, the
+Android build script, plus this file's updates.
