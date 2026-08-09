@@ -56,17 +56,34 @@ flows (no health data; optional Google Drive sync; optional GitHub sign-in for F
 - [x] Verified genuinely signed with the release key (not a debug fallback) — inspected
       `META-INF/NARRAITY.RSA` inside the .aab via `keytool -printcert -jarfile`, confirmed cert
       `CN=Anubis Productions, OU=Narraity`, matches the keystore generated above
-- [ ] **Rebuild both the AAB and the beta APK via `android/build_release.ps1`** (added
-      2026-08-09) — every Android build so far, including the one above and the beta APK at
-      `aity.uk/beta/narraity.v1.4.1.b9.apk`, was built with a bare `flutter build appbundle`/
-      `flutter build apk`, which does **not** pick up `oauth_config.json`. Confirmed live on both
-      the emulator and the user's real device: Settings → Google Drive Sync shows "not configured
-      for this build" — Drive sync has never actually been enabled in any Android build shipped so
-      far, unlike Windows (whose own `release.ps1`/`build_installer.ps1` already passed
-      `--dart-define-from-file=oauth_config.json` correctly). Use the new script for every future
-      Android release build so this can't silently regress again.
-- [ ] Test the release build on a real device/emulator (now also needs to confirm Drive sign-in
-      actually completes end-to-end, not just that the app launches)
+- [x] **Rebuilt both the AAB and release APK via `android/build_release.ps1`** (2026-08-09) —
+      every Android build before this was built with a bare `flutter build appbundle`/
+      `flutter build apk`, which does **not** pick up `oauth_config.json`. Both new artifacts
+      verified genuinely signed with the release key: AAB via `keytool -printcert -jarfile`
+      (`"C:\Program Files\Java\jdk-26.0.2\bin\keytool.exe"` — plain `keytool` isn't on PATH), APK
+      via `apksigner verify --print-certs` (keytool doesn't understand APK v2/v3 signing scheme,
+      reports "Not a signed jar file" even on a genuinely-signed APK — use apksigner for APKs,
+      keytool only for AABs/JARs). Both builds hit the same recurring
+      `build/app/intermediates`/`build/app/outputs/apk/release` file-lock issue documented
+      elsewhere in this file — cleared and retried each time, not a real failure.
+- [x] Tested the release build live (installed on `emulator-5554`) — **found a second, deeper
+      bug**: Settings → Google Drive Sync now correctly shows a real "Not connected. / Connect"
+      state (confirming the oauth_config.json fix above worked), but tapping Connect throws
+      `SocketException: Failed to create server socket (OS Error: Operation not permitted,
+      errno = 1), address = localhost, port = 0`. `DriveAuthService`'s browser+loopback flow
+      (`clientViaUserConsent`, which binds a local HTTP server to catch the OAuth redirect) is
+      documented in its own code comment as working "identically on Windows and Android" — it
+      doesn't. Google's loopback-IP OAuth flow is specifically for installed *desktop* apps;
+      Android appears to block the app from binding that server socket. **Not yet fixed** — the
+      user wants to first confirm this is a genuine Android platform restriction and not an
+      emulator-specific network sandboxing artifact, by testing on a real device. If confirmed on
+      real hardware, the real fix is a separate Android-native auth path (most likely the
+      `google_sign_in` package, ironically the exact package PLAN.md originally rejected — its
+      "Android/iOS/macOS/Web, not Windows" limitation is exactly why it's right *for Android*,
+      with the current loopback flow kept for Windows), which likely also needs a second,
+      Android-type OAuth client (package name + SHA-1) registered in Google Cloud Console
+      alongside the existing Desktop-type client. Two platform-specific code paths, not a
+      quick patch — do not attempt without discussing the approach first.
 
 ---
 
@@ -322,17 +339,16 @@ direct-install testing, per the `-aity` family's beta-upload convention:
 signed AAB again afterward with the Settings fix included.
 
 **Not yet done:**
-- Graphics: feature graphic, tablet screenshots (phone screenshots done, see above)
 - Content rating questionnaire, data safety form, app content declarations — all Play Console UI,
   can't be automated from here
-- Test the signed release build on a real device/emulator (still open — the AAB is built and
-  verified signed, but no release-mode/minified smoke test has happened yet, and this app has an
-  FFI surface — Hunspell/Vosk — that a minified build could break silently, same caveat as
-  Mosaity's checklist). **Also now needs to confirm Drive sign-in actually completes**, not just
-  that the app launches — see the Session 2026-08-09 entry below.
-- Rebuild both the AAB and beta APK via the new `android/build_release.ps1` (Session 2026-08-09) —
-  every Android artifact built so far, including the ones referenced above, is missing the Google
-  Drive OAuth wiring.
+- **Drive sync's OAuth flow is broken on Android** (`SocketException` binding the loopback
+  server) — needs a real device test to confirm it's not emulator-specific before deciding on a
+  fix. See the Session 2026-08-09 entry below for full detail. This blocks Drive sync being a
+  real, working feature on Android even though the build-config gap (missing
+  `oauth_config.json`) is now fixed.
+- Everything else in section 9 (Pre-Launch Testing) below is otherwise unblocked — the release
+  build itself launches fine in release/minified mode (Hunspell/Vosk FFI survived), just Drive
+  sign-in specifically fails.
 
 ## Session 2026-08-09 — help icons, Timeline fix, Android OAuth gap, privacy policy live
 
