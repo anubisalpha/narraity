@@ -56,7 +56,17 @@ flows (no health data; optional Google Drive sync; optional GitHub sign-in for F
 - [x] Verified genuinely signed with the release key (not a debug fallback) — inspected
       `META-INF/NARRAITY.RSA` inside the .aab via `keytool -printcert -jarfile`, confirmed cert
       `CN=Anubis Productions, OU=Narraity`, matches the keystore generated above
-- [ ] Test the release build on a real device/emulator
+- [ ] **Rebuild both the AAB and the beta APK via `android/build_release.ps1`** (added
+      2026-08-09) — every Android build so far, including the one above and the beta APK at
+      `aity.uk/beta/narraity.v1.4.1.b9.apk`, was built with a bare `flutter build appbundle`/
+      `flutter build apk`, which does **not** pick up `oauth_config.json`. Confirmed live on both
+      the emulator and the user's real device: Settings → Google Drive Sync shows "not configured
+      for this build" — Drive sync has never actually been enabled in any Android build shipped so
+      far, unlike Windows (whose own `release.ps1`/`build_installer.ps1` already passed
+      `--dart-define-from-file=oauth_config.json` correctly). Use the new script for every future
+      Android release build so this can't silently regress again.
+- [ ] Test the release build on a real device/emulator (now also needs to confirm Drive sign-in
+      actually completes end-to-end, not just that the app launches)
 
 ---
 
