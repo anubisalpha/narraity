@@ -122,7 +122,7 @@ YOUR DATA, YOUR CHOICE
 We have no backend, no server, no analytics, no ads. If you turn on Google Drive sync, it goes to your own Drive — never ours.
 ```
 
-- [ ] User review pass before submitting — needs your read-through, not yet approved
+- [x] User review pass — approved as-is 2026-08-09, no changes requested
 
 ### Category & Tags
 - [x] Category: **Productivity** — confirmed with user 2026-08-03 (over Books & Reference, given
