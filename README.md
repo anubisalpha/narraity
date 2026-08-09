@@ -272,8 +272,29 @@ full breakdown and what changes per platform when that day comes.
 - **Settings → Google Drive Sync**: connect/disconnect, and a manual "Sync now" (with a
   last-synced timestamp) for every project, **plus your Vault backups and your app settings** —
   not just manuscripts
-- OAuth via the system browser (a "Desktop app" client type + local-loopback redirect) rather than
-  the `google_sign_in` package — that package doesn't support Windows
+- **Sign-in is genuinely two different implementations per platform, not one shared code path**:
+  - **Windows**: the system browser + local-loopback redirect (a "Desktop app" OAuth client type).
+    `googleapis_auth`'s `clientViaUserConsent` opens the browser and catches the redirect on a
+    `localhost` port it binds itself.
+  - **Android**: the loopback flow above does **not** work — confirmed on real hardware (not just
+    an emulator quirk): `SocketException: Failed to create server socket (OS Error: Operation not
+    permitted)`. Google's loopback-IP flow is documented as being for installed *desktop* apps
+    specifically; Android blocks the app from binding that server socket at all. Android instead
+    uses the `google_sign_in` package's Credential Manager-based flow, which needs its own,
+    separate Google Cloud Console setup:
+    1. An **Android**-type OAuth client: package name `uk.aity.narraity`, plus the SHA-1
+       certificate fingerprint of whichever keystore signed the build (release and debug use
+       different keystores, so different fingerprints — register both as separate Android-type
+       clients with the same package name if you need debug builds to sign in too;
+       `keytool -list -v -keystore <path> -alias <alias>` prints the SHA-1).
+    2. A **Web application**-type OAuth client (no SHA-1/package involved) — its Client ID goes
+       into `oauth_config.json` as `GOOGLE_OAUTH_ANDROID_SERVER_CLIENT_ID`, passed as
+       `google_sign_in`'s `serverClientId`. This is the actual value the sign-in flow
+       authenticates against; the Android-type client above only verifies the calling app's
+       identity (package + signing cert) to Google, it isn't referenced directly in code.
+    
+    Both client types must live in the *same* Google Cloud project as the existing Desktop-type
+    client above. See `oauth_config.example.json` for the full three-key shape.
 
 Two sync targets beyond your projects, always present once connected (no extra toggle needed):
 - **Vault backups** — without this, the encrypted Vault (disaster-recovery archives, see below)

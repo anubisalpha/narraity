@@ -49,7 +49,13 @@ class _DriveSyncSettingsSectionState
 
   @override
   Widget build(BuildContext context) {
-    if (!DriveOAuthConfig.isConfigured) {
+    // Android's sign-in path (google_sign_in) needs androidServerClientId,
+    // not the Desktop-type clientId/secret Windows' loopback flow uses —
+    // each platform only cares about its own half of oauth_config.json.
+    final configured = Platform.isAndroid
+        ? DriveOAuthConfig.isConfiguredForAndroid
+        : DriveOAuthConfig.isConfigured;
+    if (!configured) {
       return const Card(
         child: Padding(
           padding: EdgeInsets.all(16),

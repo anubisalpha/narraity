@@ -2,45 +2,30 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:googleapis_auth/auth_io.dart';
+import 'package:http/http.dart' as http;
 import 'package:narraity/services/drive_auth_service.dart';
-import 'package:narraity/services/drive_token_store.dart';
 import 'package:narraity/state/drive_provider.dart';
-
-/// In-memory only — avoids the real `DriveTokenStore.forPlatform()`'s
-/// `path_provider` platform channel call, which has no mock registered in
-/// this plain (non-widget) test and would otherwise throw asynchronously
-/// after the test that triggered it has already finished.
-class _InMemoryTokenStore implements DriveTokenStore {
-  String? _token;
-  @override
-  Future<void> saveRefreshToken(String refreshToken) async => _token = refreshToken;
-  @override
-  Future<String?> loadRefreshToken() async => _token;
-  @override
-  Future<void> clear() async => _token = null;
-}
 
 /// Never resolves `ensureSignedIn` until [failWith] is called — lets tests
 /// exercise the "sign-in is stuck, user cancels" case without a real
-/// browser/network round trip.
-class _HangingDriveAuthService extends DriveAuthService {
-  _HangingDriveAuthService()
-      : super(
-          clientId: ClientId('test-client', 'test-secret'),
-          tokenStore: _InMemoryTokenStore(),
-        );
-
-  final _completer = Completer<AutoRefreshingAuthClient>();
+/// browser/network round trip. `implements` rather than `extends`:
+/// `DriveAuthService` is now an abstract interface with platform-specific
+/// implementations behind a factory constructor, not a class this fake can
+/// subclass directly.
+class _HangingDriveAuthService implements DriveAuthService {
+  final _completer = Completer<http.Client>();
 
   @override
   Future<bool> get isSignedIn async => false;
 
   @override
-  Future<AutoRefreshingAuthClient> ensureSignedIn({
+  Future<http.Client> ensureSignedIn({
     Future<void> Function(String url)? onSignInUrl,
   }) =>
       _completer.future;
+
+  @override
+  Future<void> signOut() async {}
 
   void failWith(Object error) => _completer.completeError(error);
 }
