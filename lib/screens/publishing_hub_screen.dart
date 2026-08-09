@@ -14,6 +14,7 @@ import '../state/notifications_provider.dart';
 import '../state/publishing_checklist_provider.dart';
 import '../state/publishing_dashboard_provider.dart';
 import '../state/reviewer_tracker_provider.dart';
+import '../widgets/help_drawer.dart';
 
 /// Two-tab publishing surface: route-by-route guidance with a checklist,
 /// paired web-search shortcuts and copyable AI-prompt templates (Guidance
@@ -49,6 +50,7 @@ class _PublishingHubScreenState extends ConsumerState<PublishingHubScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Publishing Hub'),
+        actions: const [HelpIconButton(topicId: 'publishingHub'), SizedBox(width: 8)],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [

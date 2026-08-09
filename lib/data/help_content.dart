@@ -24,6 +24,14 @@ const List<HelpTopic> helpTopics = [
         'to one manuscript.',
     entries: [
       HelpEntry(
+        icon: Icons.notifications_outlined,
+        title: 'Notifications',
+        description:
+            'A bell with a badge for overdue milestones and overdue '
+            'reviewer copies across every project — tap it for a sidebar '
+            'listing what\'s pending, grouped by project.',
+      ),
+      HelpEntry(
         icon: Icons.add,
         title: 'New Project',
         description:
@@ -44,6 +52,14 @@ const List<HelpTopic> helpTopics = [
         description:
             'Quick-capture a stray idea without leaving the Library — goes '
             'into Global Ideas rather than any one project.',
+      ),
+      HelpEntry(
+        icon: Icons.dashboard_outlined,
+        title: 'Publishing Dashboard',
+        description:
+            'One card per project: its chosen publishing route, checklist '
+            'progress, next deadline, and reviewer-copy status, all at a '
+            'glance without opening each project.',
       ),
       HelpEntry(
         icon: Icons.tips_and_updates_outlined,
@@ -67,6 +83,14 @@ const List<HelpTopic> helpTopics = [
             'Manage manuscripts you\'ve sent out for external/AI review and '
             'bring their feedback back in — the other end of a project\'s own '
             'Export / Import for Review action.',
+      ),
+      HelpEntry(
+        icon: Icons.contacts_outlined,
+        title: 'Contacts',
+        description:
+            'A library-wide address book for agents, editors, beta '
+            'readers, ARC reviewers, cover designers, and publishers — not '
+            'tied to any one project.',
       ),
       HelpEntry(
         icon: Icons.file_upload_outlined,
@@ -101,6 +125,62 @@ const List<HelpTopic> helpTopics = [
         description:
             'On each card: Add to Series…, Card style… (novel/comic/script '
             'frame), Archive, and Delete.',
+      ),
+    ],
+  ),
+  HelpTopic(
+    id: 'publishingDashboard',
+    title: 'Publishing Dashboard',
+    icon: Icons.dashboard_outlined,
+    intro:
+        'Reached from the Library screen\'s ⋮ menu — one card per project '
+        'summarising its planning/publishing status, so you don\'t have to '
+        'open each project to check for overdue deadlines or outstanding '
+        'reviewer copies.',
+    entries: [
+      HelpEntry(
+        icon: Icons.local_library_outlined,
+        title: 'Route badge & checklist progress',
+        description:
+            'The publishing route chosen in that project\'s Publishing Hub '
+            '(or "No route chosen yet"), and how many of its checklist '
+            'items are checked off.',
+      ),
+      HelpEntry(
+        icon: Icons.event_outlined,
+        title: 'Next milestone',
+        description:
+            'That project\'s soonest upcoming Planning deadline, or a '
+            'count of overdue/due-soon items — shown in red if anything is '
+            'overdue. Tap to open that project\'s Planning screen.',
+      ),
+      HelpEntry(
+        icon: Icons.rate_review_outlined,
+        title: 'Reviewer status',
+        description:
+            'How many reviewer copies are currently out and how many are '
+            'overdue. Tap to open that project\'s Reviewer Tracker.',
+      ),
+    ],
+  ),
+  HelpTopic(
+    id: 'contacts',
+    title: 'Contacts',
+    icon: Icons.contacts_outlined,
+    intro:
+        'Reached from the Library screen\'s ⋮ menu — a library-wide address '
+        'book for agents, editors, beta readers, ARC reviewers, cover '
+        'designers, and publishers. Not tied to any one project, since a '
+        'contact (especially an agent) may be relevant to more than one '
+        'manuscript.',
+    entries: [
+      HelpEntry(
+        icon: Icons.person_add_alt,
+        title: 'New Contact',
+        description:
+            'Name, role, email, and freeform notes. Used to populate the '
+            '"Linked contact" picker on Planning milestones and the '
+            'reviewer picker on the Reviewer Tracker.',
       ),
     ],
   ),
@@ -394,6 +474,14 @@ const List<HelpTopic> helpTopics = [
         description: 'Set and track a writing goal (word count/time) for this project.',
       ),
       HelpEntry(
+        icon: Icons.event_note_outlined,
+        title: 'Planning',
+        description:
+            'Publishing deadlines and milestones for this project — query '
+            'package due, beta copies going out, launch day — grouped by '
+            'Overdue/Due Soon/Upcoming/Done, optionally linked to a Contact.',
+      ),
+      HelpEntry(
         icon: Icons.grid_on_outlined,
         title: 'Plot Grid',
         description:
@@ -434,6 +522,14 @@ const List<HelpTopic> helpTopics = [
         description: 'Quick access to the typeface/size used while writing (Settings > Editor).',
       ),
       HelpEntry(
+        icon: Icons.local_library_outlined,
+        title: 'Publishing Hub',
+        description:
+            'Route-by-route publishing guidance with a stage checklist, '
+            'one-click web searches, copyable AI prompts, red-flag '
+            'guardrails, and this project\'s Reviewer Tracker.',
+      ),
+      HelpEntry(
         icon: Icons.menu_open,
         title: 'Show/Hide Reference Panel',
         description: 'Toggles the right-hand Reference Panel.',
@@ -444,6 +540,14 @@ const List<HelpTopic> helpTopics = [
         description:
             'Hides everything but the page you\'re writing on — press Esc '
             'to exit.',
+      ),
+      HelpEntry(
+        icon: Icons.notifications_outlined,
+        title: 'Notifications',
+        description:
+            'A bell with a badge for this project\'s overdue milestones '
+            'and overdue reviewer copies — tap it for a sidebar listing '
+            'what\'s pending.',
       ),
     ],
   ),
@@ -461,6 +565,33 @@ const List<HelpTopic> helpTopics = [
         description:
             'Walks you through setting a word-count or deadline goal for '
             'this project.',
+      ),
+    ],
+  ),
+  HelpTopic(
+    id: 'planning',
+    title: 'Planning',
+    icon: Icons.event_note_outlined,
+    intro:
+        'This project\'s publishing deadlines — query package due, beta '
+        'copies going out, launch day — separate from the in-story '
+        'Timeline (that\'s story chronology, not real-world scheduling).',
+    entries: [
+      HelpEntry(
+        icon: Icons.add,
+        title: 'New Milestone',
+        description:
+            'A title, an optional due date, notes, and an optional linked '
+            'Contact. Grouped into Overdue/Due Soon/Upcoming/Done — status '
+            'is computed live from the due date, not something you set '
+            'yourself.',
+      ),
+      HelpEntry(
+        icon: Icons.check_box_outlined,
+        title: 'Mark done',
+        description:
+            'The checkbox on each milestone. A done milestone drops out of '
+            'the Overdue/Due Soon groups and out of the Notifications bell.',
       ),
     ],
   ),
@@ -570,6 +701,45 @@ const List<HelpTopic> helpTopics = [
         description:
             'Brings a reviewer\'s returned comments back into the project '
             'against the scenes they refer to.',
+      ),
+    ],
+  ),
+  HelpTopic(
+    id: 'publishingHub',
+    title: 'Publishing Hub',
+    icon: Icons.local_library_outlined,
+    intro:
+        'Two tabs: route-by-route publishing guidance, and this project\'s '
+        'Reviewer Tracker — everything for getting a finished manuscript '
+        'out the door, in one place.',
+    entries: [
+      HelpEntry(
+        icon: Icons.alt_route,
+        title: 'Publishing route',
+        description:
+            'Pick Traditional, Self-Publishing, Web Serial, or Hybrid to '
+            'filter the checklist to that route\'s own stage — a short '
+            'pitch and the key trade-offs (cost/time/royalties) show once '
+            'picked. "Red Flags to Watch For" (vanity-press warning signs, '
+            'rights basics) always shows regardless of route.',
+      ),
+      HelpEntry(
+        icon: Icons.search,
+        title: 'Search / Copy AI Prompt (per checklist item)',
+        description:
+            'The magnifying glass opens a pre-filled web search for that '
+            'step; the robot icon copies an AI-prompt template to your '
+            'clipboard with this project\'s title, author, genre, and live '
+            'word count already filled in.',
+      ),
+      HelpEntry(
+        icon: Icons.rate_review_outlined,
+        title: 'Reviewer Tracker tab',
+        description:
+            'Log a Send to a Contact (format, date sent, deadline); once '
+            'it\'s back, record the return date, a rating, and feedback '
+            'notes. Shows each send\'s status and the average turnaround '
+            'across everyone who\'s returned a copy.',
       ),
     ],
   ),

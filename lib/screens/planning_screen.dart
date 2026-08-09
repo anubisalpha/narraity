@@ -9,6 +9,7 @@ import '../state/contact_provider.dart';
 import '../state/notifications_provider.dart';
 import '../state/planning_provider.dart';
 import '../state/publishing_dashboard_provider.dart';
+import '../widgets/help_drawer.dart';
 
 class PlanningScreen extends ConsumerWidget {
   const PlanningScreen({super.key, required this.project});
@@ -20,7 +21,10 @@ class PlanningScreen extends ConsumerWidget {
     final milestonesAsync = ref.watch(planningListProvider(project));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Planning')),
+      appBar: AppBar(
+        title: const Text('Planning'),
+        actions: const [HelpIconButton(topicId: 'planning'), SizedBox(width: 8)],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => showEditMilestoneDialog(context, ref, project: project),
         icon: const Icon(Icons.add),

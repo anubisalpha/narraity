@@ -7,6 +7,11 @@ app release required. This is the source for the in-app News Feed (`NewsService`
 Newest entry first. Each entry is a `## YYYY-MM-DD: Title` heading — `NewsService` parses on that
 pattern, so keep the format consistent.
 
+## 2026-08-09: Help icons for the new Publishing screens — v1.5.1
+
+Contacts, Planning, Publishing Hub, and Publishing Dashboard now each have their own **?** help
+icon, matching every other major screen in the app — they shipped without one in v1.5.0.
+
 ## 2026-08-09: Publishing Planning — v1.5.0
 
 **A Publishing Dashboard** now sits one tap from the Library screen (the overflow menu's top item)

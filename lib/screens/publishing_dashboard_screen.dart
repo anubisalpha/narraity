@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../data/publishing_guidance.dart';
 import '../state/publishing_dashboard_provider.dart';
+import '../widgets/help_drawer.dart';
 import 'planning_screen.dart';
 import 'publishing_hub_screen.dart';
 
@@ -18,7 +19,13 @@ class PublishingDashboardScreen extends ConsumerWidget {
     final summariesAsync = ref.watch(publishingDashboardProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Publishing Dashboard')),
+      appBar: AppBar(
+        title: const Text('Publishing Dashboard'),
+        actions: const [
+          HelpIconButton(topicId: 'publishingDashboard'),
+          SizedBox(width: 8),
+        ],
+      ),
       body: summariesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Failed to load dashboard: $err')),

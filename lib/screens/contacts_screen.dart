@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../models/contact.dart';
 import '../state/contact_provider.dart';
+import '../widgets/help_drawer.dart';
 
 /// Library-root contacts — agents, editors, beta readers, ARC reviewers, and
 /// other people involved in getting a manuscript published. Not tied to any
@@ -17,7 +18,10 @@ class ContactsScreen extends ConsumerWidget {
     final contactsAsync = ref.watch(contactListProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Contacts')),
+      appBar: AppBar(
+        title: const Text('Contacts'),
+        actions: const [HelpIconButton(topicId: 'contacts'), SizedBox(width: 8)],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => showEditContactDialog(context, ref),
         icon: const Icon(Icons.person_add_alt),
