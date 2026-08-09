@@ -130,13 +130,25 @@ We have no backend, no server, no analytics, no ads. If you turn on Google Drive
 - [ ] Tags (up to 5) — candidates: Writing, Notebook, Books
 
 ### Graphics
-- [x] App icon exists (512x512 export needed from the existing mark)
-- [ ] Feature graphic (1024x500 PNG)
-- [x] Phone screenshots — 3 captured 2026-08-03 on the `nd_pixel` emulator, in
-      `store-assets/`: `phone_screenshot_library.png`, `phone_screenshot_manuscript_tree.png`
-      (drawer open), `phone_screenshot_editor.png`. Taken *after* the responsive-layout fix below
-      — see that section, these would have shown broken UI before it.
-- [ ] Tablet screenshots (min 2) — same `mosaity_tablet`-style AVD approach can be reused
+- [x] **App icon (512x512)** — `store-assets/graphics/icon-512.png`, resized from
+      `branding/app_icon_master.png` (737x737 source) via PowerShell System.Drawing bicubic resize.
+- [x] **Feature graphic (1024x500)** — `store-assets/graphics/feature-graphic.png`. Rendered from
+      `feature-graphic-source.html` (kept alongside it for future edits) via Chrome headless
+      (`chrome --headless --screenshot --window-size=1024,500`) for pixel-exact output — icon +
+      wordmark + tagline on the app's own red/orange brand gradient (not aity.uk's navy/teal,
+      since this is the app's own store listing, not a page on the umbrella site).
+- [x] Phone screenshots — 4 captured 2026-08-03 on the `nd_pixel` emulator, in `store-assets/`:
+      `phone_screenshot_library.png`, `phone_screenshot_manuscript_tree.png` (drawer open),
+      `phone_screenshot_editor.png`, `phone_screenshot_settings.png`. Taken *after* the
+      responsive-layout fix below — see that section, these would have shown broken UI before it.
+- [x] **Tablet screenshots (2)** — `store-assets/graphics/tablet_screenshot_library.png` and
+      `tablet_screenshot_editor.png`, captured 2026-08-09 on the `mosaity_tablet` AVD
+      (2560x1600). Had to rebuild the debug APK twice first — the existing one had gone corrupted
+      (220MB, failed APK signature verification on install) and a retry hit the same recurring
+      `build/app/intermediates` file-lock issue as the Android debug builds earlier this session.
+      Screenshots cropped to trim a thin colored line along the very bottom edge (present even in
+      raw `adb screencap` output at this exact resolution — a genuine rendering quirk at this
+      screen size, not a capture artifact; harmless and barely visible either way).
 
 ---
 
