@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/sync_manifest.dart';
+import 'concurrent_map.dart';
 import 'drive_remote_store.dart';
 import 'drive_sync_planner.dart';
 import 'sync_manifest_service.dart';
@@ -160,7 +161,19 @@ class DriveSyncService {
   }) async {
     final updatedFiles = Map<String, SyncFileEntry>.from(baseFiles);
 
-    for (final path in plan.uploads) {
+    // Every file here is an independent network round-trip (upload/download/
+    // delete each hit Drive separately) — running them one at a time made a
+    // project with dozens of files feel stuck rather than "copying a few
+    // files." mapConcurrently caps how many are in flight at once rather
+    // than firing all of them simultaneously (Drive rate limits, plus
+    // memory for a project with hundreds of files' bytes all buffered at
+    // once). Same all-or-nothing failure behavior as the previous sequential
+    // loops: one failing upload/download still fails the whole batch it's
+    // in via Future.wait, and earlier-applied batches stay applied — no
+    // change from how a mid-loop failure behaved before this.
+    final uploadResults = await mapConcurrently(plan.uploads, driveSyncConcurrency, (
+      path,
+    ) async {
       final file = File(p.joinAll([projectDir.path, ...p.posix.split(path)]));
       final bytes = await file.readAsBytes();
       final existingFileId = remoteFiles[path]?.id;
@@ -170,35 +183,49 @@ class DriveSyncService {
         bytes: bytes,
         existingFileId: existingFileId,
       );
-      updatedFiles[path] = SyncFileEntry(
-        localHash: md5.convert(bytes).toString(),
-        driveFileId: uploaded.id,
-        driveMd5: uploaded.md5,
+      return MapEntry(
+        path,
+        SyncFileEntry(
+          localHash: md5.convert(bytes).toString(),
+          driveFileId: uploaded.id,
+          driveMd5: uploaded.md5,
+        ),
       );
-    }
+    });
+    updatedFiles.addEntries(uploadResults);
 
-    for (final path in plan.downloads) {
+    final downloadResults = await mapConcurrently(plan.downloads, driveSyncConcurrency, (
+      path,
+    ) async {
       final remote = remoteFiles[path]!;
       final bytes = await _remote.download(remote.id);
       final file = File(p.joinAll([projectDir.path, ...p.posix.split(path)]));
       await file.parent.create(recursive: true);
       await file.writeAsBytes(bytes);
-      updatedFiles[path] = SyncFileEntry(
-        localHash: md5.convert(bytes).toString(),
-        driveFileId: remote.id,
-        driveMd5: remote.md5,
+      return MapEntry(
+        path,
+        SyncFileEntry(
+          localHash: md5.convert(bytes).toString(),
+          driveFileId: remote.id,
+          driveMd5: remote.md5,
+        ),
       );
-    }
+    });
+    updatedFiles.addEntries(downloadResults);
 
-    for (final path in plan.deleteRemote) {
+    await mapConcurrently(plan.deleteRemote, driveSyncConcurrency, (path) async {
       final entry = baseFiles[path];
       if (entry != null) await _remote.delete(entry.driveFileId);
+    });
+    for (final path in plan.deleteRemote) {
       updatedFiles.remove(path);
     }
 
-    for (final path in plan.deleteLocal) {
+    await mapConcurrently(plan.deleteLocal, driveSyncConcurrency, (path) async {
       final file = File(p.joinAll([projectDir.path, ...p.posix.split(path)]));
       if (await file.exists()) await file.delete();
+    });
+    for (final path in plan.deleteLocal) {
       updatedFiles.remove(path);
     }
 

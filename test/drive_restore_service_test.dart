@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:narraity/models/project.dart';
 import 'package:narraity/services/drive_restore_service.dart';
 import 'package:narraity/services/drive_sync_service.dart';
 import 'package:narraity/services/library_service.dart';
+import 'package:narraity/services/series_service.dart';
 import 'package:path/path.dart' as p;
 
 import 'fake_drive_remote_store.dart';
@@ -127,6 +129,98 @@ void main() {
 
       final leftBehind = Directory(p.join(libraryRoot.path, 'Empty Folder'));
       expect(await leftBehind.exists(), isFalse);
+    });
+  });
+
+  group('restoreSeriesIfMissing', () {
+    Project standaloneProject() => Project(
+          id: 'p1',
+          folderName: 'Solo',
+          title: 'Solo',
+          created: DateTime(2026),
+          modified: DateTime(2026),
+        );
+
+    Project seriesProject(String seriesId) => Project(
+          id: 'p1',
+          folderName: 'Book One',
+          title: 'Book One',
+          created: DateTime(2026),
+          modified: DateTime(2026),
+          seriesId: seriesId,
+        );
+
+    test('does nothing for a standalone project', () async {
+      await restoreSeriesIfMissing(
+        project: standaloneProject(),
+        library: library,
+        syncService: syncService,
+      );
+
+      final seriesDir = Directory(p.join(libraryRoot.path, '_Series'));
+      expect(await seriesDir.exists(), isFalse);
+    });
+
+    test('pulls the series down when the restored book belongs to one this device lacks', () async {
+      remote.seed(
+        '_Series',
+        'series-abc.json',
+        utf8.encode(
+          jsonEncode({
+            'id': 'abc',
+            'title': 'The Elders Saga',
+            'created': DateTime(2026).toIso8601String(),
+            'modified': DateTime(2026).toIso8601String(),
+          }),
+        ),
+      );
+      remote.seed(
+        '_Series',
+        p.posix.join('series-abc', 'characters', 'char-1.json'),
+        utf8.encode('{"name":"Someone"}'),
+      );
+
+      await restoreSeriesIfMissing(
+        project: seriesProject('abc'),
+        library: library,
+        syncService: syncService,
+      );
+
+      final series = await SeriesService(library).listSeries();
+      expect(series.map((s) => s.title), contains('The Elders Saga'));
+      final charFile = File(
+        p.join(libraryRoot.path, '_Series', 'series-abc', 'characters', 'char-1.json'),
+      );
+      expect(await charFile.exists(), isTrue);
+    });
+
+    test('does nothing if the series already exists locally', () async {
+      // Seed a *different* remote title so the test would fail loudly if
+      // this wrongly re-synced and overwrote the local copy.
+      remote.seed(
+        '_Series',
+        'series-abc.json',
+        utf8.encode(
+          jsonEncode({
+            'id': 'abc',
+            'title': 'Wrong Title From Drive',
+            'created': DateTime(2026).toIso8601String(),
+            'modified': DateTime(2026).toIso8601String(),
+          }),
+        ),
+      );
+      final seriesService = SeriesService(library);
+      await seriesService.createSeries(title: 'Already Here');
+      final existing = (await seriesService.listSeries()).single;
+
+      await restoreSeriesIfMissing(
+        project: seriesProject(existing.id),
+        library: library,
+        syncService: syncService,
+      );
+
+      final series = await seriesService.listSeries();
+      expect(series.single.title, 'Already Here');
     });
   });
 }

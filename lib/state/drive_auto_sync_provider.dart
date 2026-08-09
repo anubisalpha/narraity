@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/sync_log_entry.dart';
@@ -166,6 +167,30 @@ Future<List<_SyncTarget>> _allSyncTargets(Ref ref) async {
     ),
   );
 
+  // Series (their own metadata plus series-level shared Characters/World/
+  // Notes/To-dos — see ContentOwner.series's relativePath) were never wired
+  // into sync at all before this: found live when the user asked how
+  // restoring a series works and the honest answer was "it doesn't." One
+  // combined target for every series at once, same shape as Vault/Settings
+  // above, rather than a per-series target — SeriesService already stores
+  // every series' own metadata JSON as a flat sibling file directly under
+  // `_Series/`, not nested inside a per-series folder, so splitting this
+  // into one target per series would need a different directory layout to
+  // avoid each series' target stepping on the others' files. The directory
+  // doesn't need to already exist: an absent local `_Series/` folder just
+  // means every remote file downloads on the first sync, which is exactly
+  // the restore behavior a fresh device needs, no separate "discover series"
+  // screen required the way `RestoreFromDriveScreen` is for projects (whose
+  // Drive folders, unlike this one, aren't enumerable up front without it).
+  final root = await library.libraryRoot();
+  targets.add(
+    _SyncTarget(
+      title: 'Series',
+      folderName: '_Series',
+      directory: Directory(p.join(root.path, '_Series')),
+    ),
+  );
+
   final settings = ref.read(appSettingsServiceProvider);
   await settings.exportToFile();
   targets.add(
@@ -175,6 +200,48 @@ Future<List<_SyncTarget>> _allSyncTargets(Ref ref) async {
       directory: await settings.settingsRoot(),
     ),
   );
+
+  // Global Ideas, App-Wide Goals, and Review Sessions: same gap as Series
+  // above (never wired into sync at all), found in the same audit —
+  // genuine user data (captured ideas, goal progress, review-pass records)
+  // with no Drive coverage. All three are flat reserved folders directly
+  // under the library root (one JSON file per record, no per-item
+  // subfolders), so — like `_Series` — the directory not existing yet on a
+  // fresh device is fine; every remote file just downloads on first sync.
+  for (final (title, folderName) in const [
+    ('Global Ideas', '_GlobalIdeas'),
+    ('App-Wide Goals', '_GlobalGoals'),
+    ('Review Sessions', '_ReviewSessions'),
+  ]) {
+    targets.add(
+      _SyncTarget(
+        title: title,
+        folderName: folderName,
+        directory: Directory(p.join(root.path, folderName)),
+      ),
+    );
+  }
+
+  // Archived & Deleted projects: zips of a project's whole former folder
+  // tree (see LibraryService._archiveTo) — syncing these means an archive
+  // or delete on one device is reflected the same way on another, rather
+  // than the "deleted" project silently reappearing as a Restore-from-Drive
+  // candidate elsewhere (it wouldn't anyway, since `_`-prefixed folders are
+  // excluded from that discovery — but without this, the zip itself simply
+  // never left the device it was archived/deleted on). User confirmed
+  // wanting this synced despite the larger size than Ideas/Goals/Series.
+  for (final (title, folderName) in const [
+    ('Archived Projects', '_Archived'),
+    ('Deleted Projects', '_Deleted'),
+  ]) {
+    targets.add(
+      _SyncTarget(
+        title: title,
+        folderName: folderName,
+        directory: Directory(p.join(root.path, folderName)),
+      ),
+    );
+  }
 
   return targets;
 }

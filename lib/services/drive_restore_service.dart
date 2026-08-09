@@ -4,9 +4,11 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/project.dart';
+import 'concurrent_map.dart';
 import 'drive_remote_store.dart';
 import 'drive_sync_service.dart';
 import 'library_service.dart';
+import 'series_service.dart';
 
 /// One Drive-only project folder available to restore. [folderName] is the
 /// stable, never-renamed identifier `DriveSyncService`/`DriveRemoteStore`
@@ -52,13 +54,14 @@ Future<List<RestorableDriveProject>> findRestorableProjects({
   final restorableNames = remoteNames.where((name) => !localNames.contains(name)).toList()
     ..sort();
 
-  final results = <RestorableDriveProject>[];
-  for (final folderName in restorableNames) {
-    results.add(
-      RestorableDriveProject(folderName: folderName, title: await _peekTitle(remote, folderName)),
-    );
-  }
-  return results;
+  return mapConcurrently(
+    restorableNames,
+    driveSyncConcurrency,
+    (folderName) async => RestorableDriveProject(
+      folderName: folderName,
+      title: await _peekTitle(remote, folderName),
+    ),
+  );
 }
 
 Future<String> _peekTitle(DriveRemoteStore remote, String folderName) async {
@@ -107,4 +110,31 @@ Future<Project> restoreProjectFromDrive({
 
   final json = jsonDecode(await projectFile.readAsString()) as Map<String, dynamic>;
   return Project.fromJson(json, folderName: folderName);
+}
+
+/// If [project] belongs to a series this device doesn't have yet, pulls
+/// every series' data down from Drive (there's one combined `_Series` sync
+/// target for all of them, not one per series — see
+/// `drive_auto_sync_provider.dart`'s doc comment on why) so the restored
+/// book doesn't end up dangling as "standalone" when the app opens it,
+/// missing the shared characters/world/notes/to-dos it actually belongs to.
+///
+/// A no-op if [project] is standalone, or if its series is already present
+/// locally (most restores of a second book in an already-known series hit
+/// this path and correctly do nothing).
+Future<void> restoreSeriesIfMissing({
+  required Project project,
+  required LibraryService library,
+  required DriveSyncService syncService,
+}) async {
+  final seriesId = project.seriesId;
+  if (seriesId == null) return;
+
+  final seriesService = SeriesService(library);
+  final existing = await seriesService.listSeries();
+  if (existing.any((series) => series.id == seriesId)) return;
+
+  final root = await library.libraryRoot();
+  final seriesDir = Directory(p.join(root.path, '_Series'));
+  await syncService.sync(seriesDir, '_Series');
 }

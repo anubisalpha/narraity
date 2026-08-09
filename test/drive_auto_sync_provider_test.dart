@@ -1,9 +1,28 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:narraity/services/drive_sync_log_service.dart';
+import 'package:narraity/services/library_service.dart';
 import 'package:narraity/state/drive_auto_sync_provider.dart';
+import 'package:narraity/state/drive_provider.dart';
+import 'package:narraity/state/library_provider.dart';
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'fake_drive_remote_store.dart';
+
 Future<void> _settle() => Future<void>.delayed(Duration.zero);
+
+/// Skips `DriveConnectionNotifier`'s real `_restore()` (a `path_provider`
+/// platform-channel call with no mock registered in a plain provider test)
+/// by just reporting signed-in immediately — this test only needs
+/// `runFullSyncAcrossAllTargets`'s signed-in gate to pass, not a real sign-in.
+class _FixedSignedInNotifier extends DriveConnectionNotifier {
+  @override
+  DriveConnectionStatus build() => DriveConnectionStatus.signedIn;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -59,5 +78,61 @@ void main() {
 
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool(driveDailySyncPrefKey), isTrue);
+  });
+
+  group('runFullSyncAcrossAllTargets', () {
+    late Directory libraryRoot;
+    late FakeDriveRemoteStore remote;
+    late ProviderContainer container;
+
+    setUp(() {
+      libraryRoot = Directory.systemTemp.createTempSync('narraity_full_sync_test_');
+      remote = FakeDriveRemoteStore();
+      container = ProviderContainer(
+        overrides: [
+          libraryServiceProvider.overrideWithValue(LibraryService(rootOverride: libraryRoot)),
+          driveConnectionProvider.overrideWith(_FixedSignedInNotifier.new),
+          driveRemoteStoreProvider.overrideWith((ref) async => remote),
+          driveSyncLogServiceProvider.overrideWithValue(
+            DriveSyncLogService(rootOverride: libraryRoot),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+    });
+
+    tearDown(() {
+      libraryRoot.deleteSync(recursive: true);
+    });
+
+    // Every reserved-folder target found missing from sync in the same
+    // audit that added Series (2026-08-09): Global Ideas, App-Wide Goals,
+    // Review Sessions, and Archived/Deleted projects. One assertion per
+    // target instead of one test each — they're all the same "is this
+    // combined target actually in the list and does its content really
+    // come down" shape, just a different reserved folder name.
+    for (final folderName in [
+      '_Series',
+      '_GlobalIdeas',
+      '_GlobalGoals',
+      '_ReviewSessions',
+      '_Archived',
+      '_Deleted',
+    ]) {
+      test('pulls down $folderName content', () async {
+        remote.seed(folderName, 'record.json', utf8.encode('{"hello":"world"}'));
+
+        // manualSyncAllProvider, not runFullSyncAcrossAllTargets directly —
+        // that function needs a real `Ref`, which a bare `ProviderContainer`
+        // doesn't satisfy; this provider already captures one internally
+        // (see its own definition) and is the same path the "Sync All Now"
+        // button in Settings actually calls.
+        await container.read(manualSyncAllProvider)();
+
+        final file = File(p.join(libraryRoot.path, folderName, 'record.json'));
+        expect(await file.exists(), isTrue, reason: '$folderName was not synced');
+        expect(await file.readAsString(), '{"hello":"world"}');
+      });
+    }
   });
 }

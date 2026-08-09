@@ -132,7 +132,13 @@ class _RestoreRowState extends ConsumerState<_RestoreRow> {
         library: library,
         syncService: syncService,
       );
+      // The book might belong to a series this device has never seen —
+      // without this it'd open as a dangling "standalone" project, missing
+      // whatever shared characters/world/notes/to-dos it actually belongs
+      // to. No-ops if it's standalone or the series is already known.
+      await restoreSeriesIfMissing(project: project, library: library, syncService: syncService);
       ref.invalidate(projectListProvider);
+      ref.invalidate(seriesListProvider);
       ref.invalidate(restorableDriveProjectsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
