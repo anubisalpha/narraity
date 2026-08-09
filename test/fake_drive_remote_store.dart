@@ -14,11 +14,26 @@ class FakeDriveRemoteStore implements DriveRemoteStore {
   int _nextId = 1;
 
   /// Test helper: seeds a file directly, as if it already existed on Drive
-  /// before the sync under test began.
-  void seed(String projectFolderName, String relativePath, List<int> bytes) {
+  /// before the sync under test began. [modifiedTime] defaults to now, same
+  /// as a real Drive upload would stamp.
+  void seed(
+    String projectFolderName,
+    String relativePath,
+    List<int> bytes, {
+    DateTime? modifiedTime,
+  }) {
     final project = _projects.putIfAbsent(projectFolderName, () => {});
     final id = 'fake-${_nextId++}';
-    project[relativePath] = _FakeFile(id: id, bytes: Uint8List.fromList(bytes));
+    project[relativePath] = _FakeFile(
+      id: id,
+      bytes: Uint8List.fromList(bytes),
+      modifiedTime: modifiedTime ?? DateTime.now(),
+    );
+  }
+
+  @override
+  Future<List<String>> listProjectFolderNames() async {
+    return _projects.keys.where((name) => !name.startsWith('_')).toList();
   }
 
   @override
@@ -26,7 +41,11 @@ class FakeDriveRemoteStore implements DriveRemoteStore {
     final project = _projects[projectFolderName] ?? {};
     return {
       for (final entry in project.entries)
-        entry.key: DriveRemoteFile(id: entry.value.id, md5: entry.value.md5),
+        entry.key: DriveRemoteFile(
+          id: entry.value.id,
+          md5: entry.value.md5,
+          modifiedTime: entry.value.modifiedTime,
+        ),
     };
   }
 
@@ -37,7 +56,7 @@ class FakeDriveRemoteStore implements DriveRemoteStore {
   }) async {
     final file = _projects[projectFolderName]?[relativePath];
     if (file == null) return null;
-    return DriveRemoteFile(id: file.id, md5: file.md5);
+    return DriveRemoteFile(id: file.id, md5: file.md5, modifiedTime: file.modifiedTime);
   }
 
   @override
@@ -49,9 +68,9 @@ class FakeDriveRemoteStore implements DriveRemoteStore {
   }) async {
     final project = _projects.putIfAbsent(projectFolderName, () => {});
     final id = existingFileId ?? 'fake-${_nextId++}';
-    final file = _FakeFile(id: id, bytes: bytes);
+    final file = _FakeFile(id: id, bytes: bytes, modifiedTime: DateTime.now());
     project[relativePath] = file;
-    return DriveRemoteFile(id: file.id, md5: file.md5);
+    return DriveRemoteFile(id: file.id, md5: file.md5, modifiedTime: file.modifiedTime);
   }
 
   @override
@@ -73,8 +92,9 @@ class FakeDriveRemoteStore implements DriveRemoteStore {
 }
 
 class _FakeFile {
-  _FakeFile({required this.id, required this.bytes});
+  _FakeFile({required this.id, required this.bytes, required this.modifiedTime});
   final String id;
   final Uint8List bytes;
+  final DateTime modifiedTime;
   String get md5 => crypto.md5.convert(bytes).toString();
 }

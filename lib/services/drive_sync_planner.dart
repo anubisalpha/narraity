@@ -3,9 +3,16 @@ import '../models/sync_manifest.dart';
 /// One file's state on Drive, as seen by the current listing — not the
 /// manifest's remembered state.
 class DriveRemoteFile {
-  const DriveRemoteFile({required this.id, required this.md5});
+  const DriveRemoteFile({required this.id, required this.md5, this.modifiedTime});
   final String id;
   final String md5;
+
+  /// Drive's own `modifiedTime` for this file, when the caller populated it
+  /// (not every `DriveRemoteStore` call needs it — see
+  /// `GoogleDriveRemoteStore.listFiles`'s `$fields`). Null rather than a
+  /// required field so existing call sites that never asked Drive for a
+  /// timestamp don't need updating just to keep compiling.
+  final DateTime? modifiedTime;
 }
 
 /// What to do with one path, decided by comparing its local hash, its
@@ -22,9 +29,17 @@ enum SyncAction { upload, download, deleteLocal, deleteRemote }
 /// screen resolves these; a deletion racing an edit is *not* a conflict of
 /// this kind — see [DriveSyncPlanner.plan]'s doc comment for why.
 class SyncConflict {
-  const SyncConflict({required this.path, required this.driveFileId});
+  const SyncConflict({required this.path, required this.driveFileId, this.driveModifiedTime});
   final String path;
   final String driveFileId;
+
+  /// When Drive's copy was last modified, if the listing that found this
+  /// conflict populated it — shown alongside the local file's own
+  /// filesystem timestamp on the conflict screen, so "which one do I keep"
+  /// isn't a guess. Deliberately excluded from [==]/[hashCode]: it's
+  /// display-only and two conflicts for the same path/file id are still the
+  /// same conflict regardless of exactly when this was fetched.
+  final DateTime? driveModifiedTime;
 
   @override
   bool operator ==(Object other) =>
@@ -99,7 +114,13 @@ class DriveSyncPlanner {
           // Same path created independently on both sides with no shared
           // history — treat exactly like a content conflict rather than
           // guessing a winner.
-          conflicts.add(SyncConflict(path: path, driveFileId: remoteFiles[path]!.id));
+          conflicts.add(
+            SyncConflict(
+              path: path,
+              driveFileId: remoteFiles[path]!.id,
+              driveModifiedTime: remoteFiles[path]!.modifiedTime,
+            ),
+          );
         }
         continue;
       }
@@ -139,7 +160,13 @@ class DriveSyncPlanner {
       } else if (hasLocal && !hasRemote) {
         uploads.add(path); // remote deleted it, but local also has edits — re-upload
       } else {
-        conflicts.add(SyncConflict(path: path, driveFileId: remoteFiles[path]!.id));
+        conflicts.add(
+          SyncConflict(
+            path: path,
+            driveFileId: remoteFiles[path]!.id,
+            driveModifiedTime: remoteFiles[path]!.modifiedTime,
+          ),
+        );
       }
     }
 

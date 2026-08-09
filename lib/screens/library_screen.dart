@@ -30,6 +30,7 @@ import 'app_goals_screen.dart';
 import 'archived_projects_screen.dart';
 import 'ideas_screen.dart';
 import 'news_screen.dart';
+import 'restore_from_drive_screen.dart';
 import 'review_sessions_screen.dart';
 import 'series_detail_screen.dart';
 import 'settings_screen.dart';
@@ -93,6 +94,12 @@ class LibraryScreen extends ConsumerWidget {
                       builder: (_) => const ArchivedProjectsScreen(),
                     ),
                   );
+                case 'restoreFromDrive':
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const RestoreFromDriveScreen(),
+                    ),
+                  );
               }
             },
             itemBuilder: (context) => const [
@@ -113,6 +120,10 @@ class LibraryScreen extends ConsumerWidget {
               PopupMenuItem(
                 value: 'archived',
                 child: Text('Archived & Deleted Projects'),
+              ),
+              PopupMenuItem(
+                value: 'restoreFromDrive',
+                child: Text('Restore from Drive'),
               ),
             ],
           ),

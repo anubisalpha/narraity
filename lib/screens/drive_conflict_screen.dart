@@ -1,9 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:path/path.dart' as p;
 
 import '../services/drive_sync_planner.dart';
 import '../services/drive_sync_service.dart';
+
+final _timestampFormat = DateFormat.yMMMd().add_jm();
 
 /// Lists every file that diverged on both sides since the last sync
 /// (PLAN.md: "changed on both sides → keep both files ... flagged in-app
@@ -84,6 +88,7 @@ class _DriveConflictScreenState extends State<DriveConflictScreen> {
                 for (final conflict in _remaining)
                   _ConflictTile(
                     conflict: conflict,
+                    directory: widget.directory,
                     busy: _busyPath == conflict.path,
                     onKeepLocal: () => _resolve(
                       conflict,
@@ -120,6 +125,7 @@ class _DriveConflictScreenState extends State<DriveConflictScreen> {
 class _ConflictTile extends StatelessWidget {
   const _ConflictTile({
     required this.conflict,
+    required this.directory,
     required this.busy,
     required this.onKeepLocal,
     required this.onKeepDrive,
@@ -127,13 +133,30 @@ class _ConflictTile extends StatelessWidget {
   });
 
   final SyncConflict conflict;
+  final Directory directory;
   final bool busy;
   final VoidCallback onKeepLocal;
   final VoidCallback onKeepDrive;
   final VoidCallback onKeepBoth;
 
+  /// The local file's own filesystem mtime — a plain `statSync` on one small
+  /// file, cheap enough to call straight from `build` for a conflict list
+  /// that's realistically a handful of entries, not thousands.
+  DateTime? get _localModified {
+    final file = File(p.joinAll([directory.path, ...p.posix.split(conflict.path)]));
+    try {
+      return file.statSync().modified;
+    } on FileSystemException {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final localModified = _localModified;
+    final driveModified = conflict.driveModifiedTime;
+    final theme = Theme.of(context);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -144,7 +167,7 @@ class _ConflictTile extends StatelessWidget {
               children: [
                 const Icon(Icons.warning_amber_outlined, size: 18),
                 const SizedBox(width: 8),
-                Expanded(child: Text(conflict.path, style: Theme.of(context).textTheme.titleSmall)),
+                Expanded(child: Text(conflict.path, style: theme.textTheme.titleSmall)),
                 if (busy)
                   const SizedBox(
                     width: 16,
@@ -155,6 +178,15 @@ class _ConflictTile extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             const Text('Edited on this device and on Drive since the last sync.'),
+            const SizedBox(height: 8),
+            Text(
+              'This device: ${localModified != null ? _timestampFormat.format(localModified.toLocal()) : 'unknown'}',
+              style: theme.textTheme.bodySmall,
+            ),
+            Text(
+              'Drive: ${driveModified != null ? _timestampFormat.format(driveModified.toLocal()) : 'unknown'}',
+              style: theme.textTheme.bodySmall,
+            ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,

@@ -10,6 +10,7 @@ import '../models/project.dart';
 import '../services/app_settings_service.dart';
 import '../services/drive_auth_service.dart';
 import '../services/drive_remote_store.dart';
+import '../services/drive_restore_service.dart';
 import '../services/drive_sync_service.dart';
 import '../services/library_service.dart';
 import 'library_provider.dart';
@@ -96,9 +97,12 @@ class DriveConnectionNotifier extends Notifier<DriveConnectionStatus> {
 final driveConnectionProvider =
     NotifierProvider<DriveConnectionNotifier, DriveConnectionStatus>(DriveConnectionNotifier.new);
 
-/// The sync engine, valid only while signed in — callers should gate use of
-/// this on `driveConnectionProvider == DriveConnectionStatus.signedIn`.
-final driveSyncServiceProvider = FutureProvider<DriveSyncService>((ref) async {
+/// The raw authenticated Drive client, valid only while signed in — callers
+/// should gate use of this on `driveConnectionProvider ==
+/// DriveConnectionStatus.signedIn`. Split out from [driveSyncServiceProvider]
+/// so restore-from-Drive (which needs to list folders directly, not sync a
+/// specific project) doesn't need its own separate auth round trip.
+final driveRemoteStoreProvider = FutureProvider<DriveRemoteStore>((ref) async {
   final status = ref.watch(driveConnectionProvider);
   if (status != DriveConnectionStatus.signedIn) {
     throw StateError('Not signed in to Google Drive.');
@@ -107,7 +111,23 @@ final driveSyncServiceProvider = FutureProvider<DriveSyncService>((ref) async {
   // Already signed in, so this just returns the cached client — no browser
   // popup, no network round trip.
   final client = await auth.ensureSignedIn();
-  return DriveSyncService(remoteStore: GoogleDriveRemoteStore(client));
+  return GoogleDriveRemoteStore(client);
+});
+
+/// The sync engine, valid only while signed in — callers should gate use of
+/// this on `driveConnectionProvider == DriveConnectionStatus.signedIn`.
+final driveSyncServiceProvider = FutureProvider<DriveSyncService>((ref) async {
+  final remote = await ref.watch(driveRemoteStoreProvider.future);
+  return DriveSyncService(remoteStore: remote);
+});
+
+/// Project folders that exist on Drive but have never been pulled down to
+/// this device — see `drive_restore_service.dart`'s doc comment for why
+/// ordinary sync never surfaces these on its own.
+final restorableDriveProjectsProvider = FutureProvider<List<RestorableDriveProject>>((ref) async {
+  final remote = await ref.watch(driveRemoteStoreProvider.future);
+  final library = ref.watch(libraryServiceProvider);
+  return findRestorableProjects(remote: remote, library: library);
 });
 
 /// The on-disk project folder [project] lives in — what [DriveSyncService]

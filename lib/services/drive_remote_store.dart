@@ -17,6 +17,14 @@ const _folderMimeType = 'application/vnd.google-apps.folder';
 /// becomes `manuscript` → `scenes` on Drive), since Drive itself has no
 /// concept of a file "path," only parent-folder links.
 abstract class DriveRemoteStore {
+  /// Every project folder directly under the `Narraity/` root — the whole
+  /// point being to find ones this device doesn't have locally yet (see
+  /// `findRestorableProjectNames` in `drive_restore_service.dart`). Excludes
+  /// reserved non-project folders (`_Vault`, `_Settings`, any future
+  /// underscore-prefixed one), same convention `LibraryService.listProjects`
+  /// already uses locally.
+  Future<List<String>> listProjectFolderNames();
+
   Future<Map<String, DriveRemoteFile>> listFiles(String projectFolderName);
 
   /// Looks up just one file's current Drive state with a single targeted
@@ -109,11 +117,15 @@ class GoogleDriveRemoteStore implements DriveRemoteStore {
     final result = await _api.files.list(
       q: "name = '$escapedName' and '$parentId' in parents and trashed = false",
       spaces: 'drive',
-      $fields: 'files(id, md5Checksum)',
+      $fields: 'files(id, md5Checksum, modifiedTime)',
     );
     final files = result.files;
     if (files == null || files.isEmpty) return null;
-    return DriveRemoteFile(id: files.first.id!, md5: files.first.md5Checksum ?? '');
+    return DriveRemoteFile(
+      id: files.first.id!,
+      md5: files.first.md5Checksum ?? '',
+      modifiedTime: files.first.modifiedTime,
+    );
   }
 
   /// Same folder-chain walk as [_resolveDirId], but returns null instead of
@@ -144,6 +156,27 @@ class GoogleDriveRemoteStore implements DriveRemoteStore {
   }
 
   @override
+  Future<List<String>> listProjectFolderNames() async {
+    final rootId = await _rootFolderId();
+    final names = <String>[];
+    String? pageToken;
+    do {
+      final page = await _api.files.list(
+        q: "'$rootId' in parents and trashed = false and mimeType = '$_folderMimeType'",
+        spaces: 'drive',
+        $fields: 'nextPageToken, files(name)',
+        pageToken: pageToken,
+      );
+      for (final file in page.files ?? const <drive.File>[]) {
+        final name = file.name!;
+        if (!name.startsWith('_')) names.add(name);
+      }
+      pageToken = page.nextPageToken;
+    } while (pageToken != null);
+    return names;
+  }
+
+  @override
   Future<Map<String, DriveRemoteFile>> listFiles(String projectFolderName) async {
     final projectId = await _projectFolderId(projectFolderName);
     final result = <String, DriveRemoteFile>{};
@@ -161,7 +194,7 @@ class GoogleDriveRemoteStore implements DriveRemoteStore {
       final page = await _api.files.list(
         q: "'$folderId' in parents and trashed = false",
         spaces: 'drive',
-        $fields: 'nextPageToken, files(id, name, mimeType, md5Checksum)',
+        $fields: 'nextPageToken, files(id, name, mimeType, md5Checksum, modifiedTime)',
         pageToken: pageToken,
       );
       for (final file in page.files ?? const <drive.File>[]) {
@@ -171,7 +204,11 @@ class GoogleDriveRemoteStore implements DriveRemoteStore {
           _folderIdCache['$folderId/$name'] = file.id!;
           await _listInto(result, folderId: file.id!, pathPrefix: path);
         } else {
-          result[path] = DriveRemoteFile(id: file.id!, md5: file.md5Checksum ?? '');
+          result[path] = DriveRemoteFile(
+            id: file.id!,
+            md5: file.md5Checksum ?? '',
+            modifiedTime: file.modifiedTime,
+          );
         }
       }
       pageToken = page.nextPageToken;
@@ -209,7 +246,7 @@ class GoogleDriveRemoteStore implements DriveRemoteStore {
         drive.File(),
         existingFileId,
         uploadMedia: media,
-        $fields: 'id, md5Checksum',
+        $fields: 'id, md5Checksum, modifiedTime',
       );
     } else {
       result = await _api.files.create(
@@ -217,10 +254,14 @@ class GoogleDriveRemoteStore implements DriveRemoteStore {
           ..name = fileName
           ..parents = [parentId],
         uploadMedia: media,
-        $fields: 'id, md5Checksum',
+        $fields: 'id, md5Checksum, modifiedTime',
       );
     }
-    return DriveRemoteFile(id: result.id!, md5: result.md5Checksum ?? '');
+    return DriveRemoteFile(
+      id: result.id!,
+      md5: result.md5Checksum ?? '',
+      modifiedTime: result.modifiedTime,
+    );
   }
 
   @override
