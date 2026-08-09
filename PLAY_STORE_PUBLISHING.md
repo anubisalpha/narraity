@@ -79,18 +79,21 @@ flows (no health data; optional Google Drive sync; optional GitHub sign-in for F
       `flutter build windows` and `flutter build apk --debug` succeed with the
       `oauth_config.json` dart-defines. Full detail (including exactly what to register in
       Google Cloud Console) in `README.md`'s "Google Drive Sync" section.
-- [ ] **Blocked on Google Cloud Console setup** — the fix above needs two new OAuth clients in
-      the same project as the existing Desktop-type one, neither of which exist yet:
-      1. **Android**-type client: package `uk.aity.narraity`, release SHA-1
-         `18:DE:24:8B:0E:85:53:4B:39:93:87:5E:ED:6A:90:C4:C2:43:0E:34` (from
-         `narraity-release.jks`). Optionally also register the debug SHA-1
-         `20:5F:0F:B4:E5:40:9F:20:7F:9E:D4:C3:D5:6E:79:51:56:00:53:0B` as a second Android-type
-         client (same package name) if debug builds should be able to sign in too.
-      2. **Web application**-type client (no SHA-1 needed) — its Client ID goes into
-         `oauth_config.json` as `GOOGLE_OAUTH_ANDROID_SERVER_CLIENT_ID` (currently an empty
-         placeholder there). Until this is filled in, Android will keep showing "not configured".
-      Once both exist and `oauth_config.json` has the real Web client ID, rebuild via
-      `android/build_release.ps1` and test sign-in for real on a device.
+- [x] **Google Cloud Console setup done, and sign-in verified working end-to-end** (2026-08-09) —
+      the user created an Android-type client (release SHA-1) and a debug-SHA-1 Android client,
+      plus a Web application-type client whose ID
+      (`822926155819-d76314lflasqf84llneulv195pgbj13n.apps.googleusercontent.com`) is now in
+      `oauth_config.json` as `GOOGLE_OAUTH_ANDROID_SERVER_CLIENT_ID`. Rebuilt the release APK,
+      installed on `emulator-5554`, and confirmed the **full pipeline for real**: tapped Connect
+      → real Google Sign-In Credential Manager sheet appeared with the account picker → consent
+      screen ("Sign in to narraity... share your name, email, profile picture") → completed →
+      Settings showed "Connected to Google Drive." → tapped Sync Now on App Settings → the app
+      found genuine pre-existing files on Drive from an earlier Windows sync session
+      (`release_notes_cache.json`, `settings.json`), correctly detected they'd been edited on
+      both sides since the last sync, and showed a real Sync Conflicts screen — resolved via
+      "Keep both", ending on "No conflicts left to resolve." This is a real Drive API round trip,
+      not just a successful auth handshake. Uploaded the resulting APK to
+      `aity.uk/beta/narraity.v1.4.1.b9.apk` (78,090,662 bytes, verified matching on the server).
 
 ---
 
@@ -348,13 +351,9 @@ signed AAB again afterward with the Settings fix included.
 **Not yet done:**
 - Content rating questionnaire, data safety form, app content declarations — all Play Console UI,
   can't be automated from here
-- **Drive sync's Android auth code is fixed but untested end-to-end** — blocked purely on Google
-  Cloud Console setup (an Android-type + a Web-type OAuth client, neither created yet — see
-  section 3's Android sign-in entry above for the exact values to register). Once
-  `oauth_config.json` has the real Web client ID, rebuild and test sign-in for real.
-- Everything else in section 9 (Pre-Launch Testing) below is otherwise unblocked — the release
-  build itself launches fine in release/minified mode (Hunspell/Vosk FFI survived), just Drive
-  sign-in specifically fails.
+- Everything else in section 9 (Pre-Launch Testing) — Drive sync (the one item that was blocking
+  this) now verified working end-to-end, see section 3 above. Google Drive sync on Android is a
+  genuinely working feature now, not just a build-config fix.
 
 ## Session 2026-08-09 — help icons, Timeline fix, Android OAuth gap, privacy policy live
 
