@@ -75,41 +75,52 @@ flows (no health data; optional Google Drive sync; optional GitHub sign-in for F
 ### Text — draft, needs review
 
 - [x] App name (30 chars): `Narraity`
-- [x] Short description draft (79 chars):
-> Local-first novel writing. Own your manuscript — no subscription, no cloud lock-in.
+- [x] Short description (79 chars, revised 2026-08-09 to lead with the actual differentiators
+      rather than a generic pitch):
+> Local-first novel writing — signed history, real KDP export, no subscription.
 
-- [x] Full description draft:
-> **Write your novel. Own your data.**
->
-> Narraity is a local-first novel writing app built for authors who want Dabble's workflow
-> without the subscription or the cloud lock-in. Everything lives on your own device by default —
-> your manuscript is yours, in open formats, forever.
->
-> **Full manuscript toolkit**
-> - Book/Chapter/Scene manuscript editor with markdown-style formatting
-> - Characters, worldbuilding notes, and a visual Relationship Diagram
-> - Plot Grid and Timeline for structuring your story
-> - Spell check and thesaurus, built in, no internet required
-> - Voice dictation
-> - Version history, so you can always go back
->
-> **Export anywhere**
-> PDF, EPUB, DOCX, and plain text — plus KDP-ready export for paperback, hardcover, and eBook,
-> built directly from Amazon's own formatting rules (trim size, bleed, margins, running headers,
-> copyright page, all handled for you).
->
-> **Your data, your choice**
-> Projects are stored as plain files on your device. Want to sync across devices? Turn on optional
-> Google Drive sync — to your own Drive, not ours. We have no backend, no server, no analytics,
-> no ads.
->
-> **Series support**
-> Group multiple books into a Series with shared characters, world notes, and to-dos across the
-> whole series.
->
-> **Free and open**
-> Narraity's source is public on GitHub. Report bugs, follow release notes, and see exactly what
-> the app does with your data.
+- [x] Full description (revised 2026-08-09 — plain text/unicode bullets, not markdown; Play Store
+      doesn't render `**bold**`. Same "what makes it different" framing as narraity.html, adapted
+      for the store listing format — see that page for the source copy):
+
+```
+Write your novel. Own your data.
+
+Narraity is a local-first novel writing app built for authors who want a full manuscript toolkit without the subscription or the cloud lock-in. Everything lives on your own device by default — your manuscript is yours, in open formats, forever.
+
+WHAT MAKES NARRAITY DIFFERENT
+
+• Tamper-evident version history — every save is cryptographically signed, not just snapshotted. Restore an earlier draft with confidence, or prove nothing was altered outside the app.
+
+• Export built from KDP's actual rulebook — paperback and hardcover export use Amazon's own published formatting rules: trim size, bleed, page-count-scaled margins, correctly-suppressed running headers, an auto-generated copyright page.
+
+• No subscription, no cloud lock-in, ever — your manuscript is plain files on your device from day one. Sync is optional and goes to your own Google Drive. There's no Narraity server for your writing to live on, and no monthly fee to keep reading it.
+
+FULL MANUSCRIPT TOOLKIT
+
+• Book/Chapter/Scene editor with markdown-style formatting
+• Characters, worldbuilding notes, and a visual Relationship Diagram
+• Plot Grid and Timeline for structuring your story
+• Spell check and thesaurus, built in, offline, no internet required
+• Offline voice dictation and Read Aloud
+• Series support — shared characters, world notes, and to-dos across a whole series
+
+EXPORT ANYWHERE
+
+PDF, EPUB, DOCX, and plain text, plus KDP-ready paperback, hardcover, and eBook export.
+
+A FEW MORE THINGS
+
+• Switching from Dabble? Import your manuscript straight from a Dabble export — no retyping.
+• Contextual Reference Panel — mention a character while writing and their card appears automatically.
+• Adaptive daily goals — word-count or deadline targets that adjust to your actual pace.
+• Feedback in the open — bug reports and suggestions post as public GitHub Discussions under your own account, not a black-box support ticket.
+• Fully open source — the code is public. You don't have to take "your data stays local" on faith.
+
+YOUR DATA, YOUR CHOICE
+
+We have no backend, no server, no analytics, no ads. If you turn on Google Drive sync, it goes to your own Drive — never ours.
+```
 
 - [ ] User review pass before submitting — needs your read-through, not yet approved
 
