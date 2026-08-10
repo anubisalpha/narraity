@@ -88,6 +88,7 @@ flutter:
     - assets/branding/
     - assets/dictionaries/en_GB/
     - assets/wordnet/
+    - assets/fonts/noto_sans/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

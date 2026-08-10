@@ -2,13 +2,19 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:narraity/models/annotation.dart';
 import 'package:narraity/models/manuscript.dart';
 import 'package:narraity/models/project.dart';
+import 'package:narraity/services/annotation_service.dart';
 import 'package:narraity/services/export/kdp_paperback_exporter.dart';
 import 'package:narraity/services/manuscript_service.dart';
 import 'package:path/path.dart' as p;
 
+import 'pdf_text_extraction.dart';
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   late Directory projectDir;
   late ManuscriptService manuscriptService;
   late KdpPaperbackExporter exporter;
@@ -277,28 +283,19 @@ void main() {
   });
 
   group('page numbering and running headers', () {
-    /// Extracts every literal parenthesized PDF string-show operand from an
-    /// *uncompressed* PDF's content streams — covers both `(text) Tj` and
-    /// the kerning-adjusted `[(t) -20 (ext)] TJ` array form the `pdf`
-    /// package actually emits (a first attempt matching only `(...) Tj`
-    /// found nothing, since real output uses the array form). Only reliable
-    /// with `compressPdf: false`, since compressed streams hide this
-    /// entirely from a raw-bytes scan. Multiple adjacent strings in one TJ
-    /// array (e.g. "M" "y" " " "N" ...) are joined back together, since
-    /// that's how the package splits a run for kerning even when nothing
-    /// unusual is happening.
-    List<String> textStringsOf(List<int> bytes) {
-      final text = latin1.decode(bytes, allowInvalid: true);
-      final strings = RegExp(r'\(((?:[^()\\]|\\.)*)\)').allMatches(text).map((m) => m.group(1)!);
-      return strings.toList();
-    }
-
-    /// Joins every extracted string into one blob, so a value that got
-    /// split across multiple adjacent TJ array entries (e.g. "1" alone is
-    /// fine, but multi-char text may be split character-by-character) can
-    /// still be found via `contains`, without needing to reconstruct exact
-    /// per-page boundaries.
-    String allTextOf(List<int> bytes) => textStringsOf(bytes).join();
+    /// Joins every page's decoded text into one blob, so a value that got
+    /// split across multiple adjacent TJ array entries or a page boundary
+    /// can still be found via `contains`, without needing to reconstruct
+    /// exact per-page boundaries. See `pdf_text_extraction.dart` for how
+    /// decoding works — since the embedded Unicode font moved text-show
+    /// operators from literal `(text) Tj` WinAnsi strings to Identity-H
+    /// `<hex> Tj` CID glyph-index strings, a plain `(...)` regex over the
+    /// raw bytes (this test's original approach) no longer finds anything;
+    /// every code has to be resolved back through the active font's own
+    /// `/ToUnicode` CMap instead. Only reliable with `compressPdf: false`,
+    /// since compressed streams hide the content entirely from a raw-bytes
+    /// scan.
+    String allTextOf(List<int> bytes) => allDecodedText(bytes);
 
     test('title page has no stray blank page before the copyright/body starts (regression: '
         'title\'s own trailing NewPage was previously left in when title became its own '
@@ -383,23 +380,12 @@ void main() {
     });
 
     /// Splits an *uncompressed* PDF into its ordered content streams (one
-    /// per physical page, in document order) and extracts each stream's own
-    /// literal text — lets a test check what's on a *specific* page rather
-    /// than just "does this text appear anywhere in the whole document."
-    /// Filters to streams containing a text-show operator (`Tj`/`TJ`) to
-    /// skip any non-content streams (e.g. object streams) that might also
-    /// match a bare `stream`/`endstream` pair.
-    List<String> perPageTextOf(List<int> bytes) {
-      final text = latin1.decode(bytes, allowInvalid: true);
-      final streams = RegExp(r'stream\r?\n([\s\S]*?)endstream').allMatches(text).map((m) => m.group(1)!);
-      // Matches both the singular `(text) Tj` operator and the kerning-
-      // adjusted array form `[(t) -20 (ext)] TJ` the `pdf` package actually
-      // emits (see `allTextOf`'s doc comment) — case matters (Tj vs TJ are
-      // distinct operators), so both must be checked explicitly.
-      return streams.where((s) => s.contains('Tj') || s.contains('TJ')).map((s) {
-        return RegExp(r'\(((?:[^()\\]|\\.)*)\)').allMatches(s).map((m) => m.group(1)!).join();
-      }).toList();
-    }
+    /// per physical page, in document order) and decodes each stream's own
+    /// text — lets a test check what's on a *specific* page rather than
+    /// just "does this text appear anywhere in the whole document." See
+    /// `allTextOf`'s doc comment for why this decodes through each font's
+    /// `/ToUnicode` CMap rather than reading literal `(...)` strings.
+    List<String> perPageTextOf(List<int> bytes) => perPageDecodedText(bytes);
 
     test('the header is suppressed specifically on each chapter\'s own first page, but shown on '
         'later pages within that same chapter', () async {
@@ -484,6 +470,107 @@ void main() {
       // "For someone." lands as "Forsomeone."
       expect(pages[1], contains('Copyright'));
       expect(pages[2], contains('Forsomeone.'));
+    });
+  });
+
+  group('footnotes', () {
+    test('a footnote renders as a superscript-numbered reference plus a body list entry',
+        () async {
+      final noCompress =
+          KdpPaperbackExporter(projectDir, minPageCount: 1, maxPageCount: 50, compressPdf: false);
+      final structure = ManuscriptStructure(
+        nodes: [ManuscriptNode(id: 'ch-1', title: 'Chapter 1', typeLabel: 'Chapter')],
+      );
+      const content = 'A word needs explaining.';
+      await manuscriptService.writeScene(SceneDoc(id: 'ch-1', title: 'x', content: content));
+
+      final annotations = AnnotationService(projectDir);
+      await annotations.create(
+        sceneId: 'ch-1',
+        kind: AnnotationKind.footnote,
+        anchor: const TextAnchor(start: 6, end: 6, quotedText: ''), // point anchor after "A word"
+        body: 'An explanatory note.',
+      );
+
+      final bytes = await noCompress.buildBytes(project, structure, trimSize: KdpTrimSize.in6x9);
+      final allText = allDecodedText(bytes);
+
+      // The in-text reference is a literal superscript "¹" character (see
+      // PdfWidgetBuilder._withSuperscriptFootnoteMarkers — no true
+      // page-bottom footnotes are possible with pw.MultiPage's fixed
+      // margins, so the body text is collected into a small numbered list
+      // at the chapter's end instead) and the body list repeats "1" as a
+      // plain digit ahead of the note text.
+      // Both the in-text reference and the footnote-list entry's own number
+      // render as the same literal superscript digit (see
+      // PdfWidgetBuilder.footnoteListWidgets) — "¹" appears twice.
+      expect('¹'.allMatches(allText).length, 2);
+      expect(allText, contains('¹Anexplanatorynote.'));
+    });
+
+    test('multiple footnotes in one scene are numbered in reading order, not insertion order',
+        () async {
+      final noCompress =
+          KdpPaperbackExporter(projectDir, minPageCount: 1, maxPageCount: 50, compressPdf: false);
+      final structure = ManuscriptStructure(
+        nodes: [ManuscriptNode(id: 'ch-1', title: 'Chapter 1', typeLabel: 'Chapter')],
+      );
+      const content = 'First point. Second point.';
+      await manuscriptService.writeScene(SceneDoc(id: 'ch-1', title: 'x', content: content));
+
+      final annotations = AnnotationService(projectDir);
+      // Created out of document order deliberately, same as the EPUB
+      // equivalent test — proves numbering follows position in the text,
+      // not creation order.
+      await annotations.create(
+        sceneId: 'ch-1',
+        kind: AnnotationKind.footnote,
+        anchor: const TextAnchor(start: 26, end: 26, quotedText: ''),
+        body: 'Note on second point.',
+      );
+      await annotations.create(
+        sceneId: 'ch-1',
+        kind: AnnotationKind.footnote,
+        anchor: const TextAnchor(start: 11, end: 11, quotedText: ''),
+        body: 'Note on first point.',
+      );
+
+      final bytes = await noCompress.buildBytes(project, structure, trimSize: KdpTrimSize.in6x9);
+      final allText = allDecodedText(bytes);
+
+      final firstNoteIndex = allText.indexOf('Note on first point.'.replaceAll(' ', ''));
+      final secondNoteIndex = allText.indexOf('Note on second point.'.replaceAll(' ', ''));
+      expect(firstNoteIndex, greaterThan(-1));
+      expect(secondNoteIndex, greaterThan(firstNoteIndex));
+    });
+
+    test('a footnote in one chapter is flushed at that chapter\'s own end, not carried into '
+        'the next chapter\'s page', () async {
+      final noCompress =
+          KdpPaperbackExporter(projectDir, minPageCount: 1, maxPageCount: 50, compressPdf: false);
+      final structure = ManuscriptStructure(nodes: [
+        ManuscriptNode(id: 'ch-1', title: 'Chapter 1', typeLabel: 'Chapter'),
+        ManuscriptNode(id: 'ch-2', title: 'Chapter 2', typeLabel: 'Chapter'),
+      ]);
+      await manuscriptService.writeScene(SceneDoc(id: 'ch-1', title: 'x', content: 'Short one.'));
+      await manuscriptService.writeScene(SceneDoc(id: 'ch-2', title: 'x', content: 'Short two.'));
+
+      final annotations = AnnotationService(projectDir);
+      await annotations.create(
+        sceneId: 'ch-1',
+        kind: AnnotationKind.footnote,
+        anchor: const TextAnchor(start: 5, end: 5, quotedText: ''),
+        body: 'Onlyinchapterone.',
+      );
+
+      final bytes = await noCompress.buildBytes(project, structure, trimSize: KdpTrimSize.in6x9);
+      final pages = perPageDecodedText(bytes);
+
+      // pages[0] = title, pages[1] = copyright, pages[2] = chapter 1 (with
+      // its footnote list), pages[3] = chapter 2 (no footnote of its own).
+      const noteText = 'Onlyinchapterone.';
+      expect(pages[2].replaceAll(' ', ''), contains(noteText));
+      expect(pages[3].replaceAll(' ', ''), isNot(contains(noteText)));
     });
   });
 

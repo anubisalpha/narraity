@@ -10,6 +10,8 @@ import 'package:narraity/services/manuscript_service.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   late Directory projectDir;
   late ManuscriptService manuscriptService;
   late KdpHardcoverExporter exporter;

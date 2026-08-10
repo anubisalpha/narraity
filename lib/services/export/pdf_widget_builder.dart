@@ -1,6 +1,10 @@
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../models/export_outline.dart';
 import '../../models/project.dart';
+import '../annotation_service.dart';
+import '../manuscript_service.dart';
+import 'footnote_markers.dart';
 import 'markdown_lite.dart';
 
 /// Shared `pw.Widget` construction for every PDF-based export path — general
@@ -93,7 +97,7 @@ class PdfWidgetBuilder {
         children: [
           for (final run in runs)
             pw.TextSpan(
-              text: pdfSafeText(run.text),
+              text: pdfSafeText(_withSuperscriptFootnoteMarkers(run.text)),
               style: base.copyWith(
                 fontWeight: run.bold ? pw.FontWeight.bold : base.fontWeight,
                 fontStyle: run.italic ? pw.FontStyle.italic : base.fontStyle,
@@ -102,6 +106,123 @@ class PdfWidgetBuilder {
             ),
         ],
       );
+
+  static const _superscriptDigits = {
+    '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+    '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+  };
+
+  /// Replaces every `FootnoteMarkers`-wrapped number with its literal
+  /// Unicode superscript-digit rendering (`¹`, `²`, …) — no special text
+  /// style needed, since these are genuine standalone characters the
+  /// embedded Unicode font (`PdfFonts`) has glyphs for. `pw.MultiPage` has
+  /// no per-page footnote area (fixed margins, no per-page callback), so
+  /// true page-bottom footnotes aren't possible here — this is the
+  /// in-text reference half; see `footnoteListWidgets` for where the body
+  /// text ends up instead.
+  String _withSuperscriptFootnoteMarkers(String text) {
+    return text.replaceAllMapped(FootnoteMarkers.pattern, (match) {
+      final digits = match.group(1)!.split('').map((d) => _superscriptDigits[d]!).join();
+      return digits;
+    });
+  }
+
+  /// A small numbered list rendering each footnote's body text, meant to be
+  /// inserted right before the next chapter boundary — the same "collected
+  /// at chapter end" placement `EpubExporter` uses for its `<aside>`
+  /// elements, since it's the closest analog available without true
+  /// page-bottom footnotes.
+  List<pw.Widget> footnoteListWidgets(Map<int, String> bodies) {
+    if (bodies.isEmpty) return [];
+    final numbers = bodies.keys.toList()..sort();
+    return [
+      pw.SizedBox(height: 16),
+      pw.Divider(thickness: 0.5),
+      pw.SizedBox(height: 4),
+      for (final number in numbers)
+        pw.Padding(
+          padding: const pw.EdgeInsets.only(top: 3),
+          child: pw.RichText(
+            text: pw.TextSpan(
+              text: '${number.toString().split('').map((d) => _superscriptDigits[d]!).join()} '
+                  '${pdfSafeText(bodies[number]!)}',
+              style: const pw.TextStyle(fontSize: 9),
+            ),
+            overflow: pw.TextOverflow.span,
+          ),
+        ),
+    ];
+  }
+
+  /// Renders one section's content into widgets with its footnote markers
+  /// already resolved via [FootnoteMarkers] — the lower-level primitive
+  /// `buildManuscriptBody` composes into a flat single-pass build.
+  /// `KdpPaperbackExporter` calls this directly instead, since it needs its
+  /// own page-break/chapter-grouping strategy (separate `MultiPage`s per
+  /// chapter, for header suppression on each one's first page).
+  Future<SceneWidgetsResult> sceneWidgets({
+    required ExportSection section,
+    required ManuscriptService manuscript,
+    required AnnotationService annotations,
+    required int nextFootnoteNumber,
+  }) async {
+    final doc = await manuscript.readScene(section.id, fallbackTitle: section.title);
+    final marked = await FootnoteMarkers.markContent(
+      annotations: annotations,
+      sceneId: section.id,
+      content: doc.content,
+      startNumber: nextFootnoteNumber,
+    );
+    final widgets = <pw.Widget>[
+      if (section.showTitle) ...sectionHeadingWidgets(section.title, section.depth),
+      for (final block in MarkdownLite.parse(marked.content)) ...blockWidgets(block),
+    ];
+    return SceneWidgetsResult(
+      widgets: widgets,
+      footnoteBodies: marked.bodies,
+      nextFootnoteNumber: marked.nextNumber,
+    );
+  }
+
+  /// Builds every body widget for [sections], resolving footnote markers
+  /// against [annotations] along the way — the shared "manuscript body"
+  /// builder behind `PdfExporter`'s flat single-pass build. Footnote bodies
+  /// are collected per chapter-group (the same `startsNewPage` grouping
+  /// that decides page breaks) and flushed as a small list right before the
+  /// next chapter boundary, or at the very end of the last one.
+  Future<List<pw.Widget>> buildManuscriptBody({
+    required List<ExportSection> sections,
+    required ManuscriptService manuscript,
+    required AnnotationService annotations,
+  }) async {
+    final widgets = <pw.Widget>[];
+    var nextFootnoteNumber = 1;
+    var groupFootnotes = <int, String>{};
+
+    void flushGroupFootnotes() {
+      widgets.addAll(footnoteListWidgets(groupFootnotes));
+      groupFootnotes = {};
+    }
+
+    for (var i = 0; i < sections.length; i++) {
+      final section = sections[i];
+      if (section.startsNewPage && i > 0) {
+        flushGroupFootnotes();
+        widgets.add(pw.NewPage());
+      }
+      final result = await sceneWidgets(
+        section: section,
+        manuscript: manuscript,
+        annotations: annotations,
+        nextFootnoteNumber: nextFootnoteNumber,
+      );
+      groupFootnotes.addAll(result.footnoteBodies);
+      nextFootnoteNumber = result.nextFootnoteNumber;
+      widgets.addAll(result.widgets);
+    }
+    flushGroupFootnotes();
+    return widgets;
+  }
 
   List<pw.Widget> blockWidgets(MdBlock block) {
     switch (block.type) {
@@ -151,4 +272,18 @@ class PdfWidgetBuilder {
         }).toList();
     }
   }
+}
+
+/// Result of [PdfWidgetBuilder.sceneWidgets] — the rendered widgets plus the
+/// running footnote-numbering state the caller threads into the next scene.
+class SceneWidgetsResult {
+  const SceneWidgetsResult({
+    required this.widgets,
+    required this.footnoteBodies,
+    required this.nextFootnoteNumber,
+  });
+
+  final List<pw.Widget> widgets;
+  final Map<int, String> footnoteBodies;
+  final int nextFootnoteNumber;
 }

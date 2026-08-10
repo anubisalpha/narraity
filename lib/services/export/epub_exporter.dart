@@ -5,29 +5,15 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../models/annotation.dart';
 import '../../models/manuscript.dart';
 import '../../models/project.dart';
 import '../annotation_service.dart';
 import '../manuscript_service.dart';
+import 'footnote_markers.dart';
 import 'manuscript_outline_builder.dart';
 import 'markdown_lite.dart';
 
 const _uuid = Uuid();
-
-/// Private-Use-Area character pair used to mark a footnote's position
-/// inside a scene's raw markdown *before* `MarkdownLite.parse` runs — never
-/// appears in real user content, and isn't one of `MarkdownLite`'s special
-/// characters (`*`, `~`, `#`, `>`), so it survives parsing as ordinary
-/// literal text inside whatever run it lands in. Substituted for a real
-/// `<sup><a epub:type="noteref">` reference after the block/run HTML is
-/// generated, rather than threading footnote data through
-/// `_blockHtml`/`_runHtml`'s signatures.
-final _footnoteMarker = String.fromCharCode(0xE000);
-final _footnoteMarkerPattern =
-    RegExp('${String.fromCharCode(0xE000)}(\\d+)${String.fromCharCode(0xE000)}');
-
-String _wrapFootnoteMarker(int number) => '$_footnoteMarker$number$_footnoteMarker';
 
 /// KDP's hard technical limits for a Kindle eBook (per its QA Standards
 /// help page — see `KDP_CRIBSHEET.md`'s QA Standards section): each
@@ -124,32 +110,18 @@ class EpubExporter {
         groups.add(_EpubSectionGroup(title: section.title, depth: section.depth));
       }
       final doc = await manuscript.readScene(section.id, fallbackTitle: section.title);
-      var content = doc.content;
 
-      // Numbered in ascending document order (so numbering reads naturally
-      // through the book), but *inserted* rightmost-first so each
-      // insertion's length doesn't shift the still-unprocessed offsets
-      // earlier in the same scene.
-      final footnotes = (await annotations.listForScene(section.id))
-          .where((a) => a.kind == AnnotationKind.footnote)
-          .toList()
-        ..sort((a, b) => a.anchor.start.compareTo(b.anchor.start));
+      final marked = await FootnoteMarkers.markContent(
+        annotations: annotations,
+        sceneId: section.id,
+        content: doc.content,
+        startNumber: nextFootnoteNumber,
+      );
+      footnoteBodies.addAll(marked.bodies);
+      nextFootnoteNumber = marked.nextNumber;
 
-      final numbered = <(int number, Annotation footnote)>[];
-      for (final footnote in footnotes) {
-        final number = nextFootnoteNumber++;
-        footnoteBodies[number] = footnote.body;
-        numbered.add((number, footnote));
-      }
-
-      for (final (number, footnote) in numbered.reversed) {
-        final clamped = footnote.anchor.start.clamp(0, content.length);
-        content = content.substring(0, clamped) +
-            _wrapFootnoteMarker(number) +
-            content.substring(clamped);
-      }
-
-      groups.last.parts.add((title: section.title, content: content, showTitle: section.showTitle));
+      groups.last.parts
+          .add((title: section.title, content: marked.content, showTitle: section.showTitle));
     }
 
     var index = 0;
@@ -271,12 +243,12 @@ class EpubExporter {
     // they're still literally present in the buffer at this point — collect
     // which numbers this file actually references before replacing them,
     // so only relevant asides get appended here.
-    final referenced = _footnoteMarkerPattern
+    final referenced = FootnoteMarkers.pattern
         .allMatches(buffer.toString())
         .map((m) => int.parse(m.group(1)!))
         .toSet();
 
-    var body = buffer.toString().replaceAllMapped(_footnoteMarkerPattern, (match) {
+    var body = buffer.toString().replaceAllMapped(FootnoteMarkers.pattern, (match) {
       final number = match.group(1)!;
       // Not <sup> — it's absent from KDP's Kindle Format 8 supported-tag list
       // (see KDP_CRIBSHEET.md). class="footnote-ref" gets the same raised,

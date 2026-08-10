@@ -5,9 +5,10 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../../models/manuscript.dart';
 import '../../models/project.dart';
+import '../annotation_service.dart';
 import '../manuscript_service.dart';
 import 'manuscript_outline_builder.dart';
-import 'markdown_lite.dart';
+import 'pdf_fonts.dart';
 import 'pdf_widget_builder.dart';
 
 /// PDF export via the `pdf` package — the one export format here with a
@@ -27,29 +28,19 @@ class PdfExporter {
 
   Future<Uint8List> buildBytes(Project project, ManuscriptStructure structure) async {
     final manuscript = ManuscriptService(projectDir);
+    final annotations = AnnotationService(projectDir);
     final sections = ManuscriptOutlineBuilder.build(structure);
 
-    final widgets = <pw.Widget>[..._widgets.titlePageWidgets(project)];
-    for (var i = 0; i < sections.length; i++) {
-      final section = sections[i];
-      // Chapter-boundary sections (see ExportSection.startsNewPage) always
-      // start on a fresh page. Skip it for the very first section: the
-      // title page already ends with its own NewPage, so adding another
-      // here would insert a blank page (pw.NewPage() with no freeSpace
-      // forces a break unconditionally, even immediately after one).
-      if (section.startsNewPage && i > 0) {
-        widgets.add(pw.NewPage());
-      }
-      final doc = await manuscript.readScene(section.id, fallbackTitle: section.title);
-      if (section.showTitle) {
-        widgets.addAll(_widgets.sectionHeadingWidgets(section.title, section.depth));
-      }
-      for (final block in MarkdownLite.parse(doc.content)) {
-        widgets.addAll(_widgets.blockWidgets(block));
-      }
-    }
+    final widgets = <pw.Widget>[
+      ..._widgets.titlePageWidgets(project),
+      ...await _widgets.buildManuscriptBody(
+        sections: sections,
+        manuscript: manuscript,
+        annotations: annotations,
+      ),
+    ];
 
-    final pdfDoc = pw.Document();
+    final pdfDoc = pw.Document(theme: await PdfFonts.theme());
     pdfDoc.addPage(
       pw.MultiPage(
         maxPages: 100000,

@@ -7,9 +7,10 @@ import 'package:pdf/widgets.dart' as pw;
 import '../../models/export_outline.dart';
 import '../../models/manuscript.dart';
 import '../../models/project.dart';
+import '../annotation_service.dart';
 import '../manuscript_service.dart';
 import 'manuscript_outline_builder.dart';
-import 'markdown_lite.dart';
+import 'pdf_fonts.dart';
 import 'pdf_widget_builder.dart';
 
 /// A trim size KDP accepts for *some* print binding — paperback and
@@ -311,24 +312,40 @@ class KdpPaperbackExporter {
 
   /// Renders [sections] (already filtered to one kind) into a flat widget
   /// list — used for front matter, which stays one continuous `MultiPage`
-  /// (no per-chapter header-suppression concern there).
-  Future<List<pw.Widget>> _sectionWidgets(List<ExportSection> sections) async {
+  /// (no per-chapter header-suppression concern there). Footnotes (if any
+  /// land in front matter) are collected across the whole flat list and
+  /// flushed once at its end, via the same [PdfWidgetBuilder.sceneWidgets]/
+  /// [PdfWidgetBuilder.footnoteListWidgets] primitives the body's per-
+  /// chapter grouping uses. [startFootnoteNumber]/the returned next number
+  /// thread one continuous footnote sequence from front matter into the
+  /// body, matching every other export format's book-wide numbering.
+  Future<(List<pw.Widget> widgets, int nextFootnoteNumber)> _sectionWidgets(
+    List<ExportSection> sections,
+    int startFootnoteNumber,
+  ) async {
     final manuscript = ManuscriptService(projectDir);
+    final annotations = AnnotationService(projectDir);
     final widgets = <pw.Widget>[];
+    var nextFootnoteNumber = startFootnoteNumber;
+    final footnotes = <int, String>{};
+
     for (var i = 0; i < sections.length; i++) {
       final section = sections[i];
       if (section.startsNewPage && i > 0) {
         widgets.add(pw.NewPage());
       }
-      final doc = await manuscript.readScene(section.id, fallbackTitle: section.title);
-      if (section.showTitle) {
-        widgets.addAll(_widgets.sectionHeadingWidgets(section.title, section.depth));
-      }
-      for (final block in MarkdownLite.parse(doc.content)) {
-        widgets.addAll(_widgets.blockWidgets(block));
-      }
+      final result = await _widgets.sceneWidgets(
+        section: section,
+        manuscript: manuscript,
+        annotations: annotations,
+        nextFootnoteNumber: nextFootnoteNumber,
+      );
+      footnotes.addAll(result.footnoteBodies);
+      nextFootnoteNumber = result.nextFootnoteNumber;
+      widgets.addAll(result.widgets);
     }
-    return widgets;
+    widgets.addAll(_widgets.footnoteListWidgets(footnotes));
+    return (widgets, nextFootnoteNumber);
   }
 
   /// Renders [sections] into one widget list *per chapter-boundary group*
@@ -338,22 +355,37 @@ class KdpPaperbackExporter {
   /// chapter's header be suppressed specifically on its own first page. No
   /// `pw.NewPage()` is inserted between groups here (unlike the old flat
   /// version): each group becomes its own separately-`addPage()`d
-  /// `MultiPage`, which already starts fresh on its own page.
-  Future<List<List<pw.Widget>>> _groupedSectionWidgets(List<ExportSection> sections) async {
+  /// `MultiPage`, which already starts fresh on its own page. Each group's
+  /// own footnotes are collected and flushed at that group's end — the same
+  /// "collected at chapter end" placement `EpubExporter` uses — continuing
+  /// the numbering sequence [startFootnoteNumber] began in front matter.
+  Future<List<List<pw.Widget>>> _groupedSectionWidgets(
+    List<ExportSection> sections,
+    int startFootnoteNumber,
+  ) async {
     final manuscript = ManuscriptService(projectDir);
+    final annotations = AnnotationService(projectDir);
     final groups = <List<pw.Widget>>[];
+    final groupFootnotes = <Map<int, String>>[];
+    var nextFootnoteNumber = startFootnoteNumber;
 
     for (final section in sections) {
       if (groups.isEmpty || section.startsNewPage) {
         groups.add(<pw.Widget>[]);
+        groupFootnotes.add(<int, String>{});
       }
-      final doc = await manuscript.readScene(section.id, fallbackTitle: section.title);
-      if (section.showTitle) {
-        groups.last.addAll(_widgets.sectionHeadingWidgets(section.title, section.depth));
-      }
-      for (final block in MarkdownLite.parse(doc.content)) {
-        groups.last.addAll(_widgets.blockWidgets(block));
-      }
+      final result = await _widgets.sceneWidgets(
+        section: section,
+        manuscript: manuscript,
+        annotations: annotations,
+        nextFootnoteNumber: nextFootnoteNumber,
+      );
+      groupFootnotes.last.addAll(result.footnoteBodies);
+      nextFootnoteNumber = result.nextFootnoteNumber;
+      groups.last.addAll(result.widgets);
+    }
+    for (var i = 0; i < groups.length; i++) {
+      groups[i].addAll(_widgets.footnoteListWidgets(groupFootnotes[i]));
     }
     return groups;
   }
@@ -461,16 +493,19 @@ class KdpPaperbackExporter {
     // the class doc's "Copyright page" note for why this isn't optional or
     // user-authored the way the rest of front matter is. A NewPage only
     // gets inserted before the user's own front matter if there is any.
-    final userFrontMatterWidgets = await _sectionWidgets(frontMatterSections);
+    final (userFrontMatterWidgets, nextFootnoteNumber) = await _sectionWidgets(
+      frontMatterSections,
+      1,
+    );
     final frontMatterWidgets = [
       ..._copyrightPageWidgets(project),
       if (userFrontMatterWidgets.isNotEmpty) pw.NewPage(),
       ...userFrontMatterWidgets,
     ];
 
-    final bodyChapterGroups = await _groupedSectionWidgets(bodySections);
+    final bodyChapterGroups = await _groupedSectionWidgets(bodySections, nextFootnoteNumber);
 
-    final pdfDoc = pw.Document(compress: compressPdf);
+    final pdfDoc = pw.Document(compress: compressPdf, theme: await PdfFonts.theme());
 
     // Title page: no header/footer.
     pdfDoc.addPage(

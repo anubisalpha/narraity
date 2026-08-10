@@ -2,13 +2,17 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:narraity/models/annotation.dart';
 import 'package:narraity/models/manuscript.dart';
 import 'package:narraity/models/project.dart';
+import 'package:narraity/services/annotation_service.dart';
 import 'package:narraity/services/export/pdf_exporter.dart';
 import 'package:narraity/services/manuscript_service.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   late Directory projectDir;
   late ManuscriptService manuscriptService;
   late PdfExporter exporter;
@@ -191,6 +195,56 @@ void main() {
     await manuscriptService.writeScene(
       SceneDoc(id: 'ch-1', title: 'Chapter 1', content: longParagraph),
     );
+
+    final bytes = await exporter.buildBytes(project, structure);
+    expect(bytes, isNotEmpty);
+  });
+
+  test('a footnote annotation renders without throwing and grows the output', () async {
+    final structure = ManuscriptStructure(
+      nodes: [ManuscriptNode(id: 'ch-1', title: 'Chapter 1', typeLabel: 'Chapter')],
+    );
+    const content = 'A word needs explaining.';
+    await manuscriptService.writeScene(SceneDoc(id: 'ch-1', title: 'x', content: content));
+
+    final withoutNote = await exporter.buildBytes(project, structure);
+
+    final annotations = AnnotationService(projectDir);
+    await annotations.create(
+      sceneId: 'ch-1',
+      kind: AnnotationKind.footnote,
+      anchor: const TextAnchor(start: 6, end: 6, quotedText: ''),
+      body: 'An explanatory note that is reasonably long, to change the byte count visibly.',
+    );
+    final withNote = await exporter.buildBytes(project, structure);
+
+    // PdfExporter always compresses (no `compressPdf` toggle like
+    // KdpPaperbackExporter), so the footnote body text isn't directly
+    // greppable here — a real footnote list added to the page content
+    // grows the compressed output is the practical proxy, same style as
+    // this file's other "did the extra content actually render" checks.
+    expect(withNote.length, greaterThan(withoutNote.length));
+  });
+
+  test('embeds the Noto Sans font instead of relying on the base-14 Helvetica', () async {
+    final bytes = await exporter.buildBytes(project, ManuscriptStructure());
+
+    // Font resource dictionaries aren't stream-compressed, so the embedded
+    // font's PostScript name is findable directly in the raw bytes — proof
+    // the real Unicode-capable font was wired in, not just "didn't throw".
+    final text = latin1.decode(bytes, allowInvalid: true);
+    expect(text, contains('NotoSans'));
+  });
+
+  test('renders real Unicode punctuation without throwing', () async {
+    final structure = ManuscriptStructure(
+      nodes: [ManuscriptNode(id: 'ch-1', title: 'Chapter 1', typeLabel: 'Chapter')],
+    );
+    await manuscriptService.writeScene(SceneDoc(
+      id: 'ch-1',
+      title: 'x',
+      content: '“Curly quotes,” an em dash—like this, an ellipsis… and café, naïve, Zürich.',
+    ));
 
     final bytes = await exporter.buildBytes(project, structure);
     expect(bytes, isNotEmpty);
