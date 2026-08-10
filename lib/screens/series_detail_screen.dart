@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -424,88 +425,100 @@ class _SeriesProjectGrid extends ConsumerWidget {
               borderRadius: BorderRadius.circular(12),
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Column(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                          ProjectKindStyle.of(project.kind).icon,
-                          color: ProjectKindStyle.of(
-                            project.kind,
-                          ).accent(Theme.of(context).colorScheme),
-                        ),
-                        const Spacer(),
-                        PopupMenuButton<String>(
-                          tooltip: 'Project options',
-                          onSelected: (action) async {
-                            switch (action) {
-                              case 'remove':
-                                final library = ref.read(
-                                  libraryServiceProvider,
-                                );
-                                await library.saveProject(
-                                  project.copyWith(clearSeriesId: true),
-                                );
-                                ref.invalidate(projectListProvider);
-                              case 'style':
-                                await editProjectCardStyle(
-                                  context,
-                                  ref,
-                                  project,
-                                );
-                              case 'archive':
-                                await archiveProjectWithConfirmation(
-                                  context,
-                                  ref,
-                                  project,
-                                );
-                              case 'delete':
-                                await deleteProjectWithConfirmation(
-                                  context,
-                                  ref,
-                                  project,
-                                );
-                            }
-                          },
-                          itemBuilder: (context) => const [
-                            PopupMenuItem(
-                              value: 'remove',
-                              child: Text('Remove from Series'),
+                    if (project.coverImagePath != null) ...[
+                      _SeriesCoverThumbnail(project: project),
+                      const SizedBox(width: 12),
+                    ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              if (project.coverImagePath == null)
+                                Icon(
+                                  ProjectKindStyle.of(project.kind).icon,
+                                  color: ProjectKindStyle.of(
+                                    project.kind,
+                                  ).accent(Theme.of(context).colorScheme),
+                                ),
+                              const Spacer(),
+                              PopupMenuButton<String>(
+                                tooltip: 'Project options',
+                                onSelected: (action) async {
+                                  switch (action) {
+                                    case 'remove':
+                                      final library = ref.read(
+                                        libraryServiceProvider,
+                                      );
+                                      await library.saveProject(
+                                        project.copyWith(clearSeriesId: true),
+                                      );
+                                      ref.invalidate(projectListProvider);
+                                    case 'style':
+                                      await editProjectCardStyle(
+                                        context,
+                                        ref,
+                                        project,
+                                      );
+                                    case 'archive':
+                                      await archiveProjectWithConfirmation(
+                                        context,
+                                        ref,
+                                        project,
+                                      );
+                                    case 'delete':
+                                      await deleteProjectWithConfirmation(
+                                        context,
+                                        ref,
+                                        project,
+                                      );
+                                  }
+                                },
+                                itemBuilder: (context) => const [
+                                  PopupMenuItem(
+                                    value: 'remove',
+                                    child: Text('Remove from Series'),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'style',
+                                    child: Text('Card style…'),
+                                  ),
+                                  PopupMenuDivider(),
+                                  PopupMenuItem(
+                                    value: 'archive',
+                                    child: Text('Archive'),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'delete',
+                                    child: Text('Delete'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          Text(
+                            project.title,
+                            style: Theme.of(context).textTheme.titleMedium,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (project.author != null)
+                            Text(
+                              project.author!,
+                              style: Theme.of(context).textTheme.bodySmall,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            PopupMenuItem(
-                              value: 'style',
-                              child: Text('Card style…'),
-                            ),
-                            PopupMenuDivider(),
-                            PopupMenuItem(
-                              value: 'archive',
-                              child: Text('Archive'),
-                            ),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Text('Delete'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    Text(
-                      project.title,
-                      style: Theme.of(context).textTheme.titleMedium,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (project.author != null)
-                      Text(
-                        project.author!,
-                        style: Theme.of(context).textTheme.bodySmall,
-                        overflow: TextOverflow.ellipsis,
+                          const Spacer(),
+                          Text(
+                            'Modified ${DateFormat.yMMMd().format(project.modified)}',
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                        ],
                       ),
-                    const Spacer(),
-                    Text(
-                      'Modified ${DateFormat.yMMMd().format(project.modified)}',
-                      style: Theme.of(context).textTheme.labelSmall,
                     ),
                   ],
                 ),
@@ -559,5 +572,39 @@ class _SeriesProjectGrid extends ConsumerWidget {
     }
 
     ref.invalidate(projectListProvider);
+  }
+}
+
+/// Mirrors `_CoverThumbnail` in library_screen.dart — duplicated rather than
+/// shared because that one is file-private, and this screen's card layout
+/// needs the same cover-or-placeholder behaviour.
+class _SeriesCoverThumbnail extends ConsumerWidget {
+  const _SeriesCoverThumbnail({required this.project});
+
+  final Project project;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FutureBuilder<String?>(
+      future: ref.read(libraryServiceProvider).coverImageAbsolutePath(project),
+      builder: (context, snapshot) {
+        final path = snapshot.data;
+        if (path == null) return const SizedBox(width: 44, height: 60);
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Image.file(
+            File(path),
+            width: 44,
+            height: 60,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stack) => const SizedBox(
+              width: 44,
+              height: 60,
+              child: Icon(Icons.image_not_supported_outlined, size: 18),
+            ),
+          ),
+        );
+      },
+    );
   }
 }
