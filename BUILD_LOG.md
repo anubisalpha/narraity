@@ -2780,3 +2780,72 @@ debug build) — per the family-wide "-aity beta uploads go to aity.uk" conventi
 signed release AAB (Play Store) with all of today's fixes — same repeated Windows Defender
 lock-on-fresh-Gradle-output pattern as earlier in the session, worked around the same way
 (clear the specific locked intermediate directory, retry).
+
+## Series covers, embedded PDF Unicode font, DOCX/PDF footnotes, Notes images — v1.6.0
+
+Four independent features, each closing a gap tracked in CONSIDERATIONS.md/KDP_CRIBSHEET.md:
+
+**Series own cover.** `Series` gained a `coverImagePath` field and its own `SeriesService.
+setCoverImage`/`removeCoverImage`/`coverImageAbsolutePath`, mirroring `LibraryService`'s
+per-project equivalents but rooted at `_Series/covers/` (a series has no folder of its own). A
+"Series Cover…" entry in `series_detail_screen.dart`'s app-bar menu opens the same Replace/Remove
+bottom sheet pattern `_CoverTile` already used for projects. `_SeriesStackCard`
+(`library_screen.dart`) now resolves the front cover from the series' own image first, falling back
+to the previous "most-recently-modified member with a cover" logic when unset — and, new this
+session, the two "peeking" cards behind the front one show real member-project cover art
+(`_PeekingCover`, `BoxFit.cover` filling the whole faux-card area) instead of solid placeholder
+fills, whenever enough covered members exist. Cover thumbnails were also bumped from 44×60 to
+72×98 everywhere (`kCoverThumbnailWidth`/`Height` in `library_screen.dart`) so more of the actual
+artwork is visible at a glance.
+
+**Embedded Unicode font for PDF export.** Replaces the `_pdfUnsafeChars` ASCII-normalization
+stopgap (still present as a harmless secondary pass) with a real embedded font: Noto Sans, 4 static
+weights sourced from Google Fonts' CSS2 API (the `google/fonts` GitHub repo itself only ships
+variable-font masters now, no static per-weight files — the CSS2 API with an old-Android user agent
+is what actually returns genuine static TTFs, not the EOT format an MSIE-style UA gets instead).
+Bundled under `assets/fonts/noto_sans/`, loaded once via a new `PdfFonts` loader and wired into
+every `pw.Document(theme: ...)` construction (`PdfExporter`, `KdpPaperbackExporter`;
+`KdpHardcoverExporter` needed no change, it reuses the paperback engine's own `pw.Document`).
+
+**DOCX + PDF footnote support.** EPUB's existing Private-Use-Area marker scheme (insert a
+`0xE000`-wrapped number into a scene's raw markdown before parsing, substitute real markup after)
+was factored out of `epub_exporter.dart` into a shared `FootnoteMarkers` helper, now used by all
+three formats. PDF has no true page-bottom footnote area (`pw.MultiPage`'s fixed margins, no
+per-page callback — the same structural limit already documented for KDP's mirrored-margins
+question) — footnotes render as literal Unicode superscript digits (`¹²³…`) in the running text,
+collected into a small numbered list at each chapter's end via new `PdfWidgetBuilder.
+sceneWidgets`/`buildManuscriptBody`/`footnoteListWidgets` methods that also replaced `PdfExporter`'s
+and `KdpPaperbackExporter`'s previously-duplicated build loops. DOCX needed real OOXML plumbing
+this exporter never had: a `word/footnotes.xml` part (with the two mandatory separator/
+continuation-separator entries), `word/_rels/document.xml.rels`, and a `[Content_Types].xml`
+override — all direct-formatted (`w:vertAlign w:val="superscript"`, no named style), matching this
+exporter's existing no-`styles.xml` convention.
+
+**Testing note:** embedding a real CID font moved PDF text-show operators from literal WinAnsi
+`(text) Tj` strings to Identity-H `<hex> Tj` glyph-index strings, breaking every existing
+`kdp_paperback_exporter_test.dart` test that grepped raw decoded bytes for literal text. Fixed by
+writing a small reusable CMap-aware decoder (`test/export/pdf_text_extraction.dart`) that walks a
+content stream tracking the active font via `Tf` and resolves each glyph code through that font's
+own `/ToUnicode` CMap — genuinely decodes the real rendered text back out, not a workaround. Also
+had to tighten the per-page stream filter from a bare `contains('Tj')` to requiring the operator's
+real closing delimiter (`>` or `]`) immediately before it, since a `contains('Tj')` check false-
+positived on the embedded font's own several-hundred-KB ASCII85-encoded program data purely by
+chance, miscounting extra empty "pages" and shifting every real page's index.
+
+**Notes image upload/display.** `StoryNote` gained an `imagePath` field and
+`StoryNotesService.attachImage`/`removeImage`/`imageFile`, mirroring `ProfileService`'s existing
+Character/World equivalents exactly (same shared `assets/images/` folder). The three-way
+duplication this created was worth collapsing this time (unlike the two-way `_CoverThumbnail`/
+`_SeriesCoverThumbnail` split, left duplicated) — extracted `profile_editor.dart`'s private
+`_ImageBox` into a public `ImagePickerBox` (`lib/widgets/image_picker_box.dart`), now shared by
+Characters, Worldbuilding, and the newly-updated `note_editor.dart`.
+
+**Live-verified**, not just unit-tested: series cover set/replace/remove and the real overlapping
+cover stack, against the user's actual "Extra-Galactic Legends" series; Notes image attach/remove
+in a real project; a genuine PDF+DOCX export of a project with real Unicode punctuation and a
+footnote, sent to the user directly. One real bug caught live in the process — the first attempt at
+adding a footnote through the UI silently failed to save (a missed click on the dialog's text
+field, confirmed via `Show Annotations` reporting none on the scene and no `annotations/` folder
+ever appearing on disk) — not an app bug, but a reminder to verify persistence on disk after a UI
+action, not just that a dialog closed without error. 654 tests total (up from 632), `flutter
+analyze` clean throughout.

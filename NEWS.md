@@ -7,6 +7,23 @@ app release required. This is the source for the in-app News Feed (`NewsService`
 Newest entry first. Each entry is a `## YYYY-MM-DD: Title` heading — `NewsService` parses on that
 pattern, so keep the format consistent.
 
+## 2026-08-10: Series covers, real PDF fonts, footnotes everywhere, Notes images — v1.6.0
+
+**Series now have their own cover image** — set one from the series screen's **⋮** menu, or leave
+it unset and the library card shows a real overlapping stack of your books' own covers instead of
+a placeholder. Cover thumbnails are also bigger throughout the app, so more of the artwork actually
+shows.
+
+**PDF export now embeds a real font** (Noto Sans) instead of approximating curly quotes, dashes,
+and ellipses with plain ASCII — proper typography, not a stand-in.
+
+**Footnotes now export to Word and PDF, not just EPUB.** DOCX gets real Word footnotes (click
+through, just like adding them yourself). PDF shows a superscript reference in the text with the
+note collected at the end of that chapter, since a true page-bottom footnote isn't possible in a
+flowing PDF layout.
+
+**Notes can now have an image**, the same way Characters and Worldbuilding entries already could.
+
 ## 2026-08-09: Help icons for the new Publishing screens — v1.5.1
 
 Contacts, Planning, Publishing Hub, and Publishing Dashboard now each have their own **?** help
