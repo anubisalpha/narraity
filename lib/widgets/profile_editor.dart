@@ -10,6 +10,7 @@ import '../models/profile_entry.dart';
 import '../services/profile_service.dart';
 import '../state/editor_settings_provider.dart';
 import '../state/reference_provider.dart';
+import 'image_picker_box.dart';
 
 /// Main-pane editor for one character profile or worldbuilding entry.
 ///
@@ -321,7 +322,7 @@ class _ProfileEditorState extends ConsumerState<ProfileEditor> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _ImageBox(
+            ImagePickerBox(
               imageFile: hasImage ? imageFile : null,
               onPick: _pickImage,
               onRemove: hasImage ? _removeImage : null,
@@ -378,50 +379,6 @@ class _ProfileEditorState extends ConsumerState<ProfileEditor> {
           'Starred fields show at a glance in the Reference Panel while you write.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
-      ],
-    );
-  }
-}
-
-class _ImageBox extends StatelessWidget {
-  const _ImageBox({required this.imageFile, required this.onPick, this.onRemove});
-
-  final File? imageFile;
-  final VoidCallback onPick;
-  final VoidCallback? onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        InkWell(
-          onTap: onPick,
-          child: Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Theme.of(context).dividerColor),
-              image: imageFile == null
-                  ? null
-                  : DecorationImage(image: FileImage(imageFile!), fit: BoxFit.cover),
-            ),
-            child: imageFile != null
-                ? null
-                : const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.add_photo_alternate_outlined),
-                        SizedBox(height: 4),
-                        Text('Add image'),
-                      ],
-                    ),
-                  ),
-          ),
-        ),
-        if (onRemove != null)
-          TextButton(onPressed: onRemove, child: const Text('Remove image')),
       ],
     );
   }

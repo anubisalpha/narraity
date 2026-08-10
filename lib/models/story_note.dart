@@ -11,6 +11,11 @@ class StoryNote {
   final String body;
   final List<String> tags;
 
+  /// Project-relative path to the attached image (e.g.
+  /// `assets/images/<id>.png`), or null. Same `assets/images/` folder and
+  /// path shape as `ProfileEntry.imagePath` — see that field's doc.
+  final String? imagePath;
+
   /// Containing folder name, or null for a note at the notes root. Derived
   /// from the file's location — see [StoryNotesService].
   final String? folder;
@@ -27,16 +32,22 @@ class StoryNote {
     required this.title,
     required this.body,
     this.tags = const [],
+    this.imagePath,
     this.folder,
     this.source,
     required this.created,
     required this.modified,
   });
 
+  /// [clearImage] exists because passing null to [imagePath] can't be told
+  /// apart from omitting it — same reasoning as `ProfileEntry.copyWith`'s
+  /// matching flag.
   StoryNote copyWith({
     String? title,
     String? body,
     List<String>? tags,
+    String? imagePath,
+    bool clearImage = false,
     String? folder,
     bool clearFolder = false,
     DateTime? modified,
@@ -46,6 +57,7 @@ class StoryNote {
       title: title ?? this.title,
       body: body ?? this.body,
       tags: tags ?? this.tags,
+      imagePath: clearImage ? null : (imagePath ?? this.imagePath),
       folder: clearFolder ? null : (folder ?? this.folder),
       source: source,
       created: created,
@@ -58,6 +70,7 @@ class StoryNote {
         'title': title,
         'body': body,
         'tags': tags,
+        if (imagePath != null) 'imagePath': imagePath,
         if (source != null) 'source': source,
         'created': created.toIso8601String(),
         'modified': modified.toIso8601String(),
@@ -75,6 +88,7 @@ class StoryNote {
       title: json['title'] as String? ?? 'Untitled',
       body: json['body'] as String? ?? '',
       tags: (json['tags'] as List<dynamic>? ?? []).cast<String>(),
+      imagePath: json['imagePath'] as String?,
       folder: folder,
       source: json['source'] as String?,
       created: created,

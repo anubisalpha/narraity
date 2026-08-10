@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,6 +10,7 @@ import '../models/story_note.dart';
 import '../services/story_notes_service.dart';
 import '../state/editor_settings_provider.dart';
 import '../state/reference_provider.dart';
+import 'image_picker_box.dart';
 
 /// Main-pane editor for one story note: title, tags, and a markdown body,
 /// autosaved on the same debounce as the scene editor. Shared between a
@@ -97,6 +100,35 @@ class _NoteEditorState extends ConsumerState<NoteEditor> {
     if (mounted) invalidateReferences(ref, widget.owner);
   }
 
+  Future<void> _pickImage() async {
+    final note = _note;
+    final service = _service;
+    if (note == null || service == null) return;
+
+    final result = await FilePicker.pickFiles(
+      type: FileType.image,
+      dialogTitle: 'Choose an image',
+      lockParentWindow: true,
+    );
+    final path = result?.files.single.path;
+    if (path == null) return;
+
+    final updated = await service.attachImage(note, File(path));
+    if (!mounted) return;
+    setState(() => _note = updated);
+    invalidateReferences(ref, widget.owner);
+  }
+
+  Future<void> _removeImage() async {
+    final note = _note;
+    final service = _service;
+    if (note == null || service == null) return;
+    final updated = await service.removeImage(note);
+    if (!mounted) return;
+    setState(() => _note = updated);
+    invalidateReferences(ref, widget.owner);
+  }
+
   Future<void> _addTag() async {
     final note = _note;
     if (note == null) return;
@@ -181,19 +213,34 @@ class _NoteEditorState extends ConsumerState<NoteEditor> {
     }
 
     final settings = ref.watch(editorSettingsProvider);
+    final imageFile = _service?.imageFile(note);
+    final hasImage = imageFile != null && imageFile.existsSync();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-          child: TextField(
-            controller: _titleController,
-            style: Theme.of(context).textTheme.titleLarge,
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              hintText: 'Note title',
-            ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ImagePickerBox(
+                imageFile: hasImage ? imageFile : null,
+                onPick: _pickImage,
+                onRemove: hasImage ? _removeImage : null,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: TextField(
+                  controller: _titleController,
+                  style: Theme.of(context).textTheme.titleLarge,
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    hintText: 'Note title',
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         Padding(

@@ -212,4 +212,58 @@ void main() {
       expect(found.folder, 'Research');
     });
   });
+
+  group('images', () {
+    Future<File> sourceImage(String name, String bytes) async {
+      final file = File(p.join(projectDir.path, name));
+      await file.writeAsString(bytes);
+      return file;
+    }
+
+    test('attaching copies the file into the project and stores a relative path', () async {
+      final note = await notes.createNote(title: 'A note');
+      final updated = await notes.attachImage(note, await sourceImage('portrait.png', 'PNG'));
+
+      expect(updated.imagePath, 'assets/images/${note.id}.png');
+      final stored = notes.imageFile(updated)!;
+      expect(await stored.exists(), isTrue);
+      expect(await stored.readAsString(), 'PNG');
+      expect(p.isAbsolute(updated.imagePath!), isFalse);
+    });
+
+    test('replacing an image with a different extension leaves no orphan', () async {
+      final note = await notes.createNote(title: 'A note');
+      final withPng = await notes.attachImage(note, await sourceImage('a.png', 'PNG'));
+      final withJpg = await notes.attachImage(withPng, await sourceImage('b.jpg', 'JPG'));
+
+      expect(withJpg.imagePath, endsWith('.jpg'));
+      expect(await File(p.join(projectDir.path, withPng.imagePath!)).exists(), isFalse,
+          reason: 'the old image must be deleted, not just unreferenced');
+      expect(await notes.imageFile(withJpg)!.readAsString(), 'JPG');
+    });
+
+    test('removing an image clears the path and deletes the file', () async {
+      final note = await notes.createNote(title: 'A note');
+      final withImage = await notes.attachImage(note, await sourceImage('a.png', 'PNG'));
+      final imageFile = notes.imageFile(withImage)!;
+
+      final cleared = await notes.removeImage(withImage);
+
+      expect(cleared.imagePath, isNull);
+      expect(await imageFile.exists(), isFalse);
+      expect((await notes.listAll()).single.imagePath, isNull);
+    });
+
+    test('deleting a note also deletes its image', () async {
+      final note = await notes.createNote(title: 'A note');
+      final withImage = await notes.attachImage(note, await sourceImage('a.png', 'PNG'));
+      final imageFile = notes.imageFile(withImage)!;
+
+      await notes.delete(withImage);
+
+      expect(await notes.listAll(), isEmpty);
+      expect(await imageFile.exists(), isFalse,
+          reason: 'an orphaned image would be carried into every vault backup');
+    });
+  });
 }

@@ -29,6 +29,11 @@ class StoryNotesService {
 
   Directory get _root => Directory(p.join(projectDir.path, 'notes'));
 
+  /// Same shared `assets/images/` folder `ProfileService` uses for
+  /// Character/World images — a note's image sits alongside them,
+  /// disambiguated by the note's own id in the filename.
+  Directory get _imagesDir => Directory(p.join(projectDir.path, 'assets', 'images'));
+
   List<_IndexedNote>? _index;
 
   /// Every note in the project, newest-modified first, each carrying the
@@ -78,10 +83,52 @@ class StoryNotesService {
     _invalidate();
   }
 
+  /// Deletes the note and its attached image, if any — an orphaned image
+  /// would otherwise sit in `assets/` forever, same reasoning as
+  /// `ProfileService.delete`.
   Future<void> delete(StoryNote note) async {
     final file = File(p.join(_dirFor(note.folder).path, '${note.id}.json'));
     if (await file.exists()) await file.delete();
+    await _deleteImageFile(note);
     _invalidate();
+  }
+
+  /// Copies [source] into `assets/images/` and returns the note pointing at
+  /// it — mirrors `ProfileService.attachImage`.
+  Future<StoryNote> attachImage(StoryNote note, File source) async {
+    await _imagesDir.create(recursive: true);
+    await _deleteImageFile(note);
+
+    final extension = p.extension(source.path).toLowerCase();
+    final fileName = '${note.id}$extension';
+    await source.copy(p.join(_imagesDir.path, fileName));
+
+    final updated = note.copyWith(
+      imagePath: p.join('assets', 'images', fileName).replaceAll('\\', '/'),
+    );
+    await save(updated);
+    return updated;
+  }
+
+  Future<StoryNote> removeImage(StoryNote note) async {
+    await _deleteImageFile(note);
+    final updated = note.copyWith(clearImage: true);
+    await save(updated);
+    return updated;
+  }
+
+  /// Absolute file for [note]'s image, or null if it has none.
+  File? imageFile(StoryNote note) {
+    final path = note.imagePath;
+    if (path == null) return null;
+    return File(p.join(projectDir.path, path));
+  }
+
+  Future<void> _deleteImageFile(StoryNote note) async {
+    final image = imageFile(note);
+    if (image != null && await image.exists()) {
+      await image.delete();
+    }
   }
 
   /// Moves [note] into [folder] (null = the notes root) and returns the
