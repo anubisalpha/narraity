@@ -695,26 +695,43 @@ class _ProjectCard extends ConsumerWidget {
 
 /// A series' library card: three faux "cards" stacked with a slight offset
 /// so it visually reads as a group before the user even opens it, distinct
-/// from a normal single project card.
+/// from a normal single project card. When the series has its own cover
+/// (`Series.coverImagePath`) that takes priority for the front card; the two
+/// cards peeking out behind it show real member-project covers (an actual
+/// overlapping stack of cover art) rather than solid placeholders, falling
+/// back to a plain fill only where a peeking slot has no cover art
+/// available. When the series has no cover of its own, the front card falls
+/// back to the most-recently-modified member's cover, same as before.
 class _SeriesStackCard extends ConsumerWidget {
   const _SeriesStackCard({required this.series, required this.projects});
 
   final Series series;
   final List<Project> projects;
 
-  /// The most-recently-modified member with a cover set — an arbitrary but
-  /// stable choice for "which cover represents this series" until the app
-  /// has a dedicated series-cover concept of its own.
-  Project? get _coverSourceProject {
+  /// Every member with a cover set, most-recently-modified first — the pool
+  /// both the front cover (when the series has none of its own) and the
+  /// peeking cards draw from.
+  List<Project> get _coveredProjects {
     final withCovers = projects.where((p) => p.coverImagePath != null).toList()
       ..sort((a, b) => b.modified.compareTo(a.modified));
-    return withCovers.firstOrNull;
+    return withCovers;
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final coverProject = _coverSourceProject;
+    final hasOwnCover = series.coverImagePath != null;
+    final covered = _coveredProjects;
+    final coverProject = hasOwnCover ? null : covered.firstOrNull;
+    final hasFrontCover = hasOwnCover || coverProject != null;
+
+    // Peeking-card source projects: every covered member not already used as
+    // the front cover, most-recent first. innerPeek sits closer to the front
+    // (-4 offset), outerPeek further back (-8 offset).
+    final peekPool = hasOwnCover ? covered : covered.skip(1).toList();
+    final innerPeek = peekPool.elementAtOrNull(0);
+    final outerPeek = peekPool.elementAtOrNull(1);
+
     return Padding(
       // Room for the two offset cards peeking out above/right of the top one.
       padding: const EdgeInsets.only(top: 8, right: 8),
@@ -728,7 +745,10 @@ class _SeriesStackCard extends ConsumerWidget {
             bottom: 8,
             child: Card(
               color: scheme.surfaceContainerHighest,
-              child: const SizedBox.expand(),
+              clipBehavior: Clip.antiAlias,
+              child: outerPeek == null
+                  ? const SizedBox.expand()
+                  : _PeekingCover(project: outerPeek),
             ),
           ),
           Positioned(
@@ -738,7 +758,10 @@ class _SeriesStackCard extends ConsumerWidget {
             bottom: 4,
             child: Card(
               color: scheme.surfaceContainerHigh,
-              child: const SizedBox.expand(),
+              clipBehavior: Clip.antiAlias,
+              child: innerPeek == null
+                  ? const SizedBox.expand()
+                  : _PeekingCover(project: innerPeek),
             ),
           ),
           Card(
@@ -762,7 +785,13 @@ class _SeriesStackCard extends ConsumerWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (coverProject != null) ...[
+                    if (hasOwnCover) ...[
+                      _ImageThumbnail(
+                        pathFuture:
+                            ref.read(seriesServiceProvider).coverImageAbsolutePath(series),
+                      ),
+                      const SizedBox(width: 12),
+                    ] else if (coverProject != null) ...[
                       _CoverThumbnail(project: coverProject),
                       const SizedBox(width: 12),
                     ],
@@ -770,7 +799,7 @@ class _SeriesStackCard extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (coverProject == null)
+                          if (!hasFrontCover)
                             Icon(
                               Icons.collections_bookmark,
                               color: scheme.primary,
@@ -801,6 +830,78 @@ class _SeriesStackCard extends ConsumerWidget {
   }
 }
 
+/// One of the two covers peeking out from behind a series' front card —
+/// fills its whole faux-card area with the member project's cover art
+/// (cropped, `BoxFit.cover`) rather than the small fixed-size thumbnail used
+/// elsewhere, since this card has no title text to share space with.
+class _PeekingCover extends ConsumerWidget {
+  const _PeekingCover({required this.project});
+
+  final Project project;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FutureBuilder<String?>(
+      future: ref.read(libraryServiceProvider).coverImageAbsolutePath(project),
+      builder: (context, snapshot) {
+        final path = snapshot.data;
+        if (path == null) return const SizedBox.expand();
+        return Image.file(
+          File(path),
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stack) => const SizedBox.expand(),
+        );
+      },
+    );
+  }
+}
+
+/// Shared cover-thumbnail size across every card that shows one (standalone
+/// project cards, the series stack card's front cover, and the peeking
+/// covers behind it) — bumped from the original 44×60 so more of the actual
+/// artwork is visible at a glance, same aspect ratio.
+const kCoverThumbnailWidth = 72.0;
+const kCoverThumbnailHeight = 98.0;
+
+/// Resolves an already-known absolute image path to a thumbnail, or a
+/// same-sized placeholder while it loads / if there's no image. The shared
+/// rendering behind every cover-thumbnail widget in this file — callers
+/// differ only in *how* they resolve the path (a project's own cover, a
+/// series' own cover, a member project's cover shown on someone else's
+/// series card).
+class _ImageThumbnail extends StatelessWidget {
+  const _ImageThumbnail({required this.pathFuture});
+
+  final Future<String?> pathFuture;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String?>(
+      future: pathFuture,
+      builder: (context, snapshot) {
+        final path = snapshot.data;
+        if (path == null) {
+          return const SizedBox(width: kCoverThumbnailWidth, height: kCoverThumbnailHeight);
+        }
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Image.file(
+            File(path),
+            width: kCoverThumbnailWidth,
+            height: kCoverThumbnailHeight,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stack) => const SizedBox(
+              width: kCoverThumbnailWidth,
+              height: kCoverThumbnailHeight,
+              child: Icon(Icons.image_not_supported_outlined, size: 18),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// A project's cover thumbnail — resolves `coverImagePath` to an absolute
 /// path via `LibraryService`, shared by the standalone project card and the
 /// series stack card's cover-source project.
@@ -811,26 +912,8 @@ class _CoverThumbnail extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return FutureBuilder<String?>(
-      future: ref.read(libraryServiceProvider).coverImageAbsolutePath(project),
-      builder: (context, snapshot) {
-        final path = snapshot.data;
-        if (path == null) return const SizedBox(width: 44, height: 60);
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: Image.file(
-            File(path),
-            width: 44,
-            height: 60,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stack) => const SizedBox(
-              width: 44,
-              height: 60,
-              child: Icon(Icons.image_not_supported_outlined, size: 18),
-            ),
-          ),
-        );
-      },
+    return _ImageThumbnail(
+      pathFuture: ref.read(libraryServiceProvider).coverImageAbsolutePath(project),
     );
   }
 }

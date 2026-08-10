@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -24,6 +25,7 @@ import '../widgets/project_actions.dart';
 import '../widgets/project_kind_style.dart';
 import '../widgets/resize_handle.dart';
 import '../widgets/todo_panel.dart';
+import 'library_screen.dart' show kCoverThumbnailWidth, kCoverThumbnailHeight;
 
 /// See project_shell_screen.dart's matching constant/comment — same
 /// reasoning, duplicated because private top-level consts don't cross files.
@@ -114,13 +116,21 @@ class SeriesDetailScreen extends ConsumerWidget {
               switch (action) {
                 case 'rename':
                   await _rename(context, ref);
+                case 'cover':
+                  await _handleCoverTap(context, ref);
                 case 'delete':
                   await _delete(context, ref);
               }
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'rename', child: Text('Rename Series')),
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'rename', child: Text('Rename Series')),
               PopupMenuItem(
+                value: 'cover',
+                child: Text(series.coverImagePath == null
+                    ? 'Set Series Cover…'
+                    : 'Series Cover…'),
+              ),
+              const PopupMenuItem(
                 value: 'delete',
                 child: Text('Delete Series (keeps projects)'),
               ),
@@ -285,6 +295,56 @@ class SeriesDetailScreen extends ConsumerWidget {
     if (context.mounted) {
       Navigator.of(context).pop();
     }
+  }
+
+  Future<void> _handleCoverTap(BuildContext context, WidgetRef ref) async {
+    if (series.coverImagePath == null) {
+      await _pickCover(context, ref);
+      return;
+    }
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.image_outlined),
+              title: const Text('Replace Cover'),
+              onTap: () => Navigator.of(context).pop('replace'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('Remove Cover'),
+              onTap: () => Navigator.of(context).pop('remove'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!context.mounted || action == null) return;
+
+    if (action == 'replace') {
+      await _pickCover(context, ref);
+    } else if (action == 'remove') {
+      final service = ref.read(seriesServiceProvider);
+      await service.removeCoverImage(series);
+      ref.invalidate(seriesListProvider);
+    }
+  }
+
+  Future<void> _pickCover(BuildContext context, WidgetRef ref) async {
+    final result = await FilePicker.pickFiles(
+      dialogTitle: 'Choose a series cover image',
+      type: FileType.image,
+      lockParentWindow: true,
+    );
+    final path = result?.files.single.path;
+    if (path == null) return;
+
+    final service = ref.read(seriesServiceProvider);
+    await service.setCoverImage(series, File(path));
+    ref.invalidate(seriesListProvider);
   }
 }
 
@@ -577,7 +637,9 @@ class _SeriesProjectGrid extends ConsumerWidget {
 
 /// Mirrors `_CoverThumbnail` in library_screen.dart — duplicated rather than
 /// shared because that one is file-private, and this screen's card layout
-/// needs the same cover-or-placeholder behaviour.
+/// needs the same cover-or-placeholder behaviour. Shares that file's public
+/// `kCoverThumbnailWidth`/`Height` constants so the two stay in sync in size
+/// even while duplicated in structure.
 class _SeriesCoverThumbnail extends ConsumerWidget {
   const _SeriesCoverThumbnail({required this.project});
 
@@ -589,17 +651,19 @@ class _SeriesCoverThumbnail extends ConsumerWidget {
       future: ref.read(libraryServiceProvider).coverImageAbsolutePath(project),
       builder: (context, snapshot) {
         final path = snapshot.data;
-        if (path == null) return const SizedBox(width: 44, height: 60);
+        if (path == null) {
+          return const SizedBox(width: kCoverThumbnailWidth, height: kCoverThumbnailHeight);
+        }
         return ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: Image.file(
             File(path),
-            width: 44,
-            height: 60,
+            width: kCoverThumbnailWidth,
+            height: kCoverThumbnailHeight,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stack) => const SizedBox(
-              width: 44,
-              height: 60,
+              width: kCoverThumbnailWidth,
+              height: kCoverThumbnailHeight,
               child: Icon(Icons.image_not_supported_outlined, size: 18),
             ),
           ),
