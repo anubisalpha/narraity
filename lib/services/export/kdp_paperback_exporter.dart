@@ -328,17 +328,25 @@ class KdpPaperbackExporter {
     final widgets = <pw.Widget>[];
     var nextFootnoteNumber = startFootnoteNumber;
     final footnotes = <int, String>{};
+    // Fresh per `startsNewPage` section (dedication, preface, prologue,
+    // ...) — each front-matter entry is its own page, so each gets the
+    // same "opening paragraph isn't indented" treatment a body chapter
+    // does, rather than only the very first front-matter paragraph
+    // anywhere in the whole flat list.
+    var indentState = ParagraphIndentState();
 
     for (var i = 0; i < sections.length; i++) {
       final section = sections[i];
       if (section.startsNewPage && i > 0) {
         widgets.add(pw.NewPage());
+        indentState = ParagraphIndentState();
       }
       final result = await _widgets.sceneWidgets(
         section: section,
         manuscript: manuscript,
         annotations: annotations,
         nextFootnoteNumber: nextFootnoteNumber,
+        indentState: indentState,
       );
       footnotes.addAll(result.footnoteBodies);
       nextFootnoteNumber = result.nextFootnoteNumber;
@@ -368,17 +376,20 @@ class KdpPaperbackExporter {
     final groups = <List<pw.Widget>>[];
     final groupFootnotes = <Map<int, String>>[];
     var nextFootnoteNumber = startFootnoteNumber;
+    var indentState = ParagraphIndentState();
 
     for (final section in sections) {
       if (groups.isEmpty || section.startsNewPage) {
         groups.add(<pw.Widget>[]);
         groupFootnotes.add(<int, String>{});
+        indentState = ParagraphIndentState();
       }
       final result = await _widgets.sceneWidgets(
         section: section,
         manuscript: manuscript,
         annotations: annotations,
         nextFootnoteNumber: nextFootnoteNumber,
+        indentState: indentState,
       );
       groupFootnotes.last.addAll(result.footnoteBodies);
       nextFootnoteNumber = result.nextFootnoteNumber;

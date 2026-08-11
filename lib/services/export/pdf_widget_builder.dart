@@ -93,19 +93,32 @@ class PdfWidgetBuilder {
     return result;
   }
 
-  pw.TextSpan spansFor(List<MdRun> runs, pw.TextStyle base) => pw.TextSpan(
+  /// [indent] prepends [_paragraphIndent] to the very first run's text only
+  /// — since `pw.RichText` has no CSS-style `text-indent`, this is the
+  /// established workaround: leading spaces inside the text itself only
+  /// ever show up on the first rendered line of the block, matching real
+  /// first-line-indent behavior without needing per-line layout knowledge.
+  pw.TextSpan spansFor(List<MdRun> runs, pw.TextStyle base, {bool indent = false}) => pw.TextSpan(
         children: [
-          for (final run in runs)
+          for (var i = 0; i < runs.length; i++)
             pw.TextSpan(
-              text: pdfSafeText(_withSuperscriptFootnoteMarkers(run.text)),
+              text: pdfSafeText(_withSuperscriptFootnoteMarkers(
+                  i == 0 && indent ? '$_paragraphIndent${runs[i].text}' : runs[i].text)),
               style: base.copyWith(
-                fontWeight: run.bold ? pw.FontWeight.bold : base.fontWeight,
-                fontStyle: run.italic ? pw.FontStyle.italic : base.fontStyle,
-                decoration: run.strikethrough ? pw.TextDecoration.lineThrough : base.decoration,
+                fontWeight: runs[i].bold ? pw.FontWeight.bold : base.fontWeight,
+                fontStyle: runs[i].italic ? pw.FontStyle.italic : base.fontStyle,
+                decoration:
+                    runs[i].strikethrough ? pw.TextDecoration.lineThrough : base.decoration,
               ),
             ),
         ],
       );
+
+  /// Approximates a 0.5in first-line indent (matching `DocxExporter`'s
+  /// `w:firstLine="720"` twips and the EPUB stylesheet's `text-indent:
+  /// 1.5em`) via literal leading spaces — the only lever `pw.RichText`
+  /// offers, since the `pdf` package has no first-line-only indent concept.
+  static const _paragraphIndent = '      ';
 
   static const _superscriptDigits = {
     '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
@@ -165,6 +178,7 @@ class PdfWidgetBuilder {
     required ManuscriptService manuscript,
     required AnnotationService annotations,
     required int nextFootnoteNumber,
+    ParagraphIndentState? indentState,
   }) async {
     final doc = await manuscript.readScene(section.id, fallbackTitle: section.title);
     final marked = await FootnoteMarkers.markContent(
@@ -175,7 +189,8 @@ class PdfWidgetBuilder {
     );
     final widgets = <pw.Widget>[
       if (section.showTitle) ...sectionHeadingWidgets(section.title, section.depth),
-      for (final block in MarkdownLite.parse(marked.content)) ...blockWidgets(block),
+      for (final block in MarkdownLite.parse(marked.content))
+        ...blockWidgets(block, indentState: indentState),
     ];
     return SceneWidgetsResult(
       widgets: widgets,
@@ -198,6 +213,7 @@ class PdfWidgetBuilder {
     final widgets = <pw.Widget>[];
     var nextFootnoteNumber = 1;
     var groupFootnotes = <int, String>{};
+    var indentState = ParagraphIndentState();
 
     void flushGroupFootnotes() {
       widgets.addAll(footnoteListWidgets(groupFootnotes));
@@ -209,12 +225,17 @@ class PdfWidgetBuilder {
       if (section.startsNewPage && i > 0) {
         flushGroupFootnotes();
         widgets.add(pw.NewPage());
+        // Fresh per chapter-boundary group, matching `EpubExporter`'s
+        // per-chapter-file `noindent` reset — only each chapter's own
+        // opening paragraph skips the first-line indent.
+        indentState = ParagraphIndentState();
       }
       final result = await sceneWidgets(
         section: section,
         manuscript: manuscript,
         annotations: annotations,
         nextFootnoteNumber: nextFootnoteNumber,
+        indentState: indentState,
       );
       groupFootnotes.addAll(result.footnoteBodies);
       nextFootnoteNumber = result.nextFootnoteNumber;
@@ -224,7 +245,7 @@ class PdfWidgetBuilder {
     return widgets;
   }
 
-  List<pw.Widget> blockWidgets(MdBlock block) {
+  List<pw.Widget> blockWidgets(MdBlock block, {ParagraphIndentState? indentState}) {
     switch (block.type) {
       case MdBlockType.sceneBreak:
         return [
@@ -264,14 +285,33 @@ class PdfWidgetBuilder {
 
       case MdBlockType.paragraph:
         return block.lines.expand((line) sync* {
+          // Per-line, not per-block: a paragraph `MdBlock` holds one entry
+          // in `lines` per literal source line (dialogue, verse), and
+          // `EpubExporter`'s `<p>`-per-line convention treats each the same
+          // way — every one after the group's first counts as a "subsequent
+          // paragraph" for indent purposes.
+          final isFirst = indentState == null || !indentState.sawFirstParagraph;
+          indentState?.sawFirstParagraph = true;
           yield pw.RichText(
-            text: spansFor(line, const pw.TextStyle()),
+            text: spansFor(line, const pw.TextStyle(), indent: !isFirst),
+            textAlign: pw.TextAlign.justify,
             overflow: pw.TextOverflow.span,
           );
           yield pw.SizedBox(height: 4);
         }).toList();
     }
   }
+}
+
+/// Threaded through paragraph rendering within one chapter-boundary group
+/// (see `buildManuscriptBody`/`KdpPaperbackExporter`) so only the group's
+/// very first paragraph line skips the first-line indent — matching
+/// `EpubExporter`'s per-chapter `noindent` rule. A plain mutable holder
+/// rather than threading an immutable flag through return values, since
+/// `sceneWidgets`/`blockWidgets` run in a simple sequential loop across
+/// several scenes per group, not recursively.
+class ParagraphIndentState {
+  bool sawFirstParagraph = false;
 }
 
 /// Result of [PdfWidgetBuilder.sceneWidgets] — the rendered widgets plus the

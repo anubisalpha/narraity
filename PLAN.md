@@ -809,26 +809,40 @@ when that platform is scoped.
 
 ## Status
 
-**v1.1.1 released 2026-08-01** — github.com/anubisalpha/narraity. Windows packaging switched from
-a signed MSIX to a plain unsigned Inno Setup installer this release (see BUILD_LOG.md and this
-doc's "Windows packaging" decision) — no certificate to trust, one SmartScreen click-through on
-first run. **581 tests passing, `flutter analyze` clean.**
+**v1.6.0 released 2026-08-10** — github.com/anubisalpha/narraity. **654 tests passing,
+`flutter analyze` clean.**
 
 App name decided (Narraity, 2026-07-24). Cross-platform roadmap confirmed 2026-07-24: v1 stays
 Windows + Android, macOS/iOS/Linux are future targets with architecture kept portable (see
 Cross-Platform Roadmap). Build started 2026-07-24.
 
-**Phases 0 through 6, 6.3 (KDP export), and 8 are built and verified** — Phase 8's GitHub sign-in/
-posting flow got a real live smoke test 2026-08-02 (see BUILD_LOG.md), not just mocked HTTP,
-running on Windows desktop (see the Phases table above for per-phase scope). Phase 6.3 is the only
-phase in the core plan that's now fully built, closing out what was previously the last unbuilt phase.
-Highlights beyond the original phase scope, since v1.0.1:
+**All phases through 9 are built and verified** — Phase 8's GitHub sign-in/posting flow got a real
+live smoke test 2026-08-02 (see BUILD_LOG.md), not just mocked HTTP, running on Windows desktop
+(see the Phases table above for per-phase scope). Phase 6.3 (KDP export) and Phase 9 (Publishing
+Planning) closed out the core plan's remaining unbuilt phases. Release history since v1.1.1
+(2026-08-01, 581 tests):
+
+- **v1.2.0 → v1.4.1** — incremental fixes and polish (see BUILD_LOG.md for full per-release detail).
+- **v1.5.0 — Publishing Planning** (2026-08-09): library-wide Contacts, per-project Planning
+  (milestones/deadlines), Reviewer/Beta-Copy Tracker with turnaround stats, a Notifications bell
+  (library-wide and per-project), a Publishing Hub (route-by-route guidance, stage checklist,
+  auto-filled AI-prompt templates), and a Publishing Dashboard summarising every project's
+  publishing status.
+- **v1.5.1** (2026-08-09): help icons added to the four new Publishing screens, which shipped
+  without one in v1.5.0.
+- **v1.6.0 — Series covers, real PDF fonts, footnotes everywhere, Notes images** (2026-08-10):
+  series can now have their own cover image (or an auto-generated overlapping stack of member
+  covers); PDF export embeds a real Unicode font (Noto Sans) instead of ASCII-approximating smart
+  quotes/dashes/ellipsis; footnotes now export to DOCX (real Word footnotes) and PDF (superscript +
+  end-of-chapter list), not just EPUB; Notes gained image upload/display, matching
+  Characters/Worldbuilding.
+
+Earlier highlights beyond the original phase scope, since v1.0.1:
 
 - **KDP Paperback/Hardcover print export** — trim size (all 16 paperback sizes, 5 hardcover),
   bleed, page-count-scaled margins, roman/Arabic numbering, running headers, auto-generated
   copyright page, and page-count validation against KDP's real range (varies by trim size *and*
-  ink/paper type for paperback). Two real bugs fixed along the way: a bleed-width doubling error,
-  and `<sup>` footnote markers not being on KDP's Kindle Format 8 supported-tag list.
+  ink/paper type for paperback).
 - **In-App Release Notes, News Feed, and Feedback** (Phase 8) — GitHub-releases-backed release
   notes, a `NEWS.md`-fed news feed, and a Feedback screen posting to GitHub Discussions via
   device-flow OAuth.
@@ -851,10 +865,12 @@ Highlights beyond the original phase scope, since v1.0.1:
   full detail on each fix.
 
 Full narrative detail, root causes, and gotchas for every session are in BUILD_LOG.md; open
-design questions and known gaps (image embedding in exports, Unicode PDF fonts, KDP hardcover
-margin confirmation, mirrored margins/half-title placement, etc.) are tracked in CONSIDERATIONS.md.
+design questions and known gaps (image embedding *inside* exported PDF/DOCX/EPUB content, KDP
+hardcover margin confirmation, mirrored margins/half-title placement, etc.) are tracked in
+CONSIDERATIONS.md.
 
 **Next**: no unbuilt phase remains in the core plan. Continue polishing/bug-fixing the shipped v1,
 per user direction — Play Store readiness is the remaining concrete open item (see "Open
-questions" above; the Phase 8 GitHub smoke test is now done). Phase 7 (co-authoring) remains
-parked pending its own CRDT/OT design pass.
+questions" above), and image embedding inside exported files (CONSIDERATIONS.md) is the most
+user-visible tracked gap. Phase 7 (co-authoring) remains parked pending its own CRDT/OT design
+pass.

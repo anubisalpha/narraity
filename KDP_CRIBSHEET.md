@@ -54,11 +54,11 @@ Source: [Format Your Paperback](https://kdp.amazon.com/en_US/help/topic/G2018341
 | First chapter | Starts right-facing | ⬜ Not built — depends on page numbering/facing-page tracking, deferred with running headers |
 | Subsequent chapters | Start on next available page | ✅ (chapter-boundary page breaks already shared with general PDF export via `ManuscriptOutlineBuilder`) |
 | Chapter-title pages | No header | N/A until running headers exist |
-| Paragraph indent rule | Chapter's first paragraph: no first-line indent; subsequent paragraphs: indented | ⬜ Not yet ported from the EPUB/DOCX exporters — this specific exporter reuses `PdfWidgetBuilder`, which doesn't currently implement the first-paragraph-no-indent rule (general `PdfExporter` doesn't either) |
-| Body text alignment | Fully justified | ⬜ Not verified — `pw.RichText`'s default alignment not explicitly checked/set |
+| Paragraph indent rule | Chapter's first paragraph: no first-line indent; subsequent paragraphs: indented | ✅ Built — `PdfWidgetBuilder.ParagraphIndentState` threads a fresh "seen first paragraph yet" flag per chapter-boundary group (body) / per front-matter section (`KdpPaperbackExporter._sectionWidgets`/`_groupedSectionWidgets`); non-first paragraph lines get a literal leading-space indent via `spansFor(..., indent: true)`, since `pw.RichText` has no CSS-style `text-indent`. Shared by `PdfExporter` too |
+| Body text alignment | Fully justified | ✅ Built — paragraph `RichText` widgets in `PdfWidgetBuilder.blockWidgets` now set `textAlign: pw.TextAlign.justify`; headings/quotes/scene-breaks unaffected |
 | Back matter | Right-facing: bibliography/references, author bio, index (index = flush-and-hang, not v1 target) | ⬜ Not built (facing-page tracking dependency, same as front matter) |
-| Output | Print-ready PDF, embedded fonts, correct trim+bleed box in the PDF itself | ⚠️ Trim+bleed box: ✅ done. Embedded fonts: still the same ASCII-normalization stopgap as general PDF export (`PdfWidgetBuilder.pdfSafeText`, shared with `PdfExporter`) — a real embedded Unicode font remains unbuilt, tracked in CONSIDERATIONS.md |
-| Font embedding | Real embedded Unicode font needed — current PDF path only ASCII-normalizes (see CONSIDERATIONS.md) | ⚠️ (stopgap only) |
+| Output | Print-ready PDF, embedded fonts, correct trim+bleed box in the PDF itself | ✅ Built — trim+bleed box done; a real embedded Unicode font (Noto Sans, 4 static weights) landed 2026-08-10 (v1.6.0), replacing the old ASCII-normalization stopgap (`PdfWidgetBuilder.pdfSafeText` is now a harmless secondary pass, not the primary fix) |
+| Font embedding | Real embedded Unicode font needed — current PDF path only ASCII-normalizes (see CONSIDERATIONS.md) | ✅ Built 2026-08-10 (v1.6.0) — `PdfFonts` loader, Noto Sans bundled under `assets/fonts/noto_sans/`, wired into every `pw.Document(theme: ...)` |
 
 ### Paperback page-count range by trim size + ink/paper type (confirmed 2026-08-01)
 

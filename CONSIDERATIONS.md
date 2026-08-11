@@ -66,13 +66,11 @@ questions, not known implementation gaps.
   PDF/DOCX spec calls for "full fidelity: images, formatting, fonts, page layout" — this is a real
   gap against that, not a deliberate simplification.
 
-- **A real embedded Unicode font for PDF export.** The `pdf` package's default base font
-  (Helvetica/WinAnsi) has no full Unicode support. A stopgap is now in place — `pdf_exporter.dart`'s
-  `_pdfSafeText` normalizes smart quotes/dashes/ellipsis to their closest ASCII equivalent, so
-  standard English typography no longer renders as missing-glyph boxes — but non-Latin scripts, or
-  any character outside that small normalization list, still would. Embedding a real font file
-  (e.g. via `google_fonts` or a bundled TTF) is the thorough fix, and a bigger call (which font,
-  licensing, app size) than the normalization workaround.
+- ~~A real embedded Unicode font for PDF export~~ — ✅ Fixed 2026-08-10 (v1.6.0): a real embedded
+  font (Noto Sans, 4 static weights) is now loaded via `PdfFonts` and wired into every
+  `pw.Document(theme: ...)` across `PdfExporter`/`KdpPaperbackExporter`/`KdpHardcoverExporter`. The
+  old `pdfSafeText` ASCII-normalization pass still runs as a harmless secondary step, no longer the
+  primary fix.
 
 - **`export-profile.json` reusable per-project export presets.** PLAN.md sketches a data model for
   saved export configurations (e.g. a named "kdp-print-6x9" preset); nothing reads or writes this
@@ -140,9 +138,13 @@ questions, not known implementation gaps.
     would otherwise land on a left-facing page, insert one blank page first to push it to the
     right") that doesn't exist yet. A real half-title page also needs its own content type, since
     Narraity has no concept of one today.
-  - **First-paragraph-no-indent and justified-body-text** rules (already correct in the EPUB
-    exporter) haven't been ported to `PdfWidgetBuilder`, which both `PdfExporter` and
-    `KdpPaperbackExporter` share — worth doing together rather than duplicating per-exporter.
+  - ~~First-paragraph-no-indent and justified-body-text rules haven't been ported to
+    `PdfWidgetBuilder`~~ — ✅ Fixed 2026-08-11: `PdfWidgetBuilder.ParagraphIndentState` tracks a
+    fresh "first paragraph" flag per chapter-boundary group (reset the same place footnote groups
+    already reset), non-first paragraphs get a literal leading-space first-line indent
+    (`spansFor(..., indent: true)`), and paragraph `RichText` widgets set
+    `textAlign: pw.TextAlign.justify`. Shared by both `PdfExporter` and `KdpPaperbackExporter`,
+    covered by a new `test/export/pdf_widget_builder_test.dart`.
 
 - **Dual-ruleset KDP export for forward-dated rule changes.** If KDP ever announces a rule change
   with a stated future effective date (precedent: the MOBI→EPUB transition), both the old and new

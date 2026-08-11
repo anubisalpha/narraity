@@ -2849,3 +2849,32 @@ field, confirmed via `Show Annotations` reporting none on the scene and no `anno
 ever appearing on disk) — not an app bug, but a reminder to verify persistence on disk after a UI
 action, not just that a dialog closed without error. 654 tests total (up from 632), `flutter
 analyze` clean throughout.
+
+## Paragraph indent + justified body text ported into PdfWidgetBuilder
+
+Closed the last two open items in `KDP_CRIBSHEET.md`'s Paperback section: "Paragraph indent rule"
+and "Body text alignment," both previously ⬜. `pw.RichText` has no CSS-style `text-indent`, so
+`PdfWidgetBuilder.spansFor` gained an `indent` flag that prepends a fixed run of leading spaces to
+just the first run of a line — since that's literal text inside the stream, not a layout property,
+it only ever shows up on the first rendered visual line of a paragraph, matching real first-line-
+indent behavior without needing render-time line-wrap knowledge. `blockWidgets`' paragraph case
+also now sets `textAlign: pw.TextAlign.justify` (headings/quotes/scene-breaks left alone).
+
+Deciding *which* paragraph counts as "the chapter's first" (skip indent) needed a small mutable
+`ParagraphIndentState` class threaded through `sceneWidgets`/`buildManuscriptBody` — a plain
+boolean flag, not returned/threaded like `nextFootnoteNumber` is, since (unlike footnote numbering)
+nothing downstream needs to know the final state once a group finishes. `PdfExporter` resets it at
+the same chapter-boundary points it already resets `groupFootnotes`. `KdpPaperbackExporter` needed
+two call sites updated: `_groupedSectionWidgets` (body, one chapter per `MultiPage`) resets it per
+chapter group, same as before; `_sectionWidgets` (front matter, previously one flat continuous
+list) now also resets per `startsNewPage` section — each front-matter page (dedication, preface,
+prologue, ...) gets its own "opening paragraph isn't indented" treatment rather than only the very
+first paragraph in the whole front matter.
+
+New `test/export/pdf_widget_builder_test.dart` tests the widget tree directly (`RichText.textAlign`
+and `TextSpan.text`) rather than decoding rendered PDF bytes — simpler and exercises the same code
+`pdf_text_extraction.dart`'s CMap decoder was built for, without needing a full document build.
+Also caught in passing while updating tracking docs: `KDP_CRIBSHEET.md`'s "Font embedding"/"Output"
+rows and `CONSIDERATIONS.md`'s Unicode-font item were still describing the pre-v1.6.0
+ASCII-normalization stopgap as current — both now reflect the real embedded Noto Sans font that
+shipped 2026-08-10. 656 tests total (up from 654), `flutter analyze` clean throughout.

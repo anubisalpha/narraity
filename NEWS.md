@@ -7,6 +7,14 @@ app release required. This is the source for the in-app News Feed (`NewsService`
 Newest entry first. Each entry is a `## YYYY-MM-DD: Title` heading — `NewsService` parses on that
 pattern, so keep the format consistent.
 
+## 2026-08-11: Proper paragraph indenting and justified text in print export — v1.6.1
+
+**PDF export (both the general "Export as PDF" and the KDP-ready Paperback/Hardcover path) now
+follows traditional book typesetting for paragraphs**: a chapter's opening paragraph sits flush
+left, and every paragraph after it gets a proper first-line indent — matching what the Word/EPUB
+exports already did. Body text is also now fully justified (even left and right margins), matching
+how real printed novels are set, instead of ragged-right.
+
 ## 2026-08-10: Series covers, real PDF fonts, footnotes everywhere, Notes images — v1.6.0
 
 **Series now have their own cover image** — set one from the series screen's **⋮** menu, or leave
