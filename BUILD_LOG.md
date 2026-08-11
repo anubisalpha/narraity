@@ -2878,3 +2878,33 @@ Also caught in passing while updating tracking docs: `KDP_CRIBSHEET.md`'s "Font 
 rows and `CONSIDERATIONS.md`'s Unicode-font item were still describing the pre-v1.6.0
 ASCII-normalization stopgap as current — both now reflect the real embedded Noto Sans font that
 shipped 2026-08-10. 656 tests total (up from 654), `flutter analyze` clean throughout.
+
+## v1.6.1 released — Windows installer + Android AAB/APK
+
+Windows: `windows/release.ps1 -Version 1.6.1` hit two environment issues on this from-scratch
+build (both from a full `build/`/`windows/flutter/ephemeral` wipe done earlier this session while
+chasing an unrelated corrupted-ephemeral-directory problem) — recorded in memory
+`feedback-narraity-windows-clean-build` for next time: (1) `flutter_tts`'s Windows CMakeLists.txt
+needs `nuget.exe` on PATH to restore `Microsoft.Windows.CppWinRT`, missing on this machine; fixed
+by downloading the standalone exe into `%USERPROFILE%\.dotnet\tools`. (2) `CMAKE_INSTALL_PREFIX`
+came back as the OS default (`C:/Program Files/narraity`) instead of `windows/CMakeLists.txt`'s own
+override to the build-output directory, so the install step tried to copy `narraity.exe` into
+`Program Files` and hit `Permission denied` (no admin rights). Root cause not fully pinned down;
+fixed by an explicit `cmake -S windows -B build\windows\x64 -DCMAKE_INSTALL_PREFIX=...` reconfigure
+before rerunning `build_installer.ps1`. Also hit the already-documented Windows Defender
+file-lock-on-fresh-output pattern once on `build\unit_test_assets` during `flutter test`. Once past
+all three, `windows-setup.exe` built and published cleanly: v1.6.1 live at
+github.com/anubisalpha/narraity/releases/tag/v1.6.1.
+
+Android: `android/build_release.ps1` built both artifacts from the same v1.6.1 commit — no code
+changes needed, since the paragraph-indent/justify fix is pure Dart (`pw` widgets, `rootBundle`
+asset loading), identical cross-platform. AAB succeeded first try; the APK step hit the same
+Windows Defender lock pattern on `mergeReleaseAssets` documented elsewhere in this file — cleared
+and retried with `-ApkOnly`. Both verified genuinely signed with the release key (`keytool
+-printcert -jarfile` for the AAB, `apksigner verify --print-certs` for the APK — same two-tool
+split documented in PLAY_STORE_PUBLISHING.md, keytool doesn't understand APK v2/v3 signing).
+Uploaded the APK to `aity.uk/beta/narraity.v1.6.1.apk` per the family's beta-upload convention,
+confirmed live via a real HTTPS HEAD request (200, Content-Length matching the local file exactly).
+AAB kept locally for whenever the Play Store submission checklist (`PLAY_STORE_PUBLISHING.md`) is
+actually completed — not submitted this session, still blocked on Data Safety form/tags/content
+rating/privacy URL entry in Play Console.
