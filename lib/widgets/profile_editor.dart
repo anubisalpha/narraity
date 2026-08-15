@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -245,12 +244,7 @@ class _ProfileEditorState extends ConsumerState<ProfileEditor> {
     final service = _service;
     if (entry == null || service == null) return;
 
-    final result = await FilePicker.pickFiles(
-      type: FileType.image,
-      dialogTitle: 'Choose an image',
-      lockParentWindow: true,
-    );
-    final path = result?.files.single.path;
+    final path = await pickImagePath();
     if (path == null) return;
 
     final updated = await service.attachImage(entry, File(path));

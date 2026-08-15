@@ -8,10 +8,10 @@ import 'markdown_lite.dart';
 
 /// Plain-text export — PLAN.md's explicit "stripped-down" option: every
 /// formatting marker (bold/italic/strikethrough/heading/quote) is stripped
-/// down to its bare text, and images don't exist in a `.txt` file at all.
-/// The export UI is responsible for the "images and formatting are
-/// excluded" warning this format calls for; this class just produces the
-/// content.
+/// down to its bare text, and images and footnotes don't exist in a `.txt`
+/// file at all. The export UI is responsible for the "images, footnotes,
+/// and formatting are excluded" warning this format calls for; this class
+/// just produces the content.
 class TxtExporter {
   TxtExporter(this.projectDir);
 

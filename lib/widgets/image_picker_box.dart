@@ -1,6 +1,20 @@
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+
+/// Opens the same "choose an image" file picker every `_pickImage` method
+/// beside an [ImagePickerBox] uses (Profile/Character/Worldbuilding entries,
+/// Notes) — the picker call itself was duplicated verbatim across those
+/// widgets; only the attach-to-entity step after it differs per entity type.
+Future<String?> pickImagePath() async {
+  final result = await FilePicker.pickFiles(
+    type: FileType.image,
+    dialogTitle: 'Choose an image',
+    lockParentWindow: true,
+  );
+  return result?.files.single.path;
+}
 
 /// A square image picker/preview box — an "Add image" placeholder that
 /// becomes a thumbnail with a "Remove image" action once one is attached.

@@ -97,11 +97,16 @@ class StoryNotesService {
   /// it — mirrors `ProfileService.attachImage`.
   Future<StoryNote> attachImage(StoryNote note, File source) async {
     await _imagesDir.create(recursive: true);
-    await _deleteImageFile(note);
 
     final extension = p.extension(source.path).toLowerCase();
     final fileName = '${note.id}$extension';
-    await source.copy(p.join(_imagesDir.path, fileName));
+    final destPath = p.join(_imagesDir.path, fileName);
+    // Copy to a temp path first so re-selecting the currently-attached
+    // image as the "new" one doesn't delete the source before it's copied.
+    final tempPath = '$destPath.tmp';
+    await source.copy(tempPath);
+    await _deleteImageFile(note);
+    await File(tempPath).rename(destPath);
 
     final updated = note.copyWith(
       imagePath: p.join('assets', 'images', fileName).replaceAll('\\', '/'),

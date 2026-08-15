@@ -134,6 +134,7 @@ class PdfWidgetBuilder {
   /// in-text reference half; see `footnoteListWidgets` for where the body
   /// text ends up instead.
   String _withSuperscriptFootnoteMarkers(String text) {
+    if (!FootnoteMarkers.mayContainMarker(text)) return text;
     return text.replaceAllMapped(FootnoteMarkers.pattern, (match) {
       final digits = match.group(1)!.split('').map((d) => _superscriptDigits[d]!).join();
       return digits;

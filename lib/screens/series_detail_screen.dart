@@ -340,7 +340,7 @@ class SeriesDetailScreen extends ConsumerWidget {
       lockParentWindow: true,
     );
     final path = result?.files.single.path;
-    if (path == null) return;
+    if (path == null || !context.mounted) return;
 
     final service = ref.read(seriesServiceProvider);
     await service.setCoverImage(series, File(path));
@@ -640,15 +640,37 @@ class _SeriesProjectGrid extends ConsumerWidget {
 /// needs the same cover-or-placeholder behaviour. Shares that file's public
 /// `kCoverThumbnailWidth`/`Height` constants so the two stay in sync in size
 /// even while duplicated in structure.
-class _SeriesCoverThumbnail extends ConsumerWidget {
+class _SeriesCoverThumbnail extends ConsumerStatefulWidget {
   const _SeriesCoverThumbnail({required this.project});
 
   final Project project;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SeriesCoverThumbnail> createState() => _SeriesCoverThumbnailState();
+}
+
+class _SeriesCoverThumbnailState extends ConsumerState<_SeriesCoverThumbnail> {
+  late Future<String?> _pathFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _pathFuture = ref.read(libraryServiceProvider).coverImageAbsolutePath(widget.project);
+  }
+
+  @override
+  void didUpdateWidget(_SeriesCoverThumbnail old) {
+    super.didUpdateWidget(old);
+    if (old.project.id != widget.project.id ||
+        old.project.coverImagePath != widget.project.coverImagePath) {
+      _pathFuture = ref.read(libraryServiceProvider).coverImageAbsolutePath(widget.project);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return FutureBuilder<String?>(
-      future: ref.read(libraryServiceProvider).coverImageAbsolutePath(project),
+      future: _pathFuture,
       builder: (context, snapshot) {
         final path = snapshot.data;
         if (path == null) {

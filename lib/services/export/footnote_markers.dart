@@ -19,6 +19,11 @@ class FootnoteMarkers {
 
   static String wrap(int number) => '$_marker$number$_marker';
 
+  /// Cheap pre-check before running [pattern] against a run's text — footnote
+  /// markers are rare (most runs have none), so this single-char `contains`
+  /// scan lets callers skip the regex machinery on the common no-marker path.
+  static bool mayContainMarker(String text) => text.contains(_marker);
+
   /// Reads every footnote annotation for [sceneId], numbers them in document
   /// order starting at [startNumber] (continuing one sequence across the
   /// whole book, not resetting per scene), inserts a marker at each one's

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -34,6 +33,17 @@ class _NoteEditorState extends ConsumerState<NoteEditor> {
   StoryNote? _note;
   Timer? _saveDebounce;
   bool _dirty = false;
+
+  /// Cached alongside `_note` rather than recomputed with a blocking
+  /// `existsSync()` call inside build() on every rebuild.
+  bool _hasImage = false;
+
+  void _refreshHasImage() {
+    final note = _note;
+    final service = _service;
+    final imageFile = (note != null && service != null) ? service.imageFile(note) : null;
+    _hasImage = imageFile != null && imageFile.existsSync();
+  }
 
   @override
   void initState() {
@@ -71,6 +81,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor> {
     setState(() {
       _service = service;
       _note = note;
+      _refreshHasImage();
     });
     _titleController.text = note.title;
     _bodyController.text = note.body;
@@ -101,21 +112,23 @@ class _NoteEditorState extends ConsumerState<NoteEditor> {
   }
 
   Future<void> _pickImage() async {
+    if (_note == null || _service == null) return;
+
+    final path = await pickImagePath();
+    if (path == null || !mounted) return;
+
+    // Re-read the current note/service rather than the pre-await capture —
+    // autosave or a note switch may have happened while the picker was open.
     final note = _note;
     final service = _service;
     if (note == null || service == null) return;
 
-    final result = await FilePicker.pickFiles(
-      type: FileType.image,
-      dialogTitle: 'Choose an image',
-      lockParentWindow: true,
-    );
-    final path = result?.files.single.path;
-    if (path == null) return;
-
     final updated = await service.attachImage(note, File(path));
     if (!mounted) return;
-    setState(() => _note = updated);
+    setState(() {
+      _note = updated;
+      _refreshHasImage();
+    });
     invalidateReferences(ref, widget.owner);
   }
 
@@ -125,7 +138,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor> {
     if (note == null || service == null) return;
     final updated = await service.removeImage(note);
     if (!mounted) return;
-    setState(() => _note = updated);
+    setState(() {
+      _note = updated;
+      _refreshHasImage();
+    });
     invalidateReferences(ref, widget.owner);
   }
 
@@ -214,7 +230,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor> {
 
     final settings = ref.watch(editorSettingsProvider);
     final imageFile = _service?.imageFile(note);
-    final hasImage = imageFile != null && imageFile.existsSync();
+    final hasImage = _hasImage;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

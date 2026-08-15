@@ -138,6 +138,7 @@ class DocxExporter {
   /// else, rather than one `<w:r>` for the whole run the way non-footnote
   /// text does.
   String _runXml(MdRun run) {
+    if (!FootnoteMarkers.mayContainMarker(run.text)) return _plainRunXml(run.text, run);
     final matches = FootnoteMarkers.pattern.allMatches(run.text).toList();
     if (matches.isEmpty) return _plainRunXml(run.text, run);
 

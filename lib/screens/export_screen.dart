@@ -99,7 +99,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
         title: const Text('Export as plain text?'),
         content: const Text(
           'Plain text export drops all formatting (bold, italic, headings, quotes) and cannot '
-          'include images. Use this only if you specifically need bare, unformatted text.',
+          'include images or footnotes. Use this only if you specifically need bare, unformatted text.',
         ),
         actions: [
           TextButton(

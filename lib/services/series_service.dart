@@ -70,6 +70,13 @@ class SeriesService {
     if (await file.exists()) {
       await file.delete();
     }
+    if (series.coverImagePath != null) {
+      final root = await _library.libraryRoot();
+      final coverFile = File(p.join(root.path, series.coverImagePath!));
+      if (await coverFile.exists()) {
+        await coverFile.delete();
+      }
+    }
   }
 
   Future<void> _write(Series series) async {
@@ -93,16 +100,21 @@ class SeriesService {
     final coversDir = await _coversDir();
     await coversDir.create(recursive: true);
 
+    final ext = p.extension(sourceImage.path);
+    final destPath = p.join(coversDir.path, 'series-${series.id}$ext');
+    // Copy to a temp path first so re-selecting the current cover file as
+    // the "new" one doesn't delete the source out from under the copy.
+    final tempPath = '$destPath.tmp';
+    await sourceImage.copy(tempPath);
+
     await for (final entity in coversDir.list()) {
       if (entity is File &&
-          p.basenameWithoutExtension(entity.path) == 'series-${series.id}') {
+          p.basenameWithoutExtension(entity.path) == 'series-${series.id}' &&
+          entity.path != tempPath) {
         await entity.delete();
       }
     }
-
-    final ext = p.extension(sourceImage.path);
-    final destPath = p.join(coversDir.path, 'series-${series.id}$ext');
-    await sourceImage.copy(destPath);
+    await File(tempPath).rename(destPath);
 
     final updated = series.copyWith(
       coverImagePath: p.join('_Series', 'covers', 'series-${series.id}$ext'),

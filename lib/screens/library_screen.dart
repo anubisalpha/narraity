@@ -787,7 +787,8 @@ class _SeriesStackCard extends ConsumerWidget {
                   children: [
                     if (hasOwnCover) ...[
                       _ImageThumbnail(
-                        pathFuture:
+                        cacheKey: (series.id, series.coverImagePath),
+                        resolvePath: () =>
                             ref.read(seriesServiceProvider).coverImageAbsolutePath(series),
                       ),
                       const SizedBox(width: 12),
@@ -834,15 +835,37 @@ class _SeriesStackCard extends ConsumerWidget {
 /// fills its whole faux-card area with the member project's cover art
 /// (cropped, `BoxFit.cover`) rather than the small fixed-size thumbnail used
 /// elsewhere, since this card has no title text to share space with.
-class _PeekingCover extends ConsumerWidget {
+class _PeekingCover extends ConsumerStatefulWidget {
   const _PeekingCover({required this.project});
 
   final Project project;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PeekingCover> createState() => _PeekingCoverState();
+}
+
+class _PeekingCoverState extends ConsumerState<_PeekingCover> {
+  late Future<String?> _pathFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _pathFuture = ref.read(libraryServiceProvider).coverImageAbsolutePath(widget.project);
+  }
+
+  @override
+  void didUpdateWidget(_PeekingCover old) {
+    super.didUpdateWidget(old);
+    if (old.project.id != widget.project.id ||
+        old.project.coverImagePath != widget.project.coverImagePath) {
+      _pathFuture = ref.read(libraryServiceProvider).coverImageAbsolutePath(widget.project);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return FutureBuilder<String?>(
-      future: ref.read(libraryServiceProvider).coverImageAbsolutePath(project),
+      future: _pathFuture,
       builder: (context, snapshot) {
         final path = snapshot.data;
         if (path == null) return const SizedBox.expand();
@@ -869,15 +892,39 @@ const kCoverThumbnailHeight = 98.0;
 /// differ only in *how* they resolve the path (a project's own cover, a
 /// series' own cover, a member project's cover shown on someone else's
 /// series card).
-class _ImageThumbnail extends StatelessWidget {
-  const _ImageThumbnail({required this.pathFuture});
+class _ImageThumbnail extends StatefulWidget {
+  const _ImageThumbnail({required this.cacheKey, required this.resolvePath});
 
-  final Future<String?> pathFuture;
+  /// Identity the resolved path is cached against — the future is only
+  /// re-resolved when this changes, not on every rebuild.
+  final Object cacheKey;
+  final Future<String?> Function() resolvePath;
+
+  @override
+  State<_ImageThumbnail> createState() => _ImageThumbnailState();
+}
+
+class _ImageThumbnailState extends State<_ImageThumbnail> {
+  late Future<String?> _pathFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _pathFuture = widget.resolvePath();
+  }
+
+  @override
+  void didUpdateWidget(_ImageThumbnail old) {
+    super.didUpdateWidget(old);
+    if (old.cacheKey != widget.cacheKey) {
+      _pathFuture = widget.resolvePath();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<String?>(
-      future: pathFuture,
+      future: _pathFuture,
       builder: (context, snapshot) {
         final path = snapshot.data;
         if (path == null) {
@@ -913,7 +960,8 @@ class _CoverThumbnail extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return _ImageThumbnail(
-      pathFuture: ref.read(libraryServiceProvider).coverImageAbsolutePath(project),
+      cacheKey: (project.id, project.coverImagePath),
+      resolvePath: () => ref.read(libraryServiceProvider).coverImageAbsolutePath(project),
     );
   }
 }
