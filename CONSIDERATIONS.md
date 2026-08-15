@@ -56,12 +56,21 @@ questions, not known implementation gaps.
   built. `synsets.hypernym` data exists in the OEWN source but isn't loaded into `wordnet.sqlite` —
   would need a new table and a rebuild via `tool/build_wordnet_db.dart` if picked up later.
 
-- **Android Keystore-backed encryption for the Drive OAuth refresh token.** Currently stored as a
-  plain file under the app's private sandboxed storage on Android (Windows uses real DPAPI
-  encryption via `CryptProtectData` — see `drive_token_store.dart`). Android's app-private storage
-  already denies other apps access without root/backup extraction, so this is a defense-in-depth
-  gap, not an open door — closing it needs a small custom platform channel into Android Keystore,
-  not built this session.
+- ~~**Android Keystore-backed encryption for the Drive OAuth refresh token.**~~ — ✅ Built (Dart
+  side; native half needs an on-device verification pass before release, see below). A
+  hardware-backed AES-256-GCM Keystore key (`SecretCipher.kt`, method channel
+  `uk.aity.narraity/secret_cipher`) now encrypts the OAuth tokens at rest on Android, via a shared
+  `KeystoreFileSecret` helper. Scope note: this covers **both** OAuth tokens — the Drive refresh
+  token *and* the GitHub access token (`android_secret_cipher.dart` is shared by both stores). The
+  third secret this doc used to imply was at risk, the vault/history signing key, was never
+  actually stored on disk — `HistorySigningKeyManager` derives it from the password (Argon2id) and
+  holds it in memory only, so there was nothing to encrypt there. If the Keystore is unavailable
+  the helper falls back to the old plain-file behaviour, so it's strictly an improvement, never a
+  sign-in regression; a legacy plaintext token is upgraded to encrypted the next time it's read.
+  `KeystoreFileSecret`'s file/fallback/migration logic is covered by
+  `android_secret_cipher_test.dart` (with a fake cipher); the actual Keystore crypto in the Kotlin
+  can only be verified by an on-device/emulator Android build, which hasn't run yet — flagged in
+  BUILD_LOG.md as the one unverified piece.
 
 - **KDP-ready print/ebook export (Phase 6.3).** General export (PDF/DOCX/EPUB/plain text) is built;
   the print-specific path — trim size presets, automatic margin/gutter calculation scaled to page

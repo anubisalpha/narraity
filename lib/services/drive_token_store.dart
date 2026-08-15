@@ -8,6 +8,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:win32/win32.dart';
 
+import 'android_secret_cipher.dart';
+
 /// Persists the Google Drive OAuth refresh token to disk, device-locally —
 /// never synced (lives under the app support directory, not the
 /// `Documents/Narraity/` library root Drive sync itself walks) and never
@@ -26,11 +28,13 @@ import 'package:win32/win32.dart';
 /// Win32 FFI calls against `crypt32.dll`, which ships with Windows, so this
 /// needs no native library build at all.
 ///
-/// Android: written as a plain file under the app's private, sandboxed
-/// storage. Not additionally encrypted — Android already denies other apps
-/// (short of root or a backup-extraction attack) access to this directory.
-/// A Keystore-backed cipher would close that gap but needs a small custom
-/// platform channel; deferred, logged in CONSIDERATIONS.md.
+/// Android: encrypted at rest via a hardware-backed AndroidKeyStore key
+/// (AES-256-GCM through [KeystoreFileSecret]/`SecretCipher.kt`), stored under
+/// the app's private, sandboxed storage. If the Keystore is somehow
+/// unavailable it falls back to a plain file — the pre-Keystore behaviour —
+/// so this is strictly an improvement, never a regression that could break
+/// sign-in. A legacy plaintext token from before this change is upgraded to
+/// encrypted the next time it's read.
 abstract class DriveTokenStore {
   Future<void> saveRefreshToken(String refreshToken);
   Future<String?> loadRefreshToken();
@@ -41,7 +45,9 @@ abstract class DriveTokenStore {
   /// instead of resolving the platform support folder.
   static Future<DriveTokenStore> forPlatform({Directory? rootOverride}) async {
     final root = rootOverride ?? await _defaultRoot();
-    return Platform.isWindows ? _WindowsDpapiTokenStore(root) : _PlainFileTokenStore(root);
+    if (Platform.isWindows) return _WindowsDpapiTokenStore(root);
+    if (Platform.isAndroid) return _AndroidKeystoreTokenStore(root);
+    return _PlainFileTokenStore(root);
   }
 
   static Future<Directory> _defaultRoot() async {
@@ -72,6 +78,22 @@ class _PlainFileTokenStore implements DriveTokenStore {
   Future<void> clear() async {
     if (await _file.exists()) await _file.delete();
   }
+}
+
+class _AndroidKeystoreTokenStore implements DriveTokenStore {
+  _AndroidKeystoreTokenStore(Directory root)
+      : _secret = KeystoreFileSecret(root: root, fileName: 'refresh_token');
+
+  final KeystoreFileSecret _secret;
+
+  @override
+  Future<void> saveRefreshToken(String refreshToken) => _secret.write(refreshToken);
+
+  @override
+  Future<String?> loadRefreshToken() => _secret.read();
+
+  @override
+  Future<void> clear() => _secret.clear();
 }
 
 class _WindowsDpapiTokenStore implements DriveTokenStore {

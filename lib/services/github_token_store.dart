@@ -8,13 +8,15 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:win32/win32.dart';
 
+import 'android_secret_cipher.dart';
+
 /// Persists the GitHub OAuth access token used by the Feedback feature
 /// (Device Flow sign-in, `public_repo`/`read:discussion`/`write:discussion`
 /// scopes), device-locally — same storage strategy as `DriveTokenStore`, just a
 /// separate file/subdirectory since this is a second, independent OAuth
 /// provider. See `DriveTokenStore`'s doc comment for why
-/// `flutter_secure_storage` is avoided and DPAPI/sandboxed-storage is used
-/// instead — identical reasoning applies here.
+/// `flutter_secure_storage` is avoided and DPAPI (Windows) / AndroidKeyStore
+/// encryption is used instead — identical reasoning and fallback apply here.
 abstract class GitHubTokenStore {
   Future<void> saveAccessToken(String accessToken);
   Future<String?> loadAccessToken();
@@ -25,7 +27,9 @@ abstract class GitHubTokenStore {
   /// instead of resolving the platform support folder.
   static Future<GitHubTokenStore> forPlatform({Directory? rootOverride}) async {
     final root = rootOverride ?? await _defaultRoot();
-    return Platform.isWindows ? _WindowsDpapiTokenStore(root) : _PlainFileTokenStore(root);
+    if (Platform.isWindows) return _WindowsDpapiTokenStore(root);
+    if (Platform.isAndroid) return _AndroidKeystoreTokenStore(root);
+    return _PlainFileTokenStore(root);
   }
 
   static Future<Directory> _defaultRoot() async {
@@ -56,6 +60,22 @@ class _PlainFileTokenStore implements GitHubTokenStore {
   Future<void> clear() async {
     if (await _file.exists()) await _file.delete();
   }
+}
+
+class _AndroidKeystoreTokenStore implements GitHubTokenStore {
+  _AndroidKeystoreTokenStore(Directory root)
+      : _secret = KeystoreFileSecret(root: root, fileName: 'access_token');
+
+  final KeystoreFileSecret _secret;
+
+  @override
+  Future<void> saveAccessToken(String accessToken) => _secret.write(accessToken);
+
+  @override
+  Future<String?> loadAccessToken() => _secret.read();
+
+  @override
+  Future<void> clear() => _secret.clear();
 }
 
 class _WindowsDpapiTokenStore implements GitHubTokenStore {

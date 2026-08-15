@@ -2908,3 +2908,39 @@ confirmed live via a real HTTPS HEAD request (200, Content-Length matching the l
 AAB kept locally for whenever the Play Store submission checklist (`PLAY_STORE_PUBLISHING.md`) is
 actually completed — not submitted this session, still blocked on Data Safety form/tags/content
 rating/privacy URL entry in Play Console.
+
+---
+
+## 2026-08-15 — Sync polishing & security hardening
+
+Post-v1.6.1 follow-up, working through CONSIDERATIONS.md's Sync and Security items. Also corrected
+three stale CONSIDERATIONS entries found by reading the actual code (the doc had drifted): footnote
+export, the sync status indicator, and the Keystore scope.
+
+- **Drive status-bar error state.** The status bar's Drive indicator already existed (green/amber/
+  grey connection states + a pulse while syncing) — the doc wrongly listed the whole indicator as
+  unbuilt. The real gap was that a *failed background sync* left the icon reassuringly green, the
+  failure visible only in the Sync Log. Added `driveLastSyncErrorProvider` (set on any target's
+  failure in `runFullSyncAcrossAllTargets`/the single-file watcher, cleared on the next clean run)
+  driving a distinct red `sync_problem` state that outranks "connected". Two new provider tests.
+
+- **Conflict diff preview.** `drive_conflict_screen.dart` gained a per-tile "Show what changed"
+  expander that lazily calls the new `DriveSyncService.conflictPreview` (reads local, downloads the
+  Drive side) and renders an inline character diff. Extracted the `diff_match_patch` rendering from
+  the Version History pane into a shared `InlineTextDiff` widget so both screens share one
+  renderer. Binary targets (images, Archived/Deleted zips) show a "binary file" notice instead of
+  garbage, gated by a text-extension allowlist. Four new tests.
+
+- **Android Keystore token encryption.** The two OAuth tokens (Drive refresh, GitHub access) were
+  plain files on Android. Added a hardware-backed AES-256-GCM Keystore cipher (`SecretCipher.kt`,
+  registered on channel `uk.aity.narraity/secret_cipher` from `MainActivity.configureFlutterEngine`)
+  and a shared Dart `KeystoreFileSecret` helper both token stores now use on Android; Windows DPAPI
+  is untouched. Falls back to the old plain-file behaviour if the Keystore is unavailable (strictly
+  an improvement, never a sign-in regression) and upgrades a legacy plaintext token to encrypted on
+  first read. Corrected the doc's scope: the vault/history signing key it implied was at risk is
+  never stored on disk at all (`HistorySigningKeyManager` derives it from the password in memory),
+  so only the two tokens were ever plaintext.
+  - **⚠️ Unverified piece:** the Dart file/fallback/migration logic is unit-tested with a fake
+    cipher, but the actual Kotlin Keystore crypto can only be verified by an on-device/emulator
+    Android build, which has NOT run yet. Needs a real Android round-trip (sign in to Drive +
+    GitHub, kill/relaunch, confirm still signed in) before the next release ships.
