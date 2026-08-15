@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:narraity/services/drive_sync_log_service.dart';
+import 'package:narraity/services/drive_sync_planner.dart';
 import 'package:narraity/services/library_service.dart';
 import 'package:narraity/state/drive_auto_sync_provider.dart';
 import 'package:narraity/state/drive_provider.dart';
@@ -134,5 +135,53 @@ void main() {
         expect(await file.readAsString(), '{"hello":"world"}');
       });
     }
+
+    test('a clean run leaves the last-sync-error clear', () async {
+      remote.seed('_Series', 'record.json', utf8.encode('{"ok":true}'));
+      await container.read(manualSyncAllProvider)();
+      expect(container.read(driveLastSyncErrorProvider), isNull);
+    });
   });
+
+  test('a failing sync records the first failure in the last-sync-error '
+      'provider, then a clean run clears it', () async {
+    final root = Directory.systemTemp.createTempSync('narraity_sync_err_');
+    addTearDown(() => root.deleteSync(recursive: true));
+
+    final throwing = _ThrowingDriveRemoteStore();
+    final container = ProviderContainer(
+      overrides: [
+        libraryServiceProvider.overrideWithValue(LibraryService(rootOverride: root)),
+        driveConnectionProvider.overrideWith(_FixedSignedInNotifier.new),
+        driveRemoteStoreProvider.overrideWith((ref) async => throwing),
+        driveSyncLogServiceProvider.overrideWithValue(
+          DriveSyncLogService(rootOverride: root),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(manualSyncAllProvider)();
+    final error = container.read(driveLastSyncErrorProvider);
+    expect(error, isNotNull);
+    expect(error, contains('boom'));
+
+    // Once the remote stops throwing, the next clean run heals the state.
+    throwing.failing = false;
+    await container.read(manualSyncAllProvider)();
+    expect(container.read(driveLastSyncErrorProvider), isNull);
+  });
+}
+
+/// A [FakeDriveRemoteStore] whose enumeration step throws while [failing] is
+/// true — `sync()` calls `listFiles` first, so this fails every target and
+/// exercises the last-sync-error path.
+class _ThrowingDriveRemoteStore extends FakeDriveRemoteStore {
+  bool failing = true;
+
+  @override
+  Future<Map<String, DriveRemoteFile>> listFiles(String projectFolderName) {
+    if (failing) throw StateError('boom');
+    return super.listFiles(projectFolderName);
+  }
 }

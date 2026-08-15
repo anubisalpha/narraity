@@ -21,10 +21,14 @@ questions, not known implementation gaps.
   bolt-on. A lighter middle step worth considering first: a "Reveal in Explorer" action next to the
   existing save dialogs.
 
-- **A visible "syncing now" indicator outside the Settings screen.** Automatic sync (immediate
-  per-file, daily, frequent) runs silently in the background; the Sync Log (Settings → Google Drive
-  Sync → Sync Log) is the only place to confirm it actually happened. A persistent status icon
-  somewhere in the app shell (synced/syncing/error) was discussed but not built.
+- ~~**A visible "syncing now" indicator outside the Settings screen.**~~ — ✅ Built (the doc was
+  stale here). `status_bar.dart`'s `_DriveStatusIndicator` sits in the app-shell bottom bar and
+  shows connected (green `cloud_done`) / connecting (amber) / not-connected (grey `cloud_off`), and
+  **pulses while a sync is actively running** (`driveSyncActiveProvider`); tapping it explains the
+  state. The one genuine gap — a failed *background* sync left the icon reassuringly green, visible
+  only in the Sync Log — is now closed too: `driveLastSyncErrorProvider` drives a red
+  `sync_problem` state (set on any target's failure, cleared on the next clean run), outranking the
+  plain "connected" look. Covered by `drive_auto_sync_provider_test.dart`.
 
 - **The "more frequent sync" interval is a fixed preset list** (off/5/15/30/60 min), not a free-form
   number field — deliberately, to keep the Settings UI a simple dropdown rather than validating

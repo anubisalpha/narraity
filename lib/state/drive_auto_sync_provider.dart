@@ -113,6 +113,16 @@ final driveSyncLogServiceProvider = Provider<DriveSyncLogService>(
 /// isn't a case this needs to handle.
 final driveSyncActiveProvider = StateProvider<bool>((ref) => false);
 
+/// A short human-readable message when the most recent sync (full or
+/// single-file) failed, or null when the last one succeeded. Purely a UI
+/// signal, like [driveSyncActiveProvider]: it drives the status bar's Drive
+/// icon into a distinct error state so a failed *background* sync isn't
+/// invisible unless the user happens to open the Sync Log. Set at the end of
+/// every sync attempt — to the first target's error on failure, or cleared to
+/// null once a whole run succeeds — so a transient failure heals itself on the
+/// next clean sync rather than sticking around.
+final driveLastSyncErrorProvider = StateProvider<String?>((ref) => null);
+
 /// Re-applies `_Settings/settings.json` into the live providers after a
 /// sync might have pulled a newer copy from another device — same list
 /// `DriveSyncSettingsSection`'s manual "Sync now" tile invalidates, kept in
@@ -265,6 +275,7 @@ Future<void> runFullSyncAcrossAllTargets(Ref ref, SyncTrigger trigger) async {
 
   final log = ref.read(driveSyncLogServiceProvider);
   ref.read(driveSyncActiveProvider.notifier).state = true;
+  String? firstError;
   try {
     for (final target in await _allSyncTargets(ref)) {
       try {
@@ -282,6 +293,7 @@ Future<void> runFullSyncAcrossAllTargets(Ref ref, SyncTrigger trigger) async {
           ),
         );
       } catch (error) {
+        firstError ??= '${target.title}: $error';
         await log.append(
           SyncLogEntry(
             timestamp: DateTime.now(),
@@ -296,6 +308,8 @@ Future<void> runFullSyncAcrossAllTargets(Ref ref, SyncTrigger trigger) async {
     await reapplyAppSettingsAfterSync(ref);
   } finally {
     ref.read(driveSyncActiveProvider.notifier).state = false;
+    // Clear on a fully clean run, surface the first failure otherwise.
+    ref.read(driveLastSyncErrorProvider.notifier).state = firstError;
   }
 }
 
@@ -410,7 +424,10 @@ final projectFileWatcherProvider = FutureProvider.autoDispose<void>((
           conflicts: result.conflicts.length,
         ),
       );
+      ref.read(driveLastSyncErrorProvider.notifier).state = null;
     } catch (error) {
+      ref.read(driveLastSyncErrorProvider.notifier).state =
+          '${project.title}: $error';
       await log.append(
         SyncLogEntry(
           timestamp: DateTime.now(),

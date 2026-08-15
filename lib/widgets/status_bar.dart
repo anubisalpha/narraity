@@ -204,6 +204,7 @@ class _DriveStatusIndicatorState extends ConsumerState<_DriveStatusIndicator>
   Widget build(BuildContext context) {
     final connection = ref.watch(driveConnectionProvider);
     final syncing = ref.watch(driveSyncActiveProvider);
+    final lastError = ref.watch(driveLastSyncErrorProvider);
 
     if (syncing && !_flicker.isAnimating) {
       _flicker.repeat(reverse: true);
@@ -212,25 +213,41 @@ class _DriveStatusIndicatorState extends ConsumerState<_DriveStatusIndicator>
       _flicker.value = 0;
     }
 
-    final (icon, color, label) = switch (connection) {
-      DriveConnectionStatus.signedIn => (
-        Icons.cloud_done_outlined,
-        Colors.green,
-        syncing
-            ? 'Google Drive: connected — syncing now'
-            : 'Google Drive: connected',
-      ),
-      DriveConnectionStatus.signingIn => (
-        Icons.cloud_sync_outlined,
-        Colors.amber,
-        'Google Drive: connecting…',
-      ),
-      DriveConnectionStatus.signedOut || DriveConnectionStatus.unknown => (
-        Icons.cloud_off_outlined,
-        Colors.grey,
-        'Google Drive: not connected (Settings → Google Drive)',
-      ),
-    };
+    // A failed last sync while still signed in outranks the plain "connected"
+    // state — otherwise a silent background failure leaves a reassuring green
+    // icon, the exact hole this indicator's error state closes. A sync in
+    // flight (which clears the error on success) shows normal syncing, not the
+    // stale error.
+    final showError =
+        connection == DriveConnectionStatus.signedIn && lastError != null && !syncing;
+
+    final (icon, color, label) = showError
+        ? (
+            Icons.sync_problem_outlined,
+            Colors.red,
+            'Google Drive: last sync failed — $lastError (see Settings → '
+                'Google Drive → Sync Log)',
+          )
+        : switch (connection) {
+            DriveConnectionStatus.signedIn => (
+              Icons.cloud_done_outlined,
+              Colors.green,
+              syncing
+                  ? 'Google Drive: connected — syncing now'
+                  : 'Google Drive: connected',
+            ),
+            DriveConnectionStatus.signingIn => (
+              Icons.cloud_sync_outlined,
+              Colors.amber,
+              'Google Drive: connecting…',
+            ),
+            DriveConnectionStatus.signedOut ||
+            DriveConnectionStatus.unknown => (
+              Icons.cloud_off_outlined,
+              Colors.grey,
+              'Google Drive: not connected (Settings → Google Drive)',
+            ),
+          };
 
     Widget dot = Icon(icon, size: 14, color: color);
     if (syncing) {
