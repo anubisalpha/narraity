@@ -106,19 +106,21 @@ questions, not known implementation gaps.
   `KDP_CRIBSHEET.md` for full detail). The eBook path is now built as far as it can be without
   other unbuilt features: 2-level ToC nesting cap, 30MB/300-file hard limits, footnote-to-`<aside>`
   round-trip, and language tagging are all done; `styles.css`'s units and color-contrast were
-  audited and found already compliant. Still genuinely blocked:
-  - **PDF/DOCX footnote support** — the EPUB exporter now handles footnotes (numbered in reading
-    order, `<sup><a epub:type="noteref">` + `<aside epub:type="footnote">` at the enclosing
-    chapter's end), but PDF and DOCX still don't touch `annotation_service.dart`/footnote
-    annotations at all. The character-offset-anchor-to-rendered-output mapping now exists as a
-    proven pattern (private-use-area marker inserted pre-parse, substituted post-render) — porting
-    it to PDF/DOCX is the remaining work, not a new design problem.
-  - **Table support** — confirmed 2026-08-01: the editor is a plain markdown-lite `TextField`, not
+  audited and found already compliant. Remaining gaps:
+  - ~~**PDF/DOCX footnote support**~~ — ✅ Fixed (v1.6.0, 2026-08-10): the character-offset-anchor
+    pattern (private-use-area marker inserted pre-parse via `FootnoteMarkers`, substituted
+    post-render) was ported from EPUB to both. DOCX emits real Word footnotes
+    (`<w:footnoteReference>` + a `word/footnotes.xml` part); PDF renders in-text superscript markers
+    (`¹²³`) plus an end-of-chapter numbered body list (`PdfWidgetBuilder.footnoteListWidgets`) —
+    true page-bottom footnotes stay impossible under the `pdf` package's fixed-margin /
+    no-per-page-callback model, so the end-of-chapter list is the deliberate substitute. See
+    `docx_exporter.dart` and `pdf_widget_builder.dart`.
+  - **Table support** (still blocked) — confirmed 2026-08-01: the editor is a plain markdown-lite `TextField`, not
     `flutter_quill` (an earlier, incorrect assumption in this doc) — there's no table-authoring UI
     at all, so there's nothing for any exporter to support yet. Blocked on that editor feature
     existing first, not an export-side gap.
-  - **Image alt text** — blocked on image embedding existing in exports at all (a separate,
-    already-tracked gap below).
+  - **Image alt text** (still blocked) — blocked on image embedding existing in exports at all (a
+    separate, already-tracked gap below).
 
 - **KDP paperback export gaps** (`kdp_paperback_exporter.dart`, built 2026-08-01 — see
   `KDP_CRIBSHEET.md`'s Paperback section for full detail). Trim size, bleed, page-count-banded
