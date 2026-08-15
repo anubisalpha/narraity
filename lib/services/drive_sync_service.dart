@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -259,6 +260,39 @@ class DriveSyncService {
     await conflictFile.parent.create(recursive: true);
     await conflictFile.writeAsBytes(await original.readAsBytes());
     return conflictFile;
+  }
+
+  /// File extensions the conflict screen can render as a text diff. Every
+  /// other sync target — cover/in-book images, and the Archived/Deleted
+  /// project zips — is binary, and decoding it as UTF-8 would show garbage,
+  /// so those get a "binary file" notice instead of a diff.
+  static const _textExtensions = {'.json', '.md', '.markdown', '.txt'};
+
+  /// Both sides of a [conflict] as UTF-8 text, for the conflict screen's diff
+  /// preview. A side is null when it can't be shown as text: a non-text
+  /// extension, a local file that no longer exists, or bytes that aren't valid
+  /// UTF-8 — the caller shows a "binary file" notice rather than rendering
+  /// garbage. Downloads the Drive side, so it's called lazily on user request,
+  /// not for every conflict up front.
+  Future<({String? local, String? drive})> conflictPreview(
+    Directory projectDir,
+    SyncConflict conflict,
+  ) async {
+    if (!_textExtensions.contains(p.extension(conflict.path).toLowerCase())) {
+      return (local: null, drive: null);
+    }
+    String? decode(List<int> bytes) {
+      try {
+        return utf8.decode(bytes);
+      } on FormatException {
+        return null;
+      }
+    }
+
+    final localFile = File(p.joinAll([projectDir.path, ...p.posix.split(conflict.path)]));
+    final local = await localFile.exists() ? decode(await localFile.readAsBytes()) : null;
+    final drive = decode(await _remote.download(conflict.driveFileId));
+    return (local: local, drive: drive);
   }
 
   /// Resolves one conflict by keeping Drive's version at the canonical

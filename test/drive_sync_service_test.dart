@@ -102,6 +102,38 @@ void main() {
     expect(await file.readAsString(), 'local-edit');
   });
 
+  group('conflictPreview', () {
+    test('returns both sides as text for a JSON conflict', () async {
+      await writeLocal('todos/todos.json', 'v1');
+      await service.sync(projectDir, 'MyNovel');
+      await writeLocal('todos/todos.json', 'local-edit');
+      remote.seed('MyNovel', 'todos/todos.json', 'remote-edit'.codeUnits);
+      final result = await service.sync(projectDir, 'MyNovel');
+      final conflict = result.conflicts.single;
+
+      final preview = await service.conflictPreview(projectDir, conflict);
+
+      expect(preview.local, 'local-edit');
+      expect(preview.drive, 'remote-edit');
+    });
+
+    test('returns null for both sides on a binary (non-text) extension', () async {
+      await writeLocal('assets/covers/cover.png', 'v1');
+      await service.sync(projectDir, 'MyNovel');
+      await writeLocal('assets/covers/cover.png', 'local-edit');
+      remote.seed('MyNovel', 'assets/covers/cover.png', 'remote-edit'.codeUnits);
+      final result = await service.sync(projectDir, 'MyNovel');
+      final conflict = result.conflicts.single;
+
+      final preview = await service.conflictPreview(projectDir, conflict);
+
+      // A .png is binary: no text diff is attempted even though these test
+      // bytes happen to be ASCII.
+      expect(preview.local, isNull);
+      expect(preview.drive, isNull);
+    });
+  });
+
   test('saveConflictCopy preserves the local content under a .conflict- name', () async {
     await writeLocal('todos/todos.json', 'local-edit');
 

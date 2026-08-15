@@ -38,11 +38,15 @@ questions, not known implementation gaps.
   same project at the same moment.** Harmless today (worst case: two sequential syncs, the second a
   no-op), but not actively deduplicated if it turns out to matter in practice.
 
-- **Side-by-side content preview on the Sync Conflicts screen.** Currently shows filename + Keep
-  Local/Keep Drive/Keep Both actions only, no diff view of what actually changed. Version History's
-  diff viewer (`scene_history_screen.dart`) does something similar and could potentially be reused
-  for just the preview rendering, even with conflict *resolution* staying its own dedicated screen
-  (a deliberate choice — see BUILD_LOG.md's Phase 5 section for why they're kept separate).
+- ~~**Side-by-side content preview on the Sync Conflicts screen.**~~ — ✅ Built: each conflict tile
+  now has a "Show what changed" expander that lazily calls `DriveSyncService.conflictPreview`
+  (reads the local file, downloads the Drive side) and renders an inline character diff via the new
+  shared `InlineTextDiff` widget — extracted from Version History's diff pane, so both screens now
+  share one renderer instead of duplicating the `diff_match_patch` markup. Binary targets (cover /
+  in-book images, Archived/Deleted zips) show a "binary file — no text preview" notice instead of
+  garbage, gated by a text-extension allowlist. Conflict *resolution* stays its own dedicated
+  screen as before (deliberate — see BUILD_LOG.md's Phase 5 section). Covered by two
+  `conflictPreview` tests.
 
 - **Multi-account / multi-Drive support.** One signed-in Google account for the whole app at a time,
   matching PLAN.md's v1 scope. Switching accounts means disconnect then reconnect.

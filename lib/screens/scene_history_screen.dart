@@ -1,4 +1,3 @@
-import 'package:diff_match_patch/diff_match_patch.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -6,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../models/project.dart';
 import '../models/scene_snapshot.dart';
 import '../state/scene_history_provider.dart';
+import '../widgets/inline_text_diff.dart';
 
 /// Per-scene History view: timeline, word-count sparkline, diff between any
 /// two points, one-click restore (PLAN.md "Version History" UI).
@@ -376,30 +376,10 @@ class _DiffPane extends ConsumerWidget {
           }
           final from = snapshot.data![0];
           final to = snapshot.data![1];
-          final diffs = DiffMatchPatch().diff(from, to);
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
-            child: SelectableText.rich(
-              TextSpan(
-                children: [
-                  for (final d in diffs)
-                    TextSpan(
-                      text: d.text,
-                      style: switch (d.operation) {
-                        DIFF_INSERT => TextStyle(
-                            backgroundColor: Colors.green.withValues(alpha: 0.25),
-                          ),
-                        DIFF_DELETE => TextStyle(
-                            backgroundColor: Colors.red.withValues(alpha: 0.25),
-                            decoration: TextDecoration.lineThrough,
-                          ),
-                        _ => null,
-                      },
-                    ),
-                ],
-              ),
-            ),
+            child: InlineTextDiff(from: from, to: to),
           );
         },
       ),
