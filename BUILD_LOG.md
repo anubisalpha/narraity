@@ -2981,8 +2981,12 @@ Covered by `test/vault_per_project_password_test.dart` (7 scenarios). The `@Time
 file is deliberate — each scenario runs several real Argon2id derivations, which can exceed the
 default 30s under full-suite parallel load.
 
-- **⚠️ Still to do:** the Settings/vault UI to drive these actions (set/change/remove a per-project
-  password, a per-project unlock prompt). The engine is done and unit-tested; nothing surfaces it in
-  the app yet, and none of it has been exercised in a running app.
+- **UI:** `project_vault_password_dialog.dart` (project shell More menu → "Vault password…") drives
+  set / change / remove; `changeProjectPassword` was added to the engine for the change flow (2 more
+  tests, 9 total). Unlock-on-open (`_maybePromptUnlock`) now routes to the project's own vault when
+  it has one, via `showVaultUnlockDialog(context, project: ...)`.
+- **⚠️ Unverified in a running app:** compile + `flutter analyze` clean and full suite green, but the
+  dialog interaction hasn't been clicked through end-to-end (no reliable way to drive the Flutter
+  desktop UI from this session) — wants a real hands-on pass before release.
 - **Accepted residual risk** (identical to the pre-existing `changePassword`): a crash in the narrow
   window between re-signing history and writing the verifier.

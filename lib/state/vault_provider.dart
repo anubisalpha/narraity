@@ -410,6 +410,48 @@ class VaultActions {
     _ref.invalidate(vaultGenerationsProvider(project));
   }
 
+  /// Changes an already-opted-in [project]'s own vault password: verifies
+  /// [oldPassword], re-signs its history onto a key derived from [newPassword],
+  /// rewrites the per-project verifier, and builds a fresh backup. Same
+  /// verify-then-write + rollback ordering as [setProjectPassword]. Throws if
+  /// the project doesn't have its own password yet (use [setProjectPassword])
+  /// or [oldPassword] is wrong.
+  Future<void> changeProjectPassword(
+    Project project,
+    String oldPassword,
+    String newPassword,
+  ) async {
+    final manager =
+        await _ref.read(projectSigningKeyManagerProvider(project).future);
+    if (!await manager.isConfigured) {
+      throw VaultOpenException(
+        'This project doesn\'t have its own password yet — set one first.',
+      );
+    }
+    if (!await manager.unlock(oldPassword)) {
+      throw VaultOpenException('Current password is incorrect.');
+    }
+    final oldKey = manager.currentKey!;
+    final newKey = await manager.deriveKeyFor(newPassword);
+
+    final history = await _historyFor(project);
+    await history.resignAll(oldKey: oldKey, newKey: newKey);
+    try {
+      await manager.rekey(newPassword);
+    } catch (_) {
+      try {
+        await history.resignAll(oldKey: newKey, newKey: oldKey);
+      } catch (_) {/* best effort */}
+      rethrow;
+    }
+
+    _ref.read(projectVaultPasswordProvider(project.folderName).notifier).state =
+        newPassword;
+    _ref.invalidate(sceneHistoryServiceProvider(project));
+    await refreshProject(project);
+    _ref.invalidate(vaultGenerationsProvider(project));
+  }
+
   /// Opts [project] back out of its own password, returning it to the
   /// library-wide key: re-signs its history from the project key onto the
   /// library key, then removes the per-project verifier/salt. Requires both the

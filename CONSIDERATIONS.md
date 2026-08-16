@@ -11,7 +11,7 @@ questions, not known implementation gaps.
   the two would add real layout complexity. Hold off until the bottom panel actually feels cramped
   in day-to-day use.
 
-- ~~**Per-project vault passwords.**~~ — ✅ Engine built (opt-in override; UI still pending). A
+- ~~**Per-project vault passwords.**~~ — ✅ Built (opt-in override; engine + UI). A
   project can now opt into its *own* vault password, distinct from the library-wide one, while
   unopted projects keep using the library key unchanged — no forced migration. `VaultService`
   itself was already password-per-call; the work was in the provider layer
@@ -24,11 +24,14 @@ questions, not known implementation gaps.
   library key). Covered by `vault_per_project_password_test.dart` (opt-in from library-key and from
   unsigned history, per-project lock/unlock across a restart, backup encrypted with the project
   password, library-password rotation leaving an opted-in project untouched, opt-out round-trip).
-  **Still to do:** the Settings/vault UI to drive these actions (set/change/remove a per-project
-  password, per-project unlock prompt) — the engine is done and tested, but nothing surfaces it in
-  the app yet. One accepted residual risk, identical to the existing `changePassword`: a crash
-  in the narrow window between re-signing history and writing the verifier could leave a project's
-  history signed with a key whose verifier isn't yet on disk.
+  **UI:** `project_vault_password_dialog.dart`, reached from the project shell's More menu →
+  "Vault password…" — set / change (`changeProjectPassword`) / remove a project's own password;
+  unlock-on-open routes to the project's own vault when it has one (`vault_unlock_dialog.dart` gained
+  an optional `project`). **Still unverified in a running app** — compile + launch smoke-tested only,
+  the dialog interaction hasn't been clicked through end-to-end, so it wants a real hands-on pass
+  before release (same caveat as the Keystore work). One accepted residual risk, identical to the
+  existing `changePassword`: a crash in the narrow window between re-signing history and writing the
+  verifier could leave a project's history signed with a key whose verifier isn't yet on disk.
 
 - **Emailing/sharing exported review files directly from the app.** Currently the export/import
   and reviewer-session screens (Phase 4) just write files to a user-chosen path, plus a "Copy Path"

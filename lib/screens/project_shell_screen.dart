@@ -26,6 +26,7 @@ import '../widgets/notification_bell.dart';
 import '../widgets/notifications_sidebar.dart';
 import '../widgets/profile_editor.dart';
 import '../widgets/profile_panel.dart';
+import '../widgets/project_vault_password_dialog.dart';
 import '../widgets/quick_capture_dialog.dart';
 import '../widgets/reference_panel.dart';
 import '../widgets/resize_handle.dart';
@@ -198,6 +199,24 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
 
   Future<void> _maybePromptUnlock() async {
     if (ref.read(unlockPromptDismissedProvider)) return;
+
+    // A project with its own vault password unlocks that, not the library one.
+    final hasOwn =
+        await ref.read(projectHasOwnPasswordProvider(widget.project).future);
+    if (hasOwn) {
+      final alreadyUnlocked = ref.read(
+            projectVaultPasswordProvider(widget.project.folderName),
+          ) !=
+          null;
+      if (alreadyUnlocked || !mounted) return;
+      final unlocked =
+          await showVaultUnlockDialog(context, project: widget.project);
+      if (!unlocked) {
+        ref.read(unlockPromptDismissedProvider.notifier).state = true;
+      }
+      return;
+    }
+
     final status = await ref.read(vaultStatusProvider.future);
     if (status != VaultStatus.locked || !mounted) return;
 
@@ -442,6 +461,8 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                         );
                       case 'editorSettings':
                         showEditorSettingsDialog(context, ref);
+                      case 'projectVault':
+                        showProjectVaultPasswordDialog(context, project);
                     }
                   },
                   itemBuilder: (context) => const [
@@ -466,6 +487,10 @@ class _ProjectShellScreenState extends ConsumerState<ProjectShellScreen> {
                     PopupMenuItem(
                       value: 'editorSettings',
                       child: Text('Editor settings'),
+                    ),
+                    PopupMenuItem(
+                      value: 'projectVault',
+                      child: Text('Vault password…'),
                     ),
                   ],
                 ),

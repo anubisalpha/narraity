@@ -149,6 +149,39 @@ void main() {
     expect(await statuses(container, other), [SnapshotVerification.valid]);
   });
 
+  test('changing a per-project password keeps history verifiable', () async {
+    final container = newContainer();
+    final history = await container.read(sceneHistoryServiceProvider(project).future);
+    await history.recordAutoSnapshot(sceneId, 'Before change.');
+
+    final actions = container.read(vaultActionsProvider);
+    await actions.setProjectPassword(project, projectPassword);
+    expect(await statuses(container, project), [SnapshotVerification.valid]);
+
+    const newProjectPassword = 'rotated project password';
+    await actions.changeProjectPassword(project, projectPassword, newProjectPassword);
+    // Still valid under the new key.
+    expect(await statuses(container, project), [SnapshotVerification.valid]);
+
+    // After a restart the old password no longer unlocks; the new one does.
+    final afterRestart = newContainer();
+    final restartActions = afterRestart.read(vaultActionsProvider);
+    expect(await restartActions.unlockProject(project, projectPassword), isFalse);
+    expect(await restartActions.unlockProject(project, newProjectPassword), isTrue);
+    expect(await statuses(afterRestart, project), [SnapshotVerification.valid]);
+  });
+
+  test('changing the password with a wrong current password is rejected', () async {
+    final container = newContainer();
+    final actions = container.read(vaultActionsProvider);
+    await actions.setProjectPassword(project, projectPassword);
+
+    await expectLater(
+      actions.changeProjectPassword(project, 'wrong current', 'whatever new'),
+      throwsA(isA<VaultOpenException>()),
+    );
+  });
+
   test('opting back out returns history to the library key', () async {
     final container = newContainer();
     await container.read(vaultStatusProvider.notifier).setup(libraryPassword);
