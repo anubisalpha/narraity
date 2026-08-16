@@ -2944,3 +2944,45 @@ export, the sync status indicator, and the Keystore scope.
     cipher, but the actual Kotlin Keystore crypto can only be verified by an on-device/emulator
     Android build, which has NOT run yet. Needs a real Android round-trip (sign in to Drive +
     GitHub, kill/relaunch, confirm still signed in) before the next release ships.
+
+## 2026-08-15 (cont.) — Per-project vault passwords (opt-in override, engine)
+
+Fourth item from the same sync/security pass. A project can now opt into its *own* vault password,
+distinct from the library-wide one; projects that don't opt in keep using the library key exactly
+as before, so there's no forced migration of anyone's existing history.
+
+`VaultService` was already password-per-call, so no change there. The single-password assumption
+lived in the provider layer and `HistorySigningKeyManager` (one salt/verifier at `_Vault/`, one key
+signing every project's scene history). New pieces:
+
+- **Per-project key routing** — `projectSigningKeyManagerProvider` (a cached manager per project,
+  backed by `_Vault/<folder>/salt`+`verifier`) and `effectiveSigningKeyManagerProvider`, which
+  returns the project's own manager if it has opted in (its verifier exists) else the library
+  manager. `sceneHistoryServiceProvider` routes through the effective one.
+- **`VaultActions`** — `setProjectPassword` (opt-in: re-signs the project's history from the
+  library key, or from unsigned, onto the new project key via `resignAll`, with the same
+  verify-all-then-write + rollback ordering as `changePassword`), `unlockProject`/`lockProject`
+  (per-project session unlock), and `removeProjectPassword` (opt-out: re-signs back to the library
+  key, then `HistorySigningKeyManager.reset()` deletes the per-project salt/verifier; requires the
+  library vault, since there'd be no shared key to hand the history back to otherwise).
+- **`changePassword` now skips opted-in projects** — must-fix: their history is signed with their
+  own key, so verifying them under the library key would wrongly fail the whole rotation.
+
+**Deadlock found and fixed along the way:** `sceneHistoryServiceProvider` used to
+`ref.watch(vaultStatusProvider)` (an AsyncNotifier that itself awaits
+`historySigningKeyManagerProvider`). With the new `effectiveSigningKeyManagerProvider` also awaiting
+that same provider, watching the async status while awaiting the effective manager wedged the build
+whenever the library was unconfigured — the build completed but its future never resolved. Switched
+to watching the *synchronous* session-password StateProviders (`vaultSessionPasswordProvider` +
+`projectVaultPasswordProvider`), which change at exactly the same moments (setup/unlock/lock/rekey)
+without the async-await cycle.
+
+Covered by `test/vault_per_project_password_test.dart` (7 scenarios). The `@Timeout(3 min)` on that
+file is deliberate — each scenario runs several real Argon2id derivations, which can exceed the
+default 30s under full-suite parallel load.
+
+- **⚠️ Still to do:** the Settings/vault UI to drive these actions (set/change/remove a per-project
+  password, a per-project unlock prompt). The engine is done and unit-tested; nothing surfaces it in
+  the app yet, and none of it has been exercised in a running app.
+- **Accepted residual risk** (identical to the pre-existing `changePassword`): a crash in the narrow
+  window between re-signing history and writing the verifier.

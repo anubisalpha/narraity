@@ -11,8 +11,24 @@ questions, not known implementation gaps.
   the two would add real layout complexity. Hold off until the bottom panel actually feels cramped
   in day-to-day use.
 
-- **Per-project vault passwords.** Current design is one password for the whole library
-  (`VaultService`). Explicitly deferred when the vault/backup system was built — see BUILD_LOG.md.
+- ~~**Per-project vault passwords.**~~ — ✅ Engine built (opt-in override; UI still pending). A
+  project can now opt into its *own* vault password, distinct from the library-wide one, while
+  unopted projects keep using the library key unchanged — no forced migration. `VaultService`
+  itself was already password-per-call; the work was in the provider layer
+  (`projectSigningKeyManagerProvider`/`effectiveSigningKeyManagerProvider` route each project's
+  scene-history signing to the right key, backed by `_Vault/<folder>/salt`+`verifier`) and
+  `VaultActions` (`setProjectPassword` re-signs history onto the new key with the same
+  verify-then-write + rollback ordering as `changePassword`; `unlockProject`/`lockProject`;
+  `removeProjectPassword` re-signs back to the library key and requires the library vault). The
+  library-wide `changePassword` now skips opted-in projects (their history isn't signed with the
+  library key). Covered by `vault_per_project_password_test.dart` (opt-in from library-key and from
+  unsigned history, per-project lock/unlock across a restart, backup encrypted with the project
+  password, library-password rotation leaving an opted-in project untouched, opt-out round-trip).
+  **Still to do:** the Settings/vault UI to drive these actions (set/change/remove a per-project
+  password, per-project unlock prompt) — the engine is done and tested, but nothing surfaces it in
+  the app yet. One accepted residual risk, identical to the existing `changePassword`: a crash
+  in the narrow window between re-signing history and writing the verifier could leave a project's
+  history signed with a key whose verifier isn't yet on disk.
 
 - **Emailing/sharing exported review files directly from the app.** Currently the export/import
   and reviewer-session screens (Phase 4) just write files to a user-chosen path, plus a "Copy Path"

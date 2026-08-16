@@ -131,6 +131,18 @@ class HistorySigningKeyManager {
   /// [unlock] is called with the correct password.
   void lock() => _key = null;
 
+  /// Deletes the salt and verifier, returning this manager to the
+  /// "never configured" state, and drops the in-memory key. Used when a
+  /// project opts *out* of its own vault password (after its history has been
+  /// re-signed back to whatever key will govern it next) — never call this
+  /// while history is still signed with this manager's key, or that history
+  /// becomes unverifiable.
+  Future<void> reset() async {
+    if (await _verifierFile.exists()) await _verifierFile.delete();
+    if (await _saltFile.exists()) await _saltFile.delete();
+    _key = null;
+  }
+
   String _verifierFor(List<int> key) =>
       crypto.Hmac(crypto.sha256, key).convert(utf8.encode(_verifierPayload)).toString();
 

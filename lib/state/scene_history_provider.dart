@@ -11,9 +11,19 @@ final sceneHistoryServiceProvider =
   final manuscriptService = await ref.watch(manuscriptServiceProvider(project).future);
   // Watching the vault status (not just the manager) rebuilds this service
   // when the vault is unlocked mid-session, so snapshots taken after unlock
-  // are signed without needing an app restart.
-  ref.watch(vaultStatusProvider);
-  final keyManager = await ref.watch(historySigningKeyManagerProvider.future);
+  // are signed without needing an app restart. The per-project password is
+  // watched too so a project that uses its own vault password rebuilds on its
+  // own unlock, not only the library-wide one.
+  // Rebuild this service whenever a vault is unlocked/locked mid-session so
+  // snapshots after unlock are signed without an app restart. Watching the
+  // session-password StateProviders (which change on setup/unlock/lock/rekey)
+  // rather than the async vaultStatusProvider avoids an await-cycle deadlock:
+  // vaultStatusProvider and effectiveSigningKeyManagerProvider both await
+  // historySigningKeyManagerProvider, and watching the former here while
+  // awaiting the latter wedged the build when the library was unconfigured.
+  ref.watch(vaultSessionPasswordProvider);
+  ref.watch(projectVaultPasswordProvider(project.folderName));
+  final keyManager = await ref.watch(effectiveSigningKeyManagerProvider(project).future);
   return SceneHistoryService(manuscriptService.projectDir, keyManager: keyManager);
 });
 
