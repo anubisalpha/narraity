@@ -55,6 +55,22 @@ void main() {
     expect(defaultExporter.maxPageCount, 550);
   });
 
+  test('an out-of-range page count reports the HARDCOVER range, not paperback', () async {
+    // A tiny manuscript against a high minimum trips the page-count check; the
+    // message must name this format correctly (it reuses the paperback engine,
+    // which used to hard-code "paperback").
+    final strictExporter = KdpHardcoverExporter(projectDir, minPageCount: 500);
+    await expectLater(
+      () => strictExporter.buildBytes(project, ManuscriptStructure(),
+          trimSize: KdpHardcoverTrimSize.in6x9),
+      throwsA(isA<KdpPrintExportException>().having(
+        (e) => e.message,
+        'message',
+        allOf(contains('hardcover range'), isNot(contains('paperback'))),
+      )),
+    );
+  });
+
   test('produces bytes that look like a real PDF (magic header + trailer)', () async {
     final bytes =
         await exporter.buildBytes(project, ManuscriptStructure(), trimSize: KdpHardcoverTrimSize.in6x9);

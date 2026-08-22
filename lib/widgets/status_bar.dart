@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -110,6 +112,17 @@ class _SpellCheckStatus extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Spell check is Hunspell/FFI-backed and Windows-only for now (see
+    // HunspellFfi.instance / hunspell_ffi.dart). On other platforms it can't
+    // run, so the indicator must not claim "on" — it stays grey and says so,
+    // rather than reflecting the (still-persisted) enabled preference.
+    if (!Platform.isWindows) {
+      return const _StatusEntry(
+        icon: Icons.spellcheck,
+        color: Colors.grey,
+        message: 'Spell check: not available on this platform',
+      );
+    }
     final enabled = ref.watch(spellCheckEnabledProvider);
     return _StatusEntry(
       icon: Icons.spellcheck,

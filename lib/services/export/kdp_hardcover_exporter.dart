@@ -55,6 +55,7 @@ class KdpHardcoverExporter {
           minPageCount: minPageCount,
           maxPageCount: maxPageCount,
           compressPdf: compressPdf,
+          printFormatName: 'hardcover',
         );
 
   final KdpPaperbackExporter _engine;

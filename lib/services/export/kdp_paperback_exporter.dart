@@ -202,9 +202,16 @@ class KdpPaperbackExporter {
     this.minPageCount,
     this.maxPageCount,
     this.compressPdf = true,
+    this.printFormatName = 'paperback',
   });
 
   final Directory projectDir;
+
+  /// The KDP format name used in the out-of-range page-count message
+  /// (`...outside KDP's {name} range of...`). `KdpHardcoverExporter` passes
+  /// 'hardcover' so its error doesn't mislabel itself as paperback, since it
+  /// reuses this engine.
+  final String printFormatName;
 
   /// Overrides the page-count range that would otherwise be looked up from
   /// [KdpTrimSize.pageCountRange] for the trim size + ink/paper type passed
@@ -632,7 +639,7 @@ class KdpPaperbackExporter {
 
     if (pageCount < effectiveMin || pageCount > effectiveMax) {
       throw KdpPrintExportException(
-        'This manuscript would be $pageCount pages, outside KDP\'s paperback range of '
+        'This manuscript would be $pageCount pages, outside KDP\'s $printFormatName range of '
         '$effectiveMin–$effectiveMax pages.',
       );
     }

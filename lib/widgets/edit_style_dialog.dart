@@ -29,12 +29,15 @@ Future<ProjectKind?> showEditStyleDialog(BuildContext context, ProjectKind curre
                 ),
                 const SizedBox(height: 12),
                 SegmentedButton<ProjectKind>(
+                  // Labels only + no selected checkmark, so all three fit on
+                  // one line at phone width (issue #8) — matches
+                  // new_project_dialog.dart.
+                  showSelectedIcon: false,
                   segments: [
                     for (final option in ProjectKind.values)
                       ButtonSegment(
                         value: option,
                         label: Text(ProjectKindStyle.of(option).label),
-                        icon: Icon(ProjectKindStyle.of(option).icon),
                       ),
                   ],
                   selected: {kind},

@@ -74,12 +74,15 @@ Future<NewProjectResult?> showNewProjectDialog(BuildContext context) {
                     ),
                     const SizedBox(height: 8),
                     SegmentedButton<ProjectKind>(
+                      // Labels only (no per-segment icon) and no selected
+                      // checkmark, so all three fit on one line at phone width
+                      // — icon + "Comic" used to wrap to "Comi/c" (issue #8).
+                      showSelectedIcon: false,
                       segments: [
                         for (final option in ProjectKind.values)
                           ButtonSegment(
                             value: option,
                             label: Text(ProjectKindStyle.of(option).label),
-                            icon: Icon(ProjectKindStyle.of(option).icon),
                           ),
                       ],
                       selected: {kind},
