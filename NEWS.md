@@ -7,6 +7,25 @@ app release required. This is the source for the in-app News Feed (`NewsService`
 Newest entry first. Each entry is a `## YYYY-MM-DD: Title` heading — `NewsService` parses on that
 pattern, so keep the format consistent.
 
+## 2026-08-22: Android export fixed, plus polish — v1.6.2
+
+**Exporting now works on Android.** Every format — PDF, Word (.docx), EPUB, plain text, and the
+KDP-ready Paperback/Hardcover PDFs — was silently failing on Android with a "bytes required" error;
+it had only ever been exercised on Windows. Choosing a format and a save location now writes the
+file correctly on your phone, same as on desktop. If you write on both, this is the big one.
+
+Two smaller fixes came out of the same round of on-device testing:
+
+- The status-bar spell-check indicator no longer implies spell check is running on Android (it's a
+  Windows-only feature for now) — it says "not available on this platform" there instead of a
+  misleading "on".
+- The card-style picker in New Project no longer wraps the word "Comic" onto two lines on narrow
+  screens.
+
+Under the hood this release also added independent verification of the encrypted-backup crypto and a
+Windows + Linux test matrix in CI — no user-facing change, just more confidence the vault and
+version-history signing are sound. Windows and Android builds both available.
+
 ## 2026-08-11: Proper paragraph indenting and justified text in print export — v1.6.1
 
 **PDF export (both the general "Export as PDF" and the KDP-ready Paperback/Hardcover path) now

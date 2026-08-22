@@ -187,6 +187,10 @@ full breakdown and what changes per platform when that day comes.
   but not in the wordlist
 - Multi-language/variant support (US/CA/AU/NZ/ZA English, other languages) is planned but not built
   yet
+- **Windows only for now** — the Hunspell engine is a vendored `libhunspell.dll`, so in-app spell
+  check runs on the desktop build; on Android the status bar shows "not available on this platform"
+  and you get your keyboard's own spell check instead. A cross-platform build is on the roadmap
+  (`PLAN.md` Phase 4.5)
 
 ### Thesaurus & dictionary (offline)
 - Bundled Open English WordNet (CC BY 4.0) queried via `sqlite3` — synonyms and definitions, no
