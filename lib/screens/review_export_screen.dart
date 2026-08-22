@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/project.dart';
 import '../services/filename_sanitizer.dart';
+import '../services/platform_file_save.dart';
 import '../services/review_export_service.dart';
 import '../state/manuscript_provider.dart';
 import '../state/review_export_provider.dart';
@@ -45,13 +47,14 @@ class _ReviewExportScreenState extends ConsumerState<ReviewExportScreen> {
       author: widget.project.author,
     );
 
-    final savePath = await FilePicker.saveFile(
+    final savePath = await saveBytesToUserFile(
       dialogTitle: 'Export for review',
       fileName: '${sanitizeFileName(widget.project.title)}.review.md',
-      lockParentWindow: true,
+      bytes: utf8.encode(markdown),
+      type: FileType.custom,
+      allowedExtensions: ['md'],
     );
-    if (savePath == null) return;
-    await File(savePath).writeAsString(markdown);
+    if (savePath == null) return; // user cancelled
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(

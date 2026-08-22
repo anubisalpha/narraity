@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 
 import '../models/review_session.dart';
 import '../services/filename_sanitizer.dart';
+import '../services/platform_file_save.dart';
 import '../services/review_markdown_parser.dart';
 import '../state/review_session_provider.dart';
 
@@ -149,13 +150,14 @@ class _ReviewSessionDetailScreenState
     final service = ref.read(reviewSessionServiceProvider);
     final json = service.exportCommentsJson(session);
 
-    final savePath = await FilePicker.saveFile(
+    final savePath = await saveBytesToUserFile(
       dialogTitle: 'Save review comments to send back',
       fileName: '${sanitizeFileName(session.title)}.comments.json',
-      lockParentWindow: true,
+      bytes: utf8.encode(json),
+      type: FileType.custom,
+      allowedExtensions: ['json'],
     );
-    if (savePath == null) return;
-    await File(savePath).writeAsString(json);
+    if (savePath == null) return; // user cancelled
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(

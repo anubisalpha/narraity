@@ -1,7 +1,12 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
+import '../models/manuscript.dart';
 import '../models/project.dart';
 import '../services/export/docx_exporter.dart';
 import '../services/export/epub_exporter.dart';
@@ -124,51 +129,48 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       _error = null;
     });
     try {
-      final path = await FilePicker.saveFile(
-        dialogTitle: 'Export "${widget.project.title}"',
-        fileName:
-            '${sanitizeFileName(widget.project.title)}.${_format.fileExtension}',
-        type: FileType.custom,
-        allowedExtensions: [_format.fileExtension],
-        lockParentWindow: true,
-      );
-      if (path == null) return; // user cancelled
-
+      final fileName =
+          '${sanitizeFileName(widget.project.title)}.${_format.fileExtension}';
       final library = ref.read(libraryServiceProvider);
       final projectDir = await projectDirectory(library, widget.project);
-      final manuscript = ManuscriptService(projectDir);
-      final structure = await manuscript.loadStructure();
+      final structure = await ManuscriptService(projectDir).loadStructure();
 
-      switch (_format) {
-        case ExportFormat.pdf:
-          await PdfExporter(projectDir).exportToFile(widget.project, structure, path);
-        case ExportFormat.docx:
-          await DocxExporter(projectDir).exportToFile(widget.project, structure, path);
-        case ExportFormat.epub:
-          await EpubExporter(projectDir).exportToFile(widget.project, structure, path);
-        case ExportFormat.txt:
-          await TxtExporter(projectDir).exportToFile(widget.project, structure, path);
-        case ExportFormat.kdpPaperback:
-          await KdpPaperbackExporter(projectDir).exportToFile(
-            widget.project,
-            structure,
-            path,
-            trimSize: _paperbackTrimSize,
-            bleed: _bleed,
-            inkPaperType: _inkPaperType,
+      String? savedTo;
+      if (Platform.isAndroid || Platform.isIOS) {
+        // Mobile: file_picker's saveFile writes the file itself via the Storage
+        // Access Framework and requires the bytes up front (narraity issue #9);
+        // it doesn't hand back a writable path. So render the export into a temp
+        // file, then pass its bytes to the picker.
+        final tmp = File(p.join((await getTemporaryDirectory()).path, fileName));
+        try {
+          await _writeExport(tmp.path, projectDir, structure);
+          savedTo = await FilePicker.saveFile(
+            dialogTitle: 'Export "${widget.project.title}"',
+            fileName: fileName,
+            type: FileType.custom,
+            allowedExtensions: [_format.fileExtension],
+            bytes: await tmp.readAsBytes(),
           );
-        case ExportFormat.kdpHardcover:
-          await KdpHardcoverExporter(projectDir).exportToFile(
-            widget.project,
-            structure,
-            path,
-            trimSize: _hardcoverTrimSize,
-            bleed: _bleed,
-          );
+        } finally {
+          if (await tmp.exists()) await tmp.delete();
+        }
+      } else {
+        // Desktop: saveFile returns a writable path we render directly into.
+        final path = await FilePicker.saveFile(
+          dialogTitle: 'Export "${widget.project.title}"',
+          fileName: fileName,
+          type: FileType.custom,
+          allowedExtensions: [_format.fileExtension],
+          lockParentWindow: true,
+        );
+        if (path != null) await _writeExport(path, projectDir, structure);
+        savedTo = path;
       }
 
+      if (savedTo == null) return; // user cancelled
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exported to $path')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exported to $savedTo')));
       }
     } catch (error) {
       // KdpPrintExportException's message is already a complete, user-facing
@@ -182,6 +184,42 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       }
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Renders the selected format into [destPath]. Shared by the mobile
+  /// (temp-file) and desktop (chosen-path) save flows.
+  Future<void> _writeExport(
+    String destPath,
+    Directory projectDir,
+    ManuscriptStructure structure,
+  ) async {
+    switch (_format) {
+      case ExportFormat.pdf:
+        await PdfExporter(projectDir).exportToFile(widget.project, structure, destPath);
+      case ExportFormat.docx:
+        await DocxExporter(projectDir).exportToFile(widget.project, structure, destPath);
+      case ExportFormat.epub:
+        await EpubExporter(projectDir).exportToFile(widget.project, structure, destPath);
+      case ExportFormat.txt:
+        await TxtExporter(projectDir).exportToFile(widget.project, structure, destPath);
+      case ExportFormat.kdpPaperback:
+        await KdpPaperbackExporter(projectDir).exportToFile(
+          widget.project,
+          structure,
+          destPath,
+          trimSize: _paperbackTrimSize,
+          bleed: _bleed,
+          inkPaperType: _inkPaperType,
+        );
+      case ExportFormat.kdpHardcover:
+        await KdpHardcoverExporter(projectDir).exportToFile(
+          widget.project,
+          structure,
+          destPath,
+          trimSize: _hardcoverTrimSize,
+          bleed: _bleed,
+        );
     }
   }
 

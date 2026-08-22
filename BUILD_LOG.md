@@ -3054,3 +3054,46 @@ inside `testWidgets`' fake-async zone: an initial attempt that set up a real vau
 library hung every test to the 10-minute timeout. Two gotchas worth keeping: (1) that fake-async vs.
 real-crypto wall; (2) the dialog's `autofocus: true` `TextField` has a blinking-cursor timer that
 makes `pumpAndSettle` spin forever — pump a bounded number of fixed steps instead.
+
+## 2026-08-22 (cont.) — Android v1.6.1 release-build verification + export fix
+
+First real on-device (emulator) verification of the **minified signed release** build since the app
+moved three feature versions ahead of the last Android artifact (v1.4.1.b9). Built a signed release
+APK via `android/build_release.ps1`, ran it on `nd_pixel`. **Emulator gotcha confirmed again:** a
+cold boot wedged at hypervisor init with `virtiowifi=1`; relaunching with `-feature -VirtioWifi`
+booted in ~33s (the same flag the tablet AVD needs).
+
+**Verified sound on the release build:** cold launch (Impeller, no crash); **no FFI failure under
+R8/minification** — Hunspell/Vosk are correctly `!Platform.isWindows`-guarded (`hunspell_ffi.dart:84`,
+`vosk_ffi.dart:94`) and not bundled on Android, so that risk is moot there; the one cross-platform
+native lib, `libsqlite3.so`, is bundled for all 3 ABIs with no app errors. Library / New Project /
+scene editor / manuscript-tree drawer / Settings / Backup&Vault all render correctly at phone width.
+Text entry + word tokenizer work.
+
+**Vault crypto verified independently.** Set a vault password (Argon2id ran clean on Android),
+triggered a real AES-256-GCM backup generation, pulled the encrypted `.vault` + salt + verifier off
+the device (`adb root`), and ran an **independent** check with pyca/cryptography (no Narraity code,
+`scratchpad/vault_crypto_test.py`): correct password → valid ZIP of the real project; wrong password,
+flipped ciphertext byte, and flipped GCM tag all → `InvalidTag`; verifier file =
+`HMAC(Argon2id(pw, salt-file), "narraity-vault-verifier")` matches for the right password only. The
+Android release build produces genuinely, standards-interoperably encrypted, tamper-evident vaults.
+
+**Bugs found and filed:**
+- **#9 (blocking, fixed this session):** export was completely broken on Android — every format
+  failed with *"The "bytes" parameter is required on Android & iOS when calling saveFile"*. On
+  mobile `file_picker.saveFile` writes the file itself and needs the bytes up front; the code used
+  the desktop model (get a path, then write to it). Never caught before because export had only ever
+  run on Windows. Fix: new `lib/services/platform_file_save.dart` (`saveBytesToUserFile`, branches
+  desktop-path vs mobile-bytes) used by the two review-export screens; `export_screen.dart` refactors
+  its format `switch` into a shared `_writeExport(path)` and, on mobile, renders to a temp file then
+  hands the bytes to `saveFile`. **Verified end-to-end on the emulator:** the SAF save dialog now
+  appears, and the saved PDF is valid (`%PDF-1.5`, `%%EOF`, 3 page objects, xref). `flutter analyze`
+  clean; export + review-export screen tests green.
+- **#7:** status bar shows "Spell check: on" (green) on Android where Hunspell can't run — the
+  indicator keys off the enabled-pref with no platform-availability check.
+- **#8:** "Comic" card-style label wraps to "Comi/c" in the New Project dialog at phone width.
+
+**Still needs a Google-account / real-device pass:** the Keystore *token* round-trip (needs a Drive/
+GitHub sign-in — the vault path above uses Argon2id, not the Keystore cipher), Drive sync + GitHub
+Feedback on the release build, and Android dictation (mic permission). No current Android build has
+been shipped to aity.uk/Play yet — the newest public artifact is still v1.4.1.b9.
