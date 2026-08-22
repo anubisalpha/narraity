@@ -6,6 +6,7 @@ import 'package:diff_match_patch/diff_match_patch.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/scene_snapshot.dart';
+import 'constant_time.dart';
 import 'history_signing_key_manager.dart';
 import 'snapshot_pruner.dart';
 
@@ -198,7 +199,9 @@ class SceneHistoryService {
       }
 
       final expectedSignature = _sign(snapshot.canonicalPayload());
-      final ok = snapshot.prevSignature == expectedPrev && snapshot.signature == expectedSignature;
+      final ok = constantTimeEquals(snapshot.prevSignature, expectedPrev) &&
+          expectedSignature != null &&
+          constantTimeEquals(snapshot.signature!, expectedSignature);
 
       if (ok) {
         result.add(VerifiedSnapshot(snapshot, SnapshotVerification.valid));

@@ -5,6 +5,8 @@ import 'dart:math';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:cryptography/cryptography.dart';
 
+import 'constant_time.dart';
+
 /// Derives and holds, in memory only, the key used to sign scene-history
 /// snapshots (see SceneHistoryService) — a password-derived key rather than
 /// one held in OS-specific secure storage.
@@ -91,7 +93,7 @@ class HistorySigningKeyManager {
     if (!await _verifierFile.exists()) return false;
     final expected = (await _verifierFile.readAsString()).trim();
     final key = await deriveKeyFor(password);
-    if (_verifierFor(key) != expected) return false;
+    if (!constantTimeEquals(_verifierFor(key), expected)) return false;
     _key = key;
     return true;
   }
