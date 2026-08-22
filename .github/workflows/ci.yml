@@ -6,10 +6,12 @@ on:
   pull_request:
 
 jobs:
-  test:
-    # Windows, not the cheaper ubuntu-latest: the test suite loads real
-    # vendored native libraries (libhunspell.dll, libvosk.dll) via dart:ffi,
-    # which are Windows binaries — see hunspell_ffi.dart/vosk_ffi.dart.
+  # Primary gate: the full suite on Windows, where the vendored Hunspell/Vosk
+  # FFI libraries (libhunspell.dll, libvosk.dll) actually load — several tests
+  # (e.g. spell_check_service_test) call DynamicLibrary.open on them at setup
+  # with no platform guard, so this suite genuinely only runs on Windows. Also
+  # collects coverage (uploaded as an artifact) — the authoritative number.
+  test-windows:
     runs-on: windows-latest
 
     steps:
@@ -26,5 +28,55 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
-      - name: Test
-        run: flutter test
+      - name: Test (full suite, with coverage)
+        run: flutter test --coverage
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-windows
+          path: coverage/lcov.info
+          if-no-files-found: error
+
+  # Secondary: Linux exercises the NON-Windows code paths the Windows job can
+  # never reach. Most importantly the plain-file OAuth token-store branch —
+  # DriveTokenStore/GitHubTokenStore.forPlatform() falls back to
+  # _PlainFileTokenStore off Windows/Android, so on a Windows-only CI that
+  # entire branch (and the security property that a token still round-trips
+  # there) never executes. Scoped to an explicit list of FFI-free test files so
+  # the missing Windows native libs can't break the run; do not broaden this to
+  # a bare `flutter test` (it would hit the Hunspell/Vosk DynamicLibrary.open
+  # calls and fail). Add new platform-agnostic suites here as they appear.
+  test-linux-crossplatform:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.35.5"
+          channel: "stable"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Test (non-Windows branches + platform-agnostic crypto)
+        run: >
+          flutter test --coverage
+          test/drive_token_store_test.dart
+          test/github_token_store_test.dart
+          test/drive_auth_service_test.dart
+          test/constant_time_test.dart
+          test/vault_service_test.dart
+          test/vault_flow_test.dart
+          test/vault_per_project_password_test.dart
+          test/history_signing_key_manager_test.dart
+          test/scene_history_service_test.dart
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-linux-crossplatform
+          path: coverage/lcov.info
+          if-no-files-found: error
