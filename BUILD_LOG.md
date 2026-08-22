@@ -2990,3 +2990,67 @@ default 30s under full-suite parallel load.
   desktop UI from this session) — wants a real hands-on pass before release.
 - **Accepted residual risk** (identical to the pre-existing `changePassword`): a crash in the narrow
   window between re-signing history and writing the verifier.
+
+## 2026-08-22 — Security review + test-coverage pass (token stores, constant-time HMAC)
+
+A focused audit of the crypto/security surface and its test coverage. No vulnerabilities found —
+the crypto engine (AES-256-GCM vault + Argon2id, HMAC-chained scene-history tamper-evidence, DPAPI/
+AndroidKeyStore token-at-rest) is well-designed and, for the core, already well-tested
+(`history_signing_key_manager` 100%, `vault_service` ~90%, `scene_history_service` ~85%). The gaps
+were the OAuth **token stores** and **auth service**, plus one piece of defensive hardening. Full
+suite: 673 → **696 tests**, all green.
+
+- **Token-store tests** (`test/drive_token_store_test.dart`, `test/github_token_store_test.dart`, 7
+  each). Exercise the persistence contract — save/load round-trip, survive-a-restart, overwrite,
+  clear, clear-when-empty — through the public `forPlatform(rootOverride:)` factory, so on a Windows
+  host they round-trip the **real DPAPI** path (`CryptProtectData`/`CryptUnprotectData` + the native
+  `_withBlob` memory handling), not a stub. Each includes a "token is not persisted verbatim" check
+  that reads every file in the store dir as raw bytes and asserts the token bytes are absent —
+  confirming encryption-at-rest actually happens on Windows (passes). `drive_token_store` coverage
+  **7.0% → 59.6%**; `github_token_store` stayed 54.4% (its lines were already hit by
+  `github_auth_service_test`, so the new file adds regression clarity rather than new lines).
+  - **Single-host ceiling:** on any one host only that platform's branch runs, so the ~40% still
+    uncovered per file is the *other* platform's store class (Android Keystore + plain-file on a
+    Windows run). CI is `windows-latest` only and collects no coverage, so those branches never
+    execute in CI. Covering both would need a multi-OS matrix — left as a noted option, not changed.
+
+- **`drive_auth_service` session-state tests** (`test/drive_auth_service_test.dart`, 3). Cover the
+  locally-decidable logic via an in-memory fake `DriveTokenStore`: `isSignedIn` both branches and
+  `signOut` clearing the token. The interactive consent flow and `refreshCredentials` network call
+  are out of scope (need a live browser + Google's servers). Coverage **14.5% → 27.3%**.
+
+- **Constant-time signature comparison** (`lib/services/constant_time.dart`, + test, 100%). New
+  `constantTimeEquals`/`constantTimeBytesEqual` helpers, wired into both HMAC-verification sites:
+  `history_signing_key_manager.unlock` (verifier check) and `scene_history_service` (per-snapshot
+  signature + chain check). Replaces `==` on HMAC-hex strings, which bails at the first mismatching
+  char. **Defence-in-depth, not a reachable hole** — signatures are verified against local files
+  with no network oracle to time adaptively, and the key is password-derived and never transmitted —
+  but it's ~free to be correct. Tamper-detection and wrong-password suites unchanged and green.
+
+- `flutter analyze` clean on all touched files. Overall project coverage 45.4% → 45.7% (headline is
+  dominated by UI: services layer is ~82%, widgets/screens ~20%).
+
+### CI: Windows+Linux matrix, coverage in CI
+
+`ci.yml` was Windows-only with **no coverage collection**. Now two jobs:
+- **`test-windows`** — the full suite (unchanged gate; the Hunspell/Vosk FFI `DynamicLibrary.open`
+  calls at test setup mean the full suite genuinely only runs on Windows) now with `--coverage`,
+  uploaded as an artifact.
+- **`test-linux-crossplatform`** — a new Ubuntu job running an **explicit FFI-free** list of tests
+  that specifically exercises the **non-Windows code paths the Windows job can never reach** — above
+  all the plain-file OAuth token-store branch (`forPlatform` → `_PlainFileTokenStore` off
+  Windows/Android). Scoped by file list on purpose: a bare `flutter test` on Linux would hit the
+  Hunspell/Vosk native-lib loads and fail. **Unverified caveat:** the Linux job can't be run from
+  the Windows dev machine — its first real proof is the initial GitHub Actions run after push.
+
+### Widget tests for the vault unlock dialog
+
+`vault_unlock_dialog.dart` was 0%. New `test/vault_unlock_dialog_test.dart` (4 tests) covers the
+dialog's wiring: wrong password → error shown + dialog stays open + no result; correct → pops `true`;
+"Skip for now" → pops `false`; per-project variant renders its book-specific copy. **Fakes
+`VaultStatusNotifier`** rather than driving real Argon2id — the crypto correctness is already covered
+at the provider level by `vault_flow_test`, and (learned the hard way) real Argon2id can't complete
+inside `testWidgets`' fake-async zone: an initial attempt that set up a real vault over a temp
+library hung every test to the 10-minute timeout. Two gotchas worth keeping: (1) that fake-async vs.
+real-crypto wall; (2) the dialog's `autofocus: true` `TextField` has a blinking-cursor timer that
+makes `pumpAndSettle` spin forever — pump a bounded number of fixed steps instead.
