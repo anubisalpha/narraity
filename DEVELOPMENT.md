@@ -123,3 +123,10 @@ needed. Full writeup in that file's doc comment.
 
 See [`BUILD_LOG.md`](BUILD_LOG.md) for a phase-by-phase record of what's been built, and
 [`PLAN.md`](PLAN.md) for the full project plan (all phases, including ones not built yet).
+
+## Releasing (aity release protocol)
+
+When a new build is published to aity.uk, follow `memory/aity_release_protocol.md` (get the user's go-ahead first):
+upload the versioned build, update the aity.uk page + `data/projects.json` + `sitemap.xml`, update this file, **and
+regenerate and upload the aity Hub manifest** (`python -I projects/aity-hub/tools/build_manifest.py`, then `scp`
+`Sites/aity.uk/apps.json`, after the APK is live). Raise `versionCode` on every build or aity Hub cannot offer it as an update.

@@ -19,7 +19,9 @@ AppName=Narraity
 AppVersion={#AppVersion}
 AppPublisher=Anubis Productions
 DefaultDirName={autopf}\Narraity
-DefaultGroupName=Narraity
+DefaultGroupName=aity
+DisableProgramGroupPage=yes
+UsePreviousGroup=no
 UninstallDisplayIcon={app}\narraity.exe
 Compression=lzma2
 SolidCompression=yes
@@ -38,6 +40,10 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "narraity-setup.exe"
+
+[InstallDelete]
+; Before the aity folder existed, shortcuts lived in Start menu\Programs\Narraity. Remove that old group on upgrade.
+Type: filesandordirs; Name: "{autoprograms}\Narraity"
 
 [Icons]
 Name: "{group}\Narraity"; Filename: "{app}\narraity.exe"
